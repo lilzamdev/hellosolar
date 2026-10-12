@@ -1319,7 +1319,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const faqToggle = document.getElementById('faqToggle');
         let faqsExpanded = false;
 
-        const DRAFT_KEY = 'hello_solar_installer_support_draft';
+        // Drafts are kept per installer account
+        const draftSession = window.HSShared ? window.HSShared.session.get('installer') : null;
+        const DRAFT_KEY = `hello_solar_installer_support_draft${draftSession ? ':' + draftSession.accountId : ''}`;
 
         // Auto-save helper for preservation across navigation & context changes
         function autoSaveDraft() {

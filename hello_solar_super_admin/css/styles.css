@@ -3801,7 +3801,7 @@ select.input-field.input-error {
 }
 
 /* Direct Installation Engineer role: only Applications + Installations (Direct) */
-body.role-direct-engineer .nav-link:not([data-page="applications"]):not([data-page="installations"]),
+body.role-direct-engineer .nav-link:not([data-page="applications"]):not([data-page="installations"]):not([data-page="site-visits"]),
 body.role-direct-engineer .search-box,
 body.role-direct-engineer .icon-btn-wrap,
 body.role-direct-engineer #dropdownProfile,
@@ -4727,4 +4727,70 @@ td.num {
   gap: 6px;
   font-size: 11.5px;
   color: var(--muted);
+}
+
+/* Inline text button (e.g. "View receipt" in the application summary) */
+.link-btn {
+  padding: 0;
+  margin-left: 4px;
+  font: inherit;
+  font-weight: 800;
+  color: var(--orange);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  filter: brightness(0.9);
+}
+
+
+/* ── Overview: 6 KPI cards (Site Visits added) ── */
+.kpi-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.sidebar.collapsed~.main-wrapper .kpi-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+@media (max-width: 1380px) {
+  .kpi-grid>.kpi-card:nth-child(n) {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 900px) {
+  .kpi-grid>.kpi-card:nth-child(n) {
+    grid-column: auto;
+  }
+}
+
+/* Site Visits: assignment select inside the table */
+.sv-assign-select {
+  width: 100%;
+  min-width: 190px;
+  font-size: 12.5px;
+  padding: 6px 8px;
+}
+
+.sv-assignee strong {
+  display: block;
+  font-size: 13px;
+}
+
+.sv-assignee small {
+  display: block;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.acc-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
 }

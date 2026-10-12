@@ -430,11 +430,16 @@ function closeModal(id) {
 // Close modal on escape key or backdrop click
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        ['recommendationModal', 'productDetailModal', 'inquiryModal'].forEach(closeModal);
+        const terms = document.getElementById('termsModal');
+        if (terms && !terms.classList.contains('hidden')) {
+            closeTerms();
+            return;
+        }
+        ['recommendationModal', 'productDetailModal', 'inquiryModal', 'assessmentModal', 'paymentModal'].forEach(closeModal);
     }
 });
 
-['recommendationModal', 'productDetailModal', 'inquiryModal'].forEach(id => {
+['recommendationModal', 'productDetailModal', 'inquiryModal', 'assessmentModal', 'paymentModal', 'termsModal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
         el.addEventListener('click', (e) => {
@@ -731,11 +736,11 @@ function renderWizard() {
                 <div class="space-y-2.5 pt-1">
                     <button onclick="startInquiry('${rec.id}')"
                         class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold py-4 px-6 rounded-full flex items-center justify-center gap-2 transition text-xs sm:text-sm shadow-sm hover:shadow-md active:scale-98 cursor-pointer">
-                        Request ${rec.name} Assessment &rarr;
+                        Buy Now &rarr;
                     </button>
-                    <button onclick="viewProductDetails('${rec.id}')"
-                        class="w-full border border-stone-300 hover:bg-amber-50/50 text-stone-700 font-extrabold py-3 px-4 rounded-xl text-xs transition cursor-pointer">
-                        View Technical Specifications
+                    <button onclick="startAssessment('${rec.id}')"
+                        class="w-full bg-[#1C1917] hover:bg-black text-white font-extrabold py-4 px-6 rounded-full flex items-center justify-center gap-2 transition text-xs sm:text-sm shadow-sm cursor-pointer">
+                        Request ${rec.name} Assessment
                     </button>
                     <button onclick="wizardState.step = 1; renderWizard();"
                         class="w-full text-center text-xs font-bold text-stone-400 hover:text-stone-700 py-1 transition flex items-center justify-center gap-1 cursor-pointer">
@@ -840,9 +845,12 @@ function viewProductDetails(productId) {
             </div>
 
             <!-- Action Buttons -->
-            <div class="pt-1">
+            <div class="pt-1 space-y-2.5">
                 <button onclick="startInquiry('${product.id}')" class="w-full h-12 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold px-4 rounded-xl flex items-center justify-center gap-2 transition text-sm shadow-sm hover:shadow cursor-pointer">
-                    Request ${product.name} Assessment &rarr;
+                    Buy Now &rarr;
+                </button>
+                <button onclick="startAssessment('${product.id}')" class="w-full h-12 bg-[#1C1917] hover:bg-black text-white font-extrabold px-4 rounded-xl flex items-center justify-center gap-2 transition text-sm cursor-pointer">
+                    Request ${product.name} Assessment
                 </button>
             </div>
         </div>
@@ -851,18 +859,14 @@ function viewProductDetails(productId) {
     openModal('productDetailModal');
 }
 
-// START INQUIRY
+// BUY NOW (package, payment type & contact details → Terms → Payment modal for the ₱10,000 down payment)
 function startInquiry(productId) {
     closeModal('recommendationModal');
     closeModal('productDetailModal');
 
-    // Reset form view
-    const form = document.getElementById('leadForm');
-    const successScreen = document.getElementById('leadSuccessScreen');
-    if (form) form.classList.remove('hidden');
-    if (successScreen) successScreen.classList.add('hidden');
-    document.getElementById('leadFormHeader')?.classList.remove('hidden');
     clearLeadErrors();
+    setTermsError('lead', '');
+    loadPhData('cities');
 
     // Sync package dropdown
     if (productId) {
@@ -944,6 +948,10 @@ function setCustomDropdownValue(inputId, value) {
 function setLeadPayment(value) {
     const input = document.getElementById('leadPayment');
     const val = value === 'Installment' ? 'Installment' : 'Full Payment';
+    if (input && input.value !== val) {
+        const agree = document.getElementById('leadTerms');
+        if (agree) agree.checked = false; // terms differ per plan
+    }
     if (input) input.value = val;
     document.querySelectorAll('#leadPaymentOptions .pay-option').forEach(btn => {
         const active = btn.getAttribute('data-payment') === val;
@@ -956,13 +964,7 @@ function setLeadPayment(value) {
 
 // Main button label follows the payment type and the selected package price (label only)
 function getSubmitLabelHTML() {
-    const payInput = document.getElementById('leadPayment');
-    if (payInput && payInput.value === 'Installment') {
-        return `<span>Start Installment</span> &rarr;`;
-    }
-    const pkgInput = document.getElementById('leadPackage');
-    const product = PRODUCTS[pkgInput && pkgInput.value] || PRODUCTS['hs6-lite'];
-    return `<span>Pay Now — ${product.cashPrice}</span> &rarr;`;
+    return `<span>Pay Now</span> &rarr;`;
 }
 
 function renderSubmitLabel() {
@@ -1213,7 +1215,10 @@ function getLeadError(id) {
         if (!value) return 'Please enter your mobile number.';
         return digits.length >= 10 && digits.length <= 13 ? '' : 'Enter a valid mobile number, e.g. 0917 123 4567.';
     }
-    if (id === 'leadLocation') return value ? '' : 'Please enter your city.';
+    if (id === 'leadLocation') {
+        if (document.getElementById('leadCityCode').value) return '';
+        return value ? 'Please choose your city from the list.' : 'Please enter your city.';
+    }
     if (id === 'leadEmail') return !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? '' : 'Enter a valid email address.';
     return '';
 }
@@ -1277,118 +1282,747 @@ function queueCustomerInquiry(record) {
         localStorage.setItem(CUSTOMER_INQUIRY_KEY, JSON.stringify(queue));
         return true;
     } catch (err) {
+        // Storage full (large receipt): keep the inquiry and the receipt details, drop only the file data
+        if (record.paymentProof && record.paymentProof.dataUrl) {
+            console.warn('Receipt too large for local storage; saving inquiry without the file preview.', err);
+            return queueCustomerInquiry({ ...record, paymentProof: { ...record.paymentProof, dataUrl: null, storageNote: 'File too large for local prototype storage' } });
+        }
         console.warn('Could not queue customer inquiry:', err);
         return false;
     }
 }
 
-// HANDLE LEAD SUBMISSION
+// HANDLE BUY NOW SUBMISSION → Payment modal
 function handleLeadSubmit(e) {
     e.preventDefault();
 
     if (!validateLeadForm()) return;
-
-    const submitBtn = document.getElementById('submitLeadBtn');
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = `<span>Sending…</span>`;
-    }
+    if (!validateTerms('lead')) return;
 
     const packageId = document.getElementById('leadPackage').value;
     const name = document.getElementById('leadName').value.trim();
     const phone = document.getElementById('leadPhone').value.trim();
     const email = document.getElementById('leadEmail').value.trim();
     const location = document.getElementById('leadLocation').value.trim();
+    const cityCode = document.getElementById('leadCityCode').value;
     const bill = document.getElementById('leadBill').value;
     const paymentEl = document.getElementById('leadPayment');
     const payment = paymentEl ? paymentEl.value : 'Full Payment';
+    const pkg = PRODUCTS[packageId] || {};
+    const ts = new Date();
+    const leadId = 'lead_' + ts.getTime();
+    const nameParts = name.split(/\s+/);
+    const planText = payment === 'Installment' ? `Installment · ${pkg.monthly}/mo, 5 yrs` : `Full Payment · ${pkg.cashPrice}`;
 
-    const leadData = {
-        id: 'lead_' + Date.now(),
-        timestamp: new Date().toISOString(),
+    openPaymentModal({
+        kind: 'purchase',
+        returnModal: 'inquiryModal',
+        amount: DOWN_PAYMENT_AMOUNT,
+        purpose: 'Down Payment',
         packageId,
-        packageName: (PRODUCTS[packageId] || {}).name || packageId,
         name,
-        phone,
-        email,
-        location,
-        bill,
-        payment
+        summary: [
+            ['System', pkg.name || packageId],
+            ['Payment Plan', planText],
+            ['Down Payment', formatPeso(DOWN_PAYMENT_AMOUNT)]
+        ],
+        lead: { id: leadId, timestamp: ts.toISOString(), packageId, packageName: pkg.name || packageId, name, phone, email, location, bill, payment },
+        // Super Admin → Contact Inquiries (customer inquiry); queued after the proof of payment is uploaded
+        record: {
+            id: 'INQ-' + leadId.replace('lead_', 'LP'),
+            inquiryType: 'Customer',
+            requestType: 'Buy Now',
+            source: 'Landing Page — Buy Now',
+            leadId,
+            name,
+            firstName: nameParts.length > 1 ? nameParts.slice(0, -1).join(' ') : name,
+            lastName: nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
+            email,
+            phone,
+            location,
+            cityCode,
+            category: (packageId === 'hs10-pro' || packageId === 'hs12-max') ? 'Commercial Solar' : 'Residential Solar',
+            packageId,
+            package: PKG_LABELS[packageId] || pkg.name || packageId,
+            selectedSolarModel: PKG_LABELS[packageId] || pkg.name || packageId,
+            electricBill: bill,
+            paymentPreference: payment,
+            paymentType: payment,
+            // Selected package pricing (shared application uses these exact values)
+            packagePrice: parsePeso(pkg.cashPrice),
+            monthlyPayment: parsePeso(pkg.monthly),
+            termMonths: INSTALLMENT_TERM_MONTHS,
+            downPayment: INSTALLMENT_DOWN_PAYMENT,
+            subject: `${pkg.name || 'Solar'} Purchase Request`,
+            message: `Buy Now request for ${pkg.name || packageId} (${planText}). Monthly bill: ${bill}. ₱10,000 down payment proof submitted for verification.`,
+            termsAcceptedAt: ts.toISOString(),
+            status: 'Unread',
+            inquiryStatus: 'Not Sent',
+            customerResponse: 'Awaiting Response',
+            confirmationEmailSentAt: null,
+            timestamp: ts.toISOString()
+        }
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SITE ASSESSMENT (ready for site visit) → Terms → Payment modal for the ₱1,000 site visit fee
+// ─────────────────────────────────────────────────────────────────────────────
+// Bank account shown in the Payment modal. Replace these sample values with Hello Solar's official account.
+const HS_BANK_DETAILS = {
+    bankName: 'BDO Unibank',
+    accountName: 'Hello Solar',
+    accountNumber: '0000 0000 0000'
+};
+const SITE_VISIT_FEE = 1000;
+const DOWN_PAYMENT_AMOUNT = INSTALLMENT_DOWN_PAYMENT;
+const REFUND_POLICY = 'Refundable should you proceed with the installation; non-refundable should you decide not to proceed.';
+const PAYMENT_POLICY = {
+    assessment: `<strong>Refund Policy:</strong> ${REFUND_POLICY}`,
+    purchase: `<strong>Refund Policy:</strong> ${REFUND_POLICY}`
+};
+
+// Terms & Conditions per request type (shown in the Terms modal)
+const TERMS = {
+    assessment: {
+        badge: 'Site Assessment',
+        items: [
+            'A site visit fee of <strong>₱1,000</strong> covers the technical inspection of your roof and electrical setup.',
+            'Your preferred date is subject to availability. We will contact you to confirm the schedule.',
+            'Your booking is confirmed once your payment has been verified.',
+            'An adult representative must be present, with the roof and electrical panel accessible.',
+            '<strong>Refund Policy:</strong> The site visit fee is refundable should you proceed with the installation, and non-refundable should you decide not to proceed.',
+            'Your personal information is used only to process your request, in line with the Data Privacy Act of 2012.'
+        ]
+    },
+    full: {
+        badge: 'Full Payment',
+        items: [
+            'A <strong>₱10,000</strong> down payment is required to process your order.',
+            'The down payment is deducted from your total system price.',
+            'The remaining balance must be paid in full before installation.',
+            'A site assessment is conducted before installation to confirm the final system design.',
+            '<strong>Refund Policy:</strong> The down payment is refundable should you proceed with the installation, and non-refundable should you decide not to proceed.',
+            'Your personal information is used only to process your request, in line with the Data Privacy Act of 2012.'
+        ]
+    },
+    installment: {
+        badge: 'Installment',
+        items: [
+            'A <strong>₱10,000</strong> down payment is required to process your application.',
+            'The remaining balance is payable in <strong>60 monthly installments</strong> (5 years).',
+            'Installment plans are subject to approval by Hello Solar\'s financing partners. Supporting documents may be requested.',
+            'Payment terms are governed by the financing agreement you sign upon approval.',
+            'A site assessment is conducted before installation to confirm the final system design.',
+            '<strong>Refund Policy:</strong> The down payment is refundable should you proceed with the installation, and non-refundable should you decide not to proceed.',
+            'Your personal information is used only to process your request, in line with the Data Privacy Act of 2012.'
+        ]
+    }
+};
+let termsTarget = null; // 'assess' or 'lead' — the checkbox that "I Agree" ticks
+
+function leadTermsKind() {
+    return (document.getElementById('leadPayment') || {}).value === 'Installment' ? 'installment' : 'full';
+}
+
+function openTerms(kind) {
+    const t = TERMS[kind] || TERMS.assessment;
+    termsTarget = kind === 'assessment' ? 'assess' : 'lead';
+    document.getElementById('termsBadge').textContent = t.badge;
+    document.getElementById('termsList').innerHTML = t.items.map(i => `<li>${i}</li>`).join('');
+    openModal('termsModal');
+}
+
+function closeTerms() {
+    closeModal('termsModal');
+}
+
+function agreeTerms() {
+    const box = termsTarget && document.getElementById(termsTarget + 'Terms');
+    if (box) {
+        box.checked = true;
+        setTermsError(termsTarget, '');
+    }
+    closeTerms();
+}
+
+// ── LOCATION PICKERS: real Philippine cities / municipalities and barangays (PSGC-based data) ──
+// Data files load on demand (script tags also work when the page is opened from a local file).
+const PH_DATA = {
+    cities: { src: 'js/data/ph-cities.js', global: 'PH_CITIES', promise: null },
+    barangays: { src: 'js/data/ph-barangays.js', global: 'PH_BARANGAYS', promise: null }
+};
+let phCityOptions = null;
+
+function loadPhData(key) {
+    const d = PH_DATA[key];
+    if (window[d.global]) return Promise.resolve(window[d.global]);
+    if (!d.promise) {
+        d.promise = new Promise((resolve, reject) => {
+            const tag = document.createElement('script');
+            tag.src = d.src;
+            tag.onload = () => resolve(window[d.global]);
+            tag.onerror = () => { d.promise = null; reject(new Error('Could not load ' + d.src)); };
+            document.head.appendChild(tag);
+        });
+    }
+    return d.promise;
+}
+
+function normalizePlace(text) {
+    return String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function getCityOptions() {
+    if (!phCityOptions && window.PH_CITIES) {
+        phCityOptions = window.PH_CITIES.map(([code, name, province]) => {
+            const label = province && province !== name ? `${name}, ${province}` : name;
+            return { value: code, label, main: name, sub: province, key: normalizePlace(name), full: normalizePlace(label) };
+        });
+    }
+    return phCityOptions || [];
+}
+
+function getBarangayOptions(cityCode) {
+    const list = (window.PH_BARANGAYS && window.PH_BARANGAYS[cityCode]) || [];
+    return list.map(n => ({ value: n, label: n, main: n, key: normalizePlace(n), full: normalizePlace(n) }));
+}
+
+function filterPlaces(options, query) {
+    const q = normalizePlace(query);
+    if (!q) return options.slice(0, 60);
+    const starts = [], contains = [];
+    for (const o of options) {
+        if (o.key.startsWith(q) || o.full.startsWith(q)) starts.push(o);
+        else if (o.full.includes(q)) contains.push(o);
+        if (starts.length >= 60) break;
+    }
+    return starts.concat(contains).slice(0, 60);
+}
+
+function resetLocationPicker(inputId) {
+    const input = document.getElementById(inputId);
+    const wrap = input && input.closest('.hs-combo');
+    if (!wrap) return;
+    input.value = '';
+    document.getElementById(wrap.dataset.valueInput).value = '';
+    wrap.dispatchEvent(new CustomEvent('combo-change'));
+}
+
+function initLocationPickers() {
+    document.querySelectorAll('.hs-combo').forEach(wrap => {
+        const input = wrap.querySelector('input[role="combobox"]');
+        const list = wrap.querySelector('.hs-combo-list');
+        const valueInput = document.getElementById(wrap.dataset.valueInput);
+        const kind = wrap.dataset.combo;
+        let shown = [];
+        let active = -1;
+
+        const options = () => kind === 'city'
+            ? getCityOptions()
+            : getBarangayOptions(document.getElementById(wrap.dataset.cityInput).value);
+
+        function close() {
+            list.classList.add('hidden');
+            input.setAttribute('aria-expanded', 'false');
+            input.removeAttribute('aria-activedescendant');
+            active = -1;
+        }
+
+        function render() {
+            shown = filterPlaces(options(), input.value);
+            active = shown.length ? 0 : -1;
+            list.innerHTML = shown.length
+                ? shown.map((o, i) => `<li role="option" id="${input.id}Opt${i}" data-i="${i}" class="${i === active ? 'is-active' : ''}">${escapeHTML(o.main)}${o.sub ? `<small>${escapeHTML(o.sub)}</small>` : ''}</li>`).join('')
+                : `<li class="hs-combo-empty">No matching ${kind === 'city' ? 'city or municipality' : 'barangay'}</li>`;
+            list.classList.remove('hidden');
+            input.setAttribute('aria-expanded', 'true');
+            if (active >= 0) input.setAttribute('aria-activedescendant', `${input.id}Opt0`);
+        }
+
+        function setActive(i) {
+            if (!shown.length) return;
+            active = (i + shown.length) % shown.length;
+            list.querySelectorAll('li[role="option"]').forEach((li, j) => li.classList.toggle('is-active', j === active));
+            const li = list.querySelector(`[data-i="${active}"]`);
+            if (li) {
+                li.scrollIntoView({ block: 'nearest' });
+                input.setAttribute('aria-activedescendant', li.id);
+            }
+        }
+
+        function select(o) {
+            input.value = o.label;
+            valueInput.value = o.value;
+            setLeadError(input.id, '');
+            close();
+            wrap.dispatchEvent(new CustomEvent('combo-change'));
+        }
+
+        function open() {
+            const ready = kind === 'city' ? loadPhData('cities') : loadPhData('barangays');
+            ready.then(render).catch(() => {
+                list.innerHTML = '<li class="hs-combo-empty">Location list unavailable. Please refresh the page.</li>';
+                list.classList.remove('hidden');
+            });
+        }
+
+        input.addEventListener('focus', open);
+        input.addEventListener('input', () => {
+            if (valueInput.value) {
+                valueInput.value = '';
+                wrap.dispatchEvent(new CustomEvent('combo-change'));
+            }
+            open();
+        });
+        input.addEventListener('keydown', e => {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (list.classList.contains('hidden')) open();
+                else setActive(active + (e.key === 'ArrowDown' ? 1 : -1));
+            } else if (e.key === 'Enter') {
+                if (!list.classList.contains('hidden') && shown[active]) {
+                    e.preventDefault();
+                    select(shown[active]);
+                }
+            } else if (e.key === 'Escape' && !list.classList.contains('hidden')) {
+                e.stopPropagation();
+                close();
+            }
+        });
+        // mousedown keeps focus in the input so the choice registers before blur
+        list.addEventListener('mousedown', e => {
+            const li = e.target.closest('li[data-i]');
+            if (!li) return; // clicking the "no match" row lets the input blur and the list close
+            e.preventDefault();
+            select(shown[Number(li.dataset.i)]);
+        });
+        input.addEventListener('blur', () => {
+            // Typed an exact name without picking it: accept it only if it matches one real place
+            if (!valueInput.value && input.value.trim()) {
+                const q = normalizePlace(input.value);
+                const exact = options().filter(o => o.full === q || o.key === q);
+                if (exact.length === 1) select(exact[0]);
+            }
+            close();
+        });
+
+        // Barangay picker follows its city
+        if (kind === 'city') {
+            wrap.addEventListener('combo-change', () => {
+                const brgyWrap = document.querySelector(`.hs-combo[data-city-input="${wrap.dataset.valueInput}"]`);
+                if (!brgyWrap) return;
+                const brgyInput = brgyWrap.querySelector('input[role="combobox"]');
+                brgyInput.value = '';
+                document.getElementById(brgyWrap.dataset.valueInput).value = '';
+                brgyInput.disabled = !valueInput.value;
+                brgyInput.placeholder = valueInput.value ? 'Search your barangay' : 'Select city first';
+                setLeadError(brgyInput.id, '');
+                if (valueInput.value) loadPhData('barangays').catch(() => {});
+            });
+        }
+    });
+}
+
+// Contact numbers: digits (and spaces) only — letters and symbols are removed as they are typed or pasted
+function initDigitsOnly() {
+    document.querySelectorAll('[data-digits-only]').forEach(input => {
+        input.addEventListener('input', () => {
+            const clean = input.value.replace(/[^\d ]/g, '');
+            if (clean !== input.value) input.value = clean;
+        });
+    });
+}
+const ASSESS_FIELDS = ['assessDate', 'assessName', 'assessPhone', 'assessEmail', 'assessCity', 'assessBarangay', 'assessStreet'];
+
+function formatPeso(n) {
+    return '₱' + Number(n).toLocaleString('en-PH');
+}
+
+function localISODate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatVisitDate(iso) {
+    const d = new Date(iso + 'T00:00:00');
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-PH', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function setTermsError(prefix, message) {
+    const err = document.getElementById(prefix + 'TermsError');
+    if (err) {
+        err.textContent = message || '';
+        err.classList.toggle('hidden', !message);
+    }
+    const box = document.getElementById(prefix + 'Terms')?.closest('.hs-agree');
+    if (box) box.classList.toggle('is-invalid', !!message);
+}
+
+function validateTerms(prefix) {
+    const box = document.getElementById(prefix + 'Terms');
+    if (box && box.checked) {
+        setTermsError(prefix, '');
+        return true;
+    }
+    setTermsError(prefix, 'Please read and accept the Terms & Conditions to continue.');
+    if (box) box.focus();
+    return false;
+}
+
+function getAssessError(id) {
+    const value = (document.getElementById(id)?.value || '').trim();
+    if (id === 'assessDate') {
+        if (!value) return 'Please choose your preferred visit date.';
+        return value >= document.getElementById('assessDate').min ? '' : 'Please choose a date from tomorrow onwards.';
+    }
+    if (id === 'assessName') return value.length >= 2 ? '' : 'Please enter your full name.';
+    if (id === 'assessPhone') {
+        const digits = value.replace(/\D/g, '');
+        if (!value) return 'Please enter your contact number.';
+        return digits.length >= 10 && digits.length <= 13 ? '' : 'Enter a valid mobile number, e.g. 0917 123 4567.';
+    }
+    if (id === 'assessEmail') {
+        if (!value) return 'Please enter your email.';
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? '' : 'Enter a valid email address.';
+    }
+    if (id === 'assessCity') {
+        if (document.getElementById('assessCityCode').value) return '';
+        return value ? 'Please choose your city from the list.' : 'Please enter your city.';
+    }
+    if (id === 'assessBarangay') {
+        if (document.getElementById('assessBarangayValue').value) return '';
+        if (!document.getElementById('assessCityCode').value) return 'Please choose your city first.';
+        return value ? 'Please choose your barangay from the list.' : 'Please choose your barangay.';
+    }
+    if (id === 'assessStreet') return value.length >= 3 ? '' : 'Please enter your house no. and street.';
+    return '';
+}
+
+function validateAssessForm() {
+    let firstInvalid = null;
+    ASSESS_FIELDS.forEach(id => {
+        const msg = getAssessError(id);
+        setLeadError(id, msg);
+        if (msg && !firstInvalid) firstInvalid = document.getElementById(id);
+    });
+    if (firstInvalid) firstInvalid.focus();
+    return !firstInvalid;
+}
+
+function initAssessmentForm() {
+    ASSESS_FIELDS.forEach(id => {
+        const input = document.getElementById(id);
+        if (!input) return;
+        const evt = input.type === 'date' ? 'change' : 'input';
+        input.addEventListener(evt, () => {
+            if (input.classList.contains('is-invalid') && !getAssessError(id)) setLeadError(id, '');
+        });
+        input.addEventListener('blur', () => {
+            if (input.value.trim()) setLeadError(id, getAssessError(id));
+        });
+    });
+    ['assess', 'lead'].forEach(prefix => {
+        document.getElementById(prefix + 'Terms')?.addEventListener('change', e => {
+            if (e.target.checked) setTermsError(prefix, '');
+        });
+    });
+}
+
+function startAssessment(productId) {
+    closeModal('recommendationModal');
+    closeModal('productDetailModal');
+    const product = PRODUCTS[productId] || PRODUCTS['hs6-lite'];
+    document.getElementById('assessPackage').value = product.id;
+    document.getElementById('assessSystemName').textContent = product.name;
+    // Earliest visit date is tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    document.getElementById('assessDate').min = localISODate(tomorrow);
+    ASSESS_FIELDS.forEach(id => setLeadError(id, ''));
+    setTermsError('assess', '');
+    loadPhData('cities');
+    openModal('assessmentModal');
+}
+
+function handleAssessmentSubmit(e) {
+    e.preventDefault();
+    if (!validateAssessForm()) return;
+    if (!validateTerms('assess')) return;
+
+    const packageId = document.getElementById('assessPackage').value;
+    const pkg = PRODUCTS[packageId] || {};
+    const visitDate = document.getElementById('assessDate').value;
+    const name = document.getElementById('assessName').value.trim();
+    const phone = document.getElementById('assessPhone').value.trim();
+    const email = document.getElementById('assessEmail').value.trim();
+    const street = document.getElementById('assessStreet').value.trim();
+    const barangay = document.getElementById('assessBarangayValue').value;
+    const cityLabel = document.getElementById('assessCity').value.trim();
+    const cityCode = document.getElementById('assessCityCode').value;
+    const location = `${street}, Brgy. ${barangay.replace(/^Barangay /, '')}, ${cityLabel}`;
+    const nameParts = name.split(/\s+/);
+    const ts = new Date();
+    const bill = wizardState.bill || '';
+
+    openPaymentModal({
+        kind: 'assessment',
+        returnModal: 'assessmentModal',
+        amount: SITE_VISIT_FEE,
+        purpose: 'Site Visit Fee',
+        packageId,
+        name,
+        visitDate,
+        summary: [
+            ['System', pkg.name || packageId],
+            ['Preferred Visit', formatVisitDate(visitDate)],
+            ['Site Visit Fee', formatPeso(SITE_VISIT_FEE)]
+        ],
+        record: {
+            id: 'INQ-SA' + ts.getTime(),
+            inquiryType: 'Customer',
+            requestType: 'Site Assessment',
+            source: 'Landing Page — Site Assessment',
+            name,
+            firstName: nameParts.length > 1 ? nameParts.slice(0, -1).join(' ') : name,
+            lastName: nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
+            email,
+            phone,
+            location,
+            address: { street, barangay, city: cityLabel, cityCode },
+            preferredVisitDate: visitDate,
+            category: (packageId === 'hs10-pro' || packageId === 'hs12-max') ? 'Commercial Solar' : 'Residential Solar',
+            packageId,
+            package: PKG_LABELS[packageId] || pkg.name || packageId,
+            selectedSolarModel: PKG_LABELS[packageId] || pkg.name || packageId,
+            electricBill: bill ? bill.replace('–', ' – ') : 'Not provided',
+            paymentPreference: 'Not specified',
+            packagePrice: parsePeso(pkg.cashPrice),
+            monthlyPayment: parsePeso(pkg.monthly),
+            termMonths: INSTALLMENT_TERM_MONTHS,
+            downPayment: INSTALLMENT_DOWN_PAYMENT,
+            subject: `${pkg.name || 'Solar'} Site Assessment Request`,
+            message: `Requested a site assessment (site visit) for ${pkg.name || packageId} on ${formatVisitDate(visitDate)} at ${location}. ₱1,000 site visit fee proof submitted for verification.`,
+            termsAcceptedAt: ts.toISOString(),
+            status: 'Unread',
+            inquiryStatus: 'Not Sent',
+            customerResponse: 'Awaiting Response',
+            confirmationEmailSentAt: null,
+            timestamp: ts.toISOString()
+        }
+    });
+}
+
+// ── PAYMENT MODAL (bank details + proof of payment upload) ──
+let pendingPayment = null;
+const MAX_PROOF_BYTES = 5 * 1024 * 1024;
+
+function openPaymentModal(payment) {
+    pendingPayment = payment;
+    closeModal(payment.returnModal);
+    const pkg = PRODUCTS[payment.packageId] || {};
+    document.getElementById('payBadge').textContent = payment.kind === 'assessment' ? 'Site Assessment · Payment' : 'Buy Now · Payment';
+    document.getElementById('payPurpose').textContent = payment.purpose;
+    document.getElementById('paySystem').textContent = pkg.name || payment.packageId;
+    document.getElementById('payAmount').textContent = formatPeso(payment.amount);
+    document.getElementById('payBankName').textContent = HS_BANK_DETAILS.bankName;
+    document.getElementById('payAccountName').textContent = HS_BANK_DETAILS.accountName;
+    document.getElementById('payAccountNumber').textContent = HS_BANK_DETAILS.accountNumber;
+    document.getElementById('payPolicy').innerHTML = PAYMENT_POLICY[payment.kind];
+    document.getElementById('payReference').value = '';
+    resetProofUpload();
+    document.getElementById('payFormView').classList.remove('hidden');
+    document.getElementById('paySuccessView').classList.add('hidden');
+    const btn = document.getElementById('paySubmitBtn');
+    btn.disabled = false;
+    btn.innerHTML = '<span>Submit Proof of Payment</span>';
+    setTimeout(() => openModal('paymentModal'), 200);
+}
+
+function backFromPayment() {
+    const back = pendingPayment && pendingPayment.returnModal;
+    closeModal('paymentModal');
+    if (back) setTimeout(() => openModal(back), 200);
+}
+
+function copyAccountNumber(btn) {
+    const text = HS_BANK_DETAILS.accountNumber.replace(/\s/g, '');
+    const done = () => {
+        btn.textContent = 'Copied';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => {});
+}
+
+function setProofError(message) {
+    const err = document.getElementById('payProofError');
+    if (err) {
+        err.textContent = message || '';
+        err.classList.toggle('hidden', !message);
+    }
+    document.getElementById('payUploadBox')?.classList.toggle('is-invalid', !!message);
+}
+
+function resetProofUpload() {
+    if (pendingPayment) pendingPayment.proof = null;
+    const input = document.getElementById('payProof');
+    if (input) input.value = '';
+    document.getElementById('payUploadBox')?.classList.remove('has-file');
+    document.getElementById('payUploadEmpty')?.classList.remove('hidden');
+    document.getElementById('payUploadFile')?.classList.add('hidden');
+    const thumb = document.getElementById('payUploadThumb');
+    if (thumb) { thumb.removeAttribute('src'); thumb.classList.add('hidden'); }
+    setProofError('');
+}
+
+// Images are resized/compressed so the receipt fits in the prototype's local storage queue
+function compressImage(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('read'));
+        reader.onload = () => {
+            const img = new Image();
+            img.onerror = () => reject(new Error('decode'));
+            img.onload = () => {
+                const scale = Math.min(1, 1400 / Math.max(img.width, img.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(img.width * scale);
+                canvas.height = Math.round(img.height * scale);
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', 0.78));
+            };
+            img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function readAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('read'));
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+    });
+}
+
+async function handleProofSelected(file) {
+    if (!file || !pendingPayment) return;
+    const isImage = /^image\/(jpeg|png|webp)$/.test(file.type);
+    const isPdf = file.type === 'application/pdf';
+    if (!isImage && !isPdf) {
+        resetProofUpload();
+        setProofError('Please upload a JPG, PNG or PDF file.');
+        return;
+    }
+    if (file.size > MAX_PROOF_BYTES) {
+        resetProofUpload();
+        setProofError('File is too large. Please upload a file up to 5 MB.');
+        return;
+    }
+    try {
+        const dataUrl = isImage ? await compressImage(file) : await readAsDataURL(file);
+        pendingPayment.proof = { fileName: file.name, fileType: isImage ? 'image/jpeg' : 'application/pdf', fileSize: file.size, dataUrl };
+    } catch (err) {
+        resetProofUpload();
+        setProofError('We could not read this file. Please try another one.');
+        return;
+    }
+    setProofError('');
+    document.getElementById('payUploadBox').classList.add('has-file');
+    document.getElementById('payUploadEmpty').classList.add('hidden');
+    document.getElementById('payUploadFile').classList.remove('hidden');
+    document.getElementById('payUploadName').textContent = file.name;
+    const thumb = document.getElementById('payUploadThumb');
+    if (isImage) {
+        thumb.src = pendingPayment.proof.dataUrl;
+        thumb.classList.remove('hidden');
+    } else {
+        thumb.removeAttribute('src');
+        thumb.classList.add('hidden');
+    }
+}
+
+function initPaymentModal() {
+    document.getElementById('payProof')?.addEventListener('change', e => handleProofSelected(e.target.files && e.target.files[0]));
+}
+
+function handlePaymentSubmit(e) {
+    e.preventDefault();
+    if (!pendingPayment) return;
+    if (!pendingPayment.proof) {
+        setProofError('Please upload your receipt as proof of payment.');
+        document.getElementById('payUploadBox')?.focus();
+        return;
+    }
+
+    const btn = document.getElementById('paySubmitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span>Submitting…</span>';
+
+    const p = pendingPayment;
+    const submittedAt = new Date().toISOString();
+    const record = {
+        ...p.record,
+        paymentStatus: 'Pending Verification',
+        paymentProof: {
+            purpose: p.purpose,
+            amount: p.amount,
+            referenceNo: document.getElementById('payReference').value.trim(),
+            bankName: HS_BANK_DETAILS.bankName,
+            fileName: p.proof.fileName,
+            fileType: p.proof.fileType,
+            fileSize: p.proof.fileSize,
+            dataUrl: p.proof.dataUrl,
+            status: 'Pending Verification',
+            submittedAt
+        }
     };
 
-    // Save to LocalStorage (local prototype mode only)
-    if (!(window.HS_CONFIG && window.HS_CONFIG.isApi)) try {
+    // Buy Now leads are also kept in the legacy local lead log (local prototype mode only)
+    if (p.lead && !(window.HS_CONFIG && window.HS_CONFIG.isApi)) try {
         const existingLeads = JSON.parse(localStorage.getItem('hello_solar_leads') || '[]');
-        existingLeads.push(leadData);
+        existingLeads.push({ ...p.lead, downPaymentProof: p.proof.fileName, paymentStatus: 'Pending Verification' });
         localStorage.setItem('hello_solar_leads', JSON.stringify(existingLeads));
     } catch (err) {
         console.warn('LocalStorage save skipped', err);
     }
 
-    // Also send to Super Admin → Contact Inquiries as a customer inquiry
-    const pkg = PRODUCTS[packageId] || {};
-    const nameParts = name.split(/\s+/);
-    queueCustomerInquiry({
-        id: 'INQ-' + leadData.id.replace('lead_', 'LP'),
-        inquiryType: 'Customer',
-        source: 'Landing Page — Request Solar Proposal',
-        leadId: leadData.id,
-        name,
-        firstName: nameParts.length > 1 ? nameParts.slice(0, -1).join(' ') : name,
-        lastName: nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
-        email,
-        phone,
-        location,
-        category: (packageId === 'hs10-pro' || packageId === 'hs12-max') ? 'Commercial Solar' : 'Residential Solar',
-        packageId,
-        package: PKG_LABELS[packageId] || pkg.name || packageId,
-        selectedSolarModel: PKG_LABELS[packageId] || pkg.name || packageId,
-        electricBill: bill,
-        paymentPreference: payment,
-        paymentType: payment,
-        // Selected package pricing (shared application uses these exact values)
-        packagePrice: parsePeso(pkg.cashPrice),
-        monthlyPayment: parsePeso(pkg.monthly),
-        termMonths: INSTALLMENT_TERM_MONTHS,
-        downPayment: INSTALLMENT_DOWN_PAYMENT,
-        subject: `${pkg.name || 'Solar'} Assessment Request`,
-        message: `Requested a free site assessment for ${pkg.name || packageId} (${payment === 'Installment' ? `Installment · ${pkg.monthly}/mo, 5 yrs, ₱10k DP` : `Full Payment · ${pkg.cashPrice}`}). Monthly bill: ${bill}.`,
-        status: 'Unread',
-        inquiryStatus: 'Not Sent',
-        customerResponse: 'Awaiting Response',
-        confirmationEmailSentAt: null,
-        timestamp: leadData.timestamp
-    });
+    queueCustomerInquiry(record);
 
     setTimeout(() => {
-        const form = document.getElementById('leadForm');
-        const successScreen = document.getElementById('leadSuccessScreen');
-        const successUser = document.getElementById('successUserName');
-        const successPkg = document.getElementById('successPackageName');
+        const firstName = (p.name || '').split(/\s+/)[0] || 'there';
+        document.getElementById('paySuccessTitle').textContent = p.kind === 'assessment' ? 'Site Visit Requested' : 'Order Request Submitted';
+        document.getElementById('paySuccessText').textContent = p.kind === 'assessment'
+            ? `Thank you, ${firstName}. We'll verify your payment and confirm your visit schedule within 1–2 business days.`
+            : `Thank you, ${firstName}. We'll verify your payment and contact you within 1–2 business days.`;
+        const rows = [...p.summary, ['Payment Status', 'Pending Verification']];
+        document.getElementById('paySuccessSummary').innerHTML = rows.map(([k, v], i) => `
+            <div class="flex items-start justify-between gap-4 ${i === 0 ? 'pb-2.5' : (i === rows.length - 1 ? 'pt-2.5' : 'py-2.5')}">
+                <dt class="font-bold text-stone-500">${k}</dt>
+                <dd class="font-black text-stone-900 text-right">${escapeHTML(v)}</dd>
+            </div>`).join('');
+        document.getElementById('payFormView').classList.add('hidden');
+        document.getElementById('paySuccessView').classList.remove('hidden');
 
-        if (form) form.classList.add('hidden');
-        if (successScreen) successScreen.classList.remove('hidden');
-        document.getElementById('leadFormHeader')?.classList.add('hidden');
-        const product = PRODUCTS[packageId] || {};
-        const isInstallment = payment === 'Installment';
-        const successPayType = document.getElementById('successPaymentType');
-        const successPayAmount = document.getElementById('successPaymentAmount');
-        const successBill = document.getElementById('successBill');
-        if (successUser) successUser.textContent = name;
-        if (successPkg) successPkg.textContent = product.name || packageId;
-        if (successPayType) successPayType.textContent = isInstallment ? 'Installment' : 'Full Payment';
-        if (successPayAmount) successPayAmount.textContent = isInstallment
-            ? `${product.monthly}/mo · 5 yrs, ₱10k DP`
-            : `${product.cashPrice} one-time`;
-        if (successBill) successBill.textContent = bill ? `${bill} / month` : '—';
-
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = getSubmitLabelHTML();
+        // Clear the source form so a new request starts fresh
+        if (p.kind === 'assessment') {
+            document.getElementById('assessmentForm').reset();
+            resetLocationPicker('assessCity');
+        } else {
+            ['leadName', 'leadPhone', 'leadEmail'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            resetLocationPicker('leadLocation');
+            document.getElementById('leadTerms').checked = false;
         }
-
+        pendingPayment = null;
         lucide.createIcons();
     }, 600);
+}
+
+function escapeHTML(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 // WIRE ALL EXISTING CTA AND PRODUCT BUTTONS
@@ -1499,6 +2133,10 @@ function initPageInteractions() {
     initCustomDropdowns();
     initPaymentOptions();
     initLeadValidation();
+    initAssessmentForm();
+    initPaymentModal();
+    initDigitsOnly();
+    initLocationPickers();
 
     // 9. Desktop Navigation Hover Underline & Active State Controller
     const desktopNav = document.getElementById('desktopNav');

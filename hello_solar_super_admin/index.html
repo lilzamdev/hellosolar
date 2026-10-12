@@ -67,6 +67,13 @@
           <span class="nav-text">Applications</span>
           <span class="nav-badge" id="navBadgeApps">12</span>
         </button>
+        <button class="nav-link" data-page="site-visits" title="Site Visits">
+          <span class="nav-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"></path><circle cx="12" cy="10" r="3"></circle></svg>
+          </span>
+          <span class="nav-text">Site Visits</span>
+          <span class="nav-badge warn" id="navBadgeSiteVisits" style="display:none;">0</span>
+        </button>
         <button class="nav-link" data-page="installations" title="Installations">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -385,6 +392,20 @@
               </div>
             </article>
 
+            <article class="kpi-card" data-go="site-visits">
+              <div class="kpi-top">
+                <span>Site Visits</span>
+                <div class="kpi-icon-box">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                </div>
+              </div>
+              <div class="kpi-value" id="kpiSiteVisits">0</div>
+              <div class="kpi-foot">
+                <span class="sub-info" id="kpiSiteVisitsSub" style="font-size:11.5px;">0 to assign</span>
+                <span class="kpi-action-link">View</span>
+              </div>
+            </article>
+
             <article class="kpi-card attention-card" id="kpiAttentionCard">
               <div class="kpi-top">
                 <span>Needs Attention</span>
@@ -524,6 +545,33 @@
                   <span>View Merchants</span>
 
                 </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Upcoming Site Visits (landing page Site Assessment requests) -->
+          <section id="overviewSiteVisitsSection" style="margin-bottom: 24px;">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Upcoming Site Visits <span class="count-pill" id="overviewSiteVisitCount">0</span></h2>
+                </div>
+                <button class="btn btn-secondary btn-sm" data-go="site-visits">View All Site Visits ↗</button>
+              </div>
+              <div class="table-container sa-table" style="margin:0;">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Visit</th>
+                      <th>Client</th>
+                      <th>Location</th>
+                      <th>Schedule</th>
+                      <th>Assigned To</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="overviewSiteVisitsBody"></tbody>
+                </table>
               </div>
             </div>
           </section>
@@ -674,6 +722,45 @@
         </section>
 
         <!-- 3. INSTALLATIONS PAGE -->
+        <section class="page" id="page-site-visits">
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">OPERATIONS / SITE ASSESSMENT</div>
+              <h1>Site Visits</h1>
+            </div>
+          </div>
+
+          <div class="toolbar-wrap">
+            <div class="filter-tabs" id="siteVisitFilterTabs">
+              <button class="chip-btn active" data-status="All">All</button>
+              <button class="chip-btn" data-status="Pending Assignment">To Assign</button>
+              <button class="chip-btn" data-status="Scheduled">Scheduled</button>
+              <button class="chip-btn" data-status="Completed">Completed</button>
+              <button class="chip-btn" data-status="Cancelled">Cancelled</button>
+            </div>
+            <div class="filter-group">
+              <input type="search" class="input-field" id="siteVisitSearch" placeholder="Search visit, client, location..." />
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Visit / Client</th>
+                  <th>Location</th>
+                  <th>Schedule</th>
+                  <th>Site Visit Fee</th>
+                  <th style="min-width:210px;">Assigned To</th>
+                  <th>Status</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="siteVisitTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
         <section class="page" id="page-installations">
           <div class="page-head">
             <div>
@@ -1131,6 +1218,61 @@
               <div class="ops-metric"><span>Terminated / Pending Start</span><strong id="accContractsOther">—</strong>
               </div>
             </div>
+          </div>
+
+          <!-- Client Payments: down payments & site visit fees (refund policy) -->
+          <div class="sa-section-head">
+            <div>
+              <h3>Client Payments</h3>
+              <p>Refundable if the client proceeds with the installation; non-refundable if not.</p>
+            </div>
+            <div class="sa-section-tools">
+              <div class="sa-stat"><span>Collected</span><strong id="accClientPaid">—</strong></div>
+              <div class="sa-stat"><span>Refunded</span><strong id="accClientRefunded">—</strong></div>
+              <input type="search" class="input-field" id="accClientSearch"
+                placeholder="Search APP / visit ID, client..." aria-label="Search client payments" />
+            </div>
+          </div>
+          <div class="table-container sa-table" style="margin-bottom: 20px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Reference</th>
+                  <th>Client</th>
+                  <th>Type</th>
+                  <th class="num">Amount</th>
+                  <th>Payment</th>
+                  <th>Installation</th>
+                  <th>Refund</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="accClientPaymentsBody"></tbody>
+            </table>
+          </div>
+
+          <!-- Reimbursement requests from customers (Customer portal → Payments) -->
+          <div class="sa-section-head">
+            <div>
+              <h3>Reimbursement Requests <span class="count-pill" id="accReimbPendingCount">0</span></h3>
+              <p>Sent by customers from their portal.</p>
+            </div>
+          </div>
+          <div class="table-container sa-table" style="margin-bottom: 20px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Request</th>
+                  <th>Client / APP ID</th>
+                  <th>Type</th>
+                  <th class="num">Amount</th>
+                  <th>Reason</th>
+                  <th>Status</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="accReimbursementsBody"></tbody>
+            </table>
           </div>
 
           <!-- Installation Cost (Hello Solar Direct projects only) -->
@@ -1929,6 +2071,106 @@
     </div>
   </div>
 
+  <!-- SITE VISIT ASSIGNMENT MODAL -->
+  <div class="modal-overlay" id="siteVisitAssignModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow">SITE VISIT</div>
+          <h2>Assign Site Visit</h2>
+        </div>
+        <button class="modal-close-btn" data-close-modal="siteVisitAssignModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-grid" style="margin-bottom:16px;">
+          <div class="detail-item"><span>Visit</span><strong id="svaVisitId">—</strong></div>
+          <div class="detail-item"><span>Client</span><strong id="svaClient">—</strong></div>
+          <div class="detail-item" style="grid-column:1 / -1;"><span>Location</span><strong id="svaLocation">—</strong></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="svaAssignee">Assign To</label>
+          <select class="input-field" id="svaAssignee" style="width:100%;"></select>
+        </div>
+        <div id="svaOtherFields" style="display:none;">
+          <div class="form-group">
+            <label class="form-label" for="svaOtherName">Full Name</label>
+            <input type="text" class="input-field" id="svaOtherName" style="width:100%;" placeholder="e.g. Juan Dela Cruz" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="svaOtherPhone">Contact Number</label>
+            <input type="tel" class="input-field" id="svaOtherPhone" style="width:100%;" inputmode="numeric" placeholder="0917 123 4567" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="svaOtherDoc">ID / Authorization Document</label>
+            <input type="file" class="input-field" id="svaOtherDoc" style="width:100%;" accept="image/jpeg,image/png,image/webp,application/pdf" />
+            <span class="sub-info" style="margin-top:6px;">JPG, PNG or PDF · up to 5 MB</span>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label class="form-label" for="svaDate">Visit Date</label>
+            <input type="date" class="input-field" id="svaDate" style="width:100%;" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="svaTime">Time</label>
+            <input type="time" class="input-field" id="svaTime" style="width:100%;" />
+          </div>
+        </div>
+        <p class="sub-info" id="svaError" style="color:var(--danger); display:none;"></p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" data-close-modal="siteVisitAssignModal">Cancel</button>
+        <button class="btn btn-primary" id="btnConfirmSiteVisitAssign">Confirm Assignment</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCOUNTING: REFUND / REIMBURSEMENT MODAL -->
+  <div class="modal-overlay" id="accRefundModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow" id="arfEyebrow">ACCOUNTING</div>
+          <h2 id="arfTitle">Refund Payment</h2>
+        </div>
+        <button class="modal-close-btn" data-close-modal="accRefundModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-grid" style="margin-bottom:16px;">
+          <div class="detail-item"><span>Reference</span><strong id="arfRef">—</strong></div>
+          <div class="detail-item"><span>Client</span><strong id="arfClient">—</strong></div>
+          <div class="detail-item"><span>Type</span><strong id="arfType">—</strong></div>
+          <div class="detail-item"><span>Amount</span><strong id="arfAmount">—</strong></div>
+        </div>
+        <p class="sub-info" id="arfPolicy" style="margin-bottom:12px;"></p>
+        <div id="arfPayFields">
+          <div class="form-group">
+            <label class="form-label" for="arfMethod">Refund Method</label>
+            <select class="input-field" id="arfMethod" style="width:100%;">
+              <option>Bank Transfer</option>
+              <option>GCash</option>
+              <option>Check</option>
+              <option>Cash</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="arfReference">Transaction Reference</label>
+            <input type="text" class="input-field" id="arfReference" style="width:100%;" placeholder="e.g. BDO-TRX-000123" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="arfNote" id="arfNoteLabel">Notes (optional)</label>
+          <textarea class="input-field" id="arfNote" rows="3" style="width:100%;"></textarea>
+        </div>
+        <p class="sub-info" id="arfError" style="color:var(--danger); display:none;"></p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" data-close-modal="accRefundModal">Cancel</button>
+        <button class="btn btn-primary" id="btnConfirmAccRefund">Confirm Refund</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 2. APPLICATION DETAILS SLIDE-OVER DRAWER -->
   <div class="drawer-overlay" id="appDrawerOverlay">
     <div class="drawer-panel">
@@ -1938,6 +2180,7 @@
           <div style="display:flex; align-items:center; gap:10px; margin-top:2px;">
             <h2 id="drawerAppId" style="margin:0; font-size:22px;">APP-1024</h2>
             <span class="status-pill" id="drawerStagePill">Approved</span>
+            <span class="status-pill" id="drawerDpPill" style="display:none;"></span>
           </div>
           <span id="drawerCustomerName" style="color:var(--muted); font-size:12.5px;">Maria Elena Cruz</span>
         </div>
@@ -2017,6 +2260,10 @@
               <div class="detail-item">
                 <span>Assigned Financer</span>
                 <strong id="drawerFinancer">SunFund Philippines</strong>
+              </div>
+              <div class="detail-item">
+                <span>Down Payment</span>
+                <strong id="drawerDownPayment">₱10,000 · Verified</strong>
               </div>
               <div class="detail-item">
                 <span>Installer / Type</span>
@@ -3615,20 +3862,8 @@
         <!-- Sender & Inquiry Summary -->
         <div class="detail-grid sa-grid-3">
           <div class="detail-item">
-            <span>Inquiry ID</span>
-            <strong id="inqDetailId">—</strong>
-          </div>
-          <div class="detail-item">
             <span>Received</span>
             <strong id="inqDetailTime">—</strong>
-          </div>
-          <div class="detail-item">
-            <span>Message Status</span>
-            <div><span id="inqDetailMessageStatus" class="status-pill warn">Unread</span></div>
-          </div>
-          <div class="detail-item">
-            <span>Name</span>
-            <strong id="inqDetailName">—</strong>
           </div>
           <div class="detail-item">
             <span>Email</span>
@@ -3653,6 +3888,14 @@
           <div class="detail-item inq-customer-only">
             <span>Payment Preference</span>
             <strong id="inqDetailPaymentPreference">—</strong>
+          </div>
+          <div class="detail-item" id="inqDetailRequestRow" style="display:none;">
+            <span>Request</span>
+            <strong id="inqDetailRequestType">—</strong>
+          </div>
+          <div class="detail-item" id="inqDetailProofRow" style="display:none;">
+            <span>Payment Proof</span>
+            <strong id="inqDetailProof">—</strong>
           </div>
           <div class="detail-item inq-customer-only sa-span-2">
             <span>Inquiry Status</span>
@@ -3690,6 +3933,41 @@
                 style="display:none;">Create Account</button>
             </div>
           </div>
+          <div class="form-group" style="margin:12px 0;">
+            <label class="form-label" for="inqPartnerTypeSelect">Partner Type</label>
+            <div class="sa-inline">
+              <select class="input-field" id="inqPartnerTypeSelect" style="min-width:220px;">
+                <option value="">— Select partner type —</option>
+                <option value="Financer">Financer</option>
+                <option value="Installer">Installer</option>
+                <option value="Merchant">Merchant</option>
+              </select>
+              <span class="sa-muted-sm" id="inqPartnerTypeHint"></span>
+            </div>
+          </div>
+          <!-- Financer: agreed contract terms (applied to the financer contract when the account is created) -->
+          <div id="inqPartnerTermsEdit" style="display:none; margin-bottom:10px;">
+            <div class="form-label" style="margin-bottom:6px;">Contract Terms <span class="sa-muted-sm">· applied when
+                the account is created</span></div>
+            <div class="detail-grid sa-grid-3 sa-grid-flat" style="margin:0;">
+              <div class="form-group" style="margin:0;">
+                <label class="form-label" for="inqPartnerTermInput">Contract Term (months)</label>
+                <input type="number" class="input-field" id="inqPartnerTermInput" min="1" max="360" step="1" placeholder="e.g. 36" style="width:100%;" />
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label class="form-label" for="inqPartnerRateInput">Annual Rate (%)</label>
+                <input type="number" class="input-field" id="inqPartnerRateInput" min="0" max="100" step="0.01" placeholder="e.g. 8.5" style="width:100%;" />
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label class="form-label" for="inqPartnerStartInput">Contract Start</label>
+                <input type="date" class="input-field" id="inqPartnerStartInput" style="width:100%;" />
+              </div>
+            </div>
+            <div class="sa-inline" style="margin-top:8px;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btnSavePartnerTerms">Save Terms</button>
+              <span class="sa-muted-sm" id="inqPartnerTermsMsg"></span>
+            </div>
+          </div>
           <div class="detail-grid sa-grid-3 sa-grid-flat" id="inqPartnerFinancerRow">
             <div class="detail-item"><span>Contract Term</span><strong id="inqPartnerTerm">—</strong></div>
             <div class="detail-item"><span>Annual Rate</span><strong id="inqPartnerRate">—</strong></div>
@@ -3706,12 +3984,13 @@
               <span id="inqEmailStatusBadge" class="status-pill warn">Not Sent</span>
               <span id="inqCustomerResponseCardBadge" class="status-pill warn">Awaiting Response</span>
             </div>
-            <span id="inqLinkStatusNote" class="sa-muted-sm">Email not yet sent</span>
+            <span id="inqLinkStatusNote" class="sa-muted-sm" hidden></span>
           </div>
           <div id="inqEmailStatusDesc" class="sa-note" style="margin-bottom:10px;">
             Send the confirmation link so the customer can choose Proceed or Not Proceeding.
           </div>
 
+          <div id="inqConfirmationEditor">
           <div class="form-group" style="margin-bottom:8px;">
             <label class="form-label sa-label-row" for="inqConfirmationMessageInput">
               <span>Message sent with the link</span>
@@ -3728,24 +4007,18 @@
           <input type="hidden" id="inqConfirmationLinkInput" value="" />
           <div class="sa-note sa-link-note">
             <span aria-hidden="true">🔒</span>
-            The customer's secure Inquiry Confirmation link is added to the email automatically.
+            The confirmation link is added to the email automatically.
           </div>
 
           <div class="sa-card-foot">
-            <div class="sa-preview-actions" aria-label="Customer actions on the confirmation page">
-              <span class="sa-muted-sm">Customer options:</span>
-              <button type="button" class="sa-chip sa-chip-success" id="btnCustomerSimulateProceed" disabled
-                aria-disabled="true">Proceed</button>
-              <button type="button" class="sa-chip sa-chip-danger" id="btnCustomerSimulateNotProceed" disabled
-                aria-disabled="true">Not Proceeding</button>
-            </div>
-            <div class="sa-inline">
+            <div class="sa-inline" style="margin-left:auto;">
               <button type="button" class="btn btn-secondary btn-sm" id="btnSaveInquiryConfirmationMessage">Save
                 Message</button>
               <button type="button" class="btn btn-primary btn-sm" id="btnSendInquiryConfirmationEmail">
                 <span id="btnSendInquiryConfirmationEmailText">Send Confirmation Email</span>
               </button>
             </div>
+          </div>
           </div>
         </div>
 
@@ -3836,9 +4109,9 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
-  <script src="js/data.js?v=20261006-api"></script>
+  <script src="js/data.js?v=20261012-sv"></script>
   <script src="../shared/hello-solar-shared.js"></script>
-  <script src="js/app.js?v=20261006-api"></script>
+  <script src="js/app.js?v=20261012-sv"></script>
 </body>
 
 </html>

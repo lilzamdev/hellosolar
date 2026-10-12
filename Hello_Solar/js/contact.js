@@ -87,145 +87,122 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// 3. Partner Inquiries (Financer / Installer / Merchant)
+// 3. Partner Inquiries
 // Saved to a shared queue for Super Admin → Contact Inquiries (backend-ready: POST the same record to an
-// API later). No account is created here; createAccountPrefill is used only after Super Admin approval.
+// API later). No account is created here; partners describe their business (Financer / Installer / Merchant)
+// in the Message, and Super Admin picks the account role when creating the account after approval.
 const PARTNER_INQUIRY_KEY = 'HELLO_SOLAR_PARTNER_INQUIRIES';
-const PARTNER_TYPES = ['Financer', 'Installer', 'Merchant'];
 
-function toggleFinancerProposalFields() {
-    const isFinancer = document.getElementById('companyName').value === 'Financer';
-    const block = document.getElementById('financerProposalFields');
-    if (block) block.classList.toggle('hidden', !isFinancer);
-    ['financerTerm', 'financerRate', 'financerStartDate'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.required = isFinancer;
-    });
-    const err = document.getElementById('financerProposalError');
-    if (err && !isFinancer) err.classList.add('hidden');
-}
-document.getElementById('companyName').addEventListener('change', toggleFinancerProposalFields);
-
-// Inquiry Type selector: Customer / Partner, then Partner Type (Financer / Installer / Merchant).
-// UI grouping only — the hidden #companyName select stays the single source of truth
-// ("" = Customer, otherwise the Partner Type), so every downstream workflow is unchanged.
+// Inquiry Type selector: Customer / Partner.
+// The hidden #companyName select stays the single source of truth ("" = Customer, "Partner" = Partner).
 const INQUIRY_COPY = {
     '': { placeholder: 'Tell us about your home and your monthly electric bill.', submit: 'Send Message' },
-    partner: { placeholder: 'Tell us about your business and how you would like to partner.', submit: 'Send Partner Inquiry' },
-    Financer: { placeholder: 'Tell us about your financing programs and coverage.', submit: 'Send Partner Inquiry' },
-    Installer: { placeholder: 'Tell us about your team, service areas and experience.', submit: 'Send Partner Inquiry' },
-    Merchant: { placeholder: 'Tell us about the products you supply.', submit: 'Send Partner Inquiry' }
+    Partner: { placeholder: 'Tell us about your business (financing, installation or products) and how you would like to partner.', submit: 'Send Partner Inquiry' }
 };
 
-// true while "Partner" is selected (a Partner Type may not be picked yet)
-let inquiryIsPartner = false;
-// Remembers the last Partner Type so switching Customer → Partner restores it
-let lastPartnerType = '';
+// Left-side contact cards follow the Inquiry Type (Customer / Partner)
+const CONTACT_DETAILS = {
+    customer: {
+        callLabel: 'Call Our Solar Specialists',
+        callValue: '(02) 8888-SOLAR / +63 917 123 4567',
+        callHref: 'tel:+63288887652',
+        callNote: 'Monday to Saturday: 8:00 AM – 6:00 PM',
+        emailLabel: 'Direct Email Inquiries',
+        emailValue: 'hello@hellosolar.ph',
+        emailNote: 'We respond to all requests within 24 business hours',
+        areaLabel: 'Headquarters & Service Areas',
+        areaValue: 'Metro Manila & Nationwide Philippines',
+        areaNote: 'Residential, Commercial, and Estate installations'
+    },
+    // Replace with the partnerships team's own number / email when available
+    partner: {
+        callLabel: 'Call Our Partnerships Team',
+        callValue: '(02) 8888-SOLAR / +63 917 123 4567',
+        callHref: 'tel:+63288887652',
+        callNote: 'Monday to Friday: 9:00 AM – 5:00 PM',
+        emailLabel: 'Partnership Inquiries',
+        emailValue: 'partners@hellosolar.ph',
+        emailNote: 'Proposals are reviewed within 2–3 business days',
+        areaLabel: 'Partnership Programs',
+        areaValue: 'Financers, Installers & Merchants',
+        areaNote: 'Join our nationwide Hello Solar partner network'
+    }
+};
+let renderedContactGroup = 'customer';
 
-function setRadioState(btn, active) {
-    btn.classList.toggle('is-active', active);
-    btn.setAttribute('aria-checked', active ? 'true' : 'false');
+function renderContactDetails(group) {
+    if (group === renderedContactGroup) return;
+    renderedContactGroup = group;
+    const d = CONTACT_DETAILS[group];
+    document.querySelectorAll('[data-contact]').forEach(el => {
+        const key = el.getAttribute('data-contact');
+        if (!(key in d)) return;
+        el.textContent = d[key];
+        if (key === 'callValue') el.setAttribute('href', d.callHref);
+        if (key === 'emailValue') el.setAttribute('href', 'mailto:' + d.emailValue);
+        el.classList.remove('contact-swap');
+        void el.offsetWidth; // restart the fade
+        el.classList.add('contact-swap');
+    });
 }
 
-function setPartnerTypeError(message) {
-    const err = document.getElementById('partnerTypeError');
-    if (err) {
-        err.textContent = message || '';
-        err.classList.toggle('hidden', !message);
-    }
-    const group = document.getElementById('partnerTypeOptions');
-    if (group) group.classList.toggle('is-invalid', !!message);
+function isPartnerInquiry() {
+    return document.getElementById('companyName').value === 'Partner';
 }
 
 function renderInquiryType() {
-    const value = document.getElementById('companyName').value;
+    const isPartner = isPartnerInquiry();
     document.querySelectorAll('#inquiryTypeOptions .inquiry-type-option').forEach(btn => {
-        const active = (btn.getAttribute('data-group') === 'partner') === inquiryIsPartner;
-        setRadioState(btn, active);
+        const active = (btn.getAttribute('data-group') === 'partner') === isPartner;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-checked', active ? 'true' : 'false');
         btn.tabIndex = active ? 0 : -1;
     });
-    const field = document.getElementById('partnerTypeField');
-    if (field) field.classList.toggle('hidden', !inquiryIsPartner);
-    const partnerButtons = Array.from(document.querySelectorAll('#partnerTypeOptions .partner-type-option'));
-    partnerButtons.forEach(btn => {
-        const active = btn.getAttribute('data-type') === value;
-        setRadioState(btn, active);
-        btn.tabIndex = active ? 0 : -1;
-    });
-    // Nothing picked yet: keep the first Partner Type option reachable with Tab
-    if (partnerButtons.length && !partnerButtons.some(b => b.classList.contains('is-active'))) partnerButtons[0].tabIndex = 0;
-    if (!inquiryIsPartner || value) setPartnerTypeError('');
-
-    const copy = INQUIRY_COPY[value] || INQUIRY_COPY[inquiryIsPartner ? 'partner' : ''];
+    renderContactDetails(isPartner ? 'partner' : 'customer');
+    const copy = INQUIRY_COPY[isPartner ? 'Partner' : ''];
     const msg = document.getElementById('message');
     if (msg) msg.placeholder = copy.placeholder;
     const submitLabel = document.getElementById('submitContactLabel');
     if (submitLabel) submitLabel.textContent = copy.submit;
 }
 
-function writeCompanyName(value) {
+// Top-level choice: "customer" or "partner"
+function setInquiryGroup(group) {
     const select = document.getElementById('companyName');
+    const value = group === 'partner' ? 'Partner' : '';
     if (select.value !== value) {
         select.value = value;
         select.dispatchEvent(new Event('change', { bubbles: true }));
     }
-}
-
-// Same contract as before: "" = Customer, "Financer" / "Installer" / "Merchant" = that Partner Type
-function setInquiryType(type) {
-    const value = PARTNER_TYPES.includes(type) ? type : '';
-    inquiryIsPartner = value !== '';
-    if (value) lastPartnerType = value;
-    writeCompanyName(value);
     renderInquiryType();
-}
-
-// Top-level choice: "customer" or "partner"
-function setInquiryGroup(group) {
-    if (group === 'partner') {
-        if (inquiryIsPartner) return;
-        inquiryIsPartner = true;
-        // Restore the previous Partner Type if there was one; otherwise wait for the user to pick
-        writeCompanyName(lastPartnerType);
-        renderInquiryType();
-    } else {
-        setInquiryType('');
-    }
-}
-
-// Partner chosen but no Partner Type yet → block submission with an inline message
-function validatePartnerType() {
-    if (!inquiryIsPartner) return true;
-    if (PARTNER_TYPES.includes(document.getElementById('companyName').value)) return true;
-    setPartnerTypeError('Please choose a partner type.');
-    const first = document.querySelector('#partnerTypeOptions .partner-type-option');
-    if (first) first.focus();
-    return false;
 }
 
 (function initInquiryType() {
     const ARROWS = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
-    function wireRadioGroup(group, selector, attr, apply) {
-        if (!group) return;
-        group.addEventListener('click', (e) => {
-            const btn = e.target.closest(selector);
-            if (btn) apply(btn.getAttribute(attr));
-        });
-        group.addEventListener('keydown', (e) => {
-            const dir = ARROWS[e.key];
-            if (!dir) return;
-            e.preventDefault();
-            const list = Array.from(group.querySelectorAll(selector));
-            const idx = list.findIndex(b => b.classList.contains('is-active'));
-            const next = list[idx < 0 ? (dir > 0 ? 0 : list.length - 1) : (idx + dir + list.length) % list.length];
-            apply(next.getAttribute(attr));
-            next.focus();
-        });
-    }
-    wireRadioGroup(document.getElementById('inquiryTypeOptions'), '.inquiry-type-option', 'data-group', setInquiryGroup);
-    wireRadioGroup(document.getElementById('partnerTypeOptions'), '.partner-type-option', 'data-type', setInquiryType);
-    setInquiryType(document.getElementById('companyName').value);
+    const group = document.getElementById('inquiryTypeOptions');
+    if (!group) return;
+    group.addEventListener('click', (e) => {
+        const btn = e.target.closest('.inquiry-type-option');
+        if (btn) setInquiryGroup(btn.getAttribute('data-group'));
+    });
+    group.addEventListener('keydown', (e) => {
+        const dir = ARROWS[e.key];
+        if (!dir) return;
+        e.preventDefault();
+        const list = Array.from(group.querySelectorAll('.inquiry-type-option'));
+        const idx = list.findIndex(b => b.classList.contains('is-active'));
+        const next = list[idx < 0 ? 0 : (idx + dir + list.length) % list.length];
+        setInquiryGroup(next.getAttribute('data-group'));
+        next.focus();
+    });
+    renderInquiryType();
 })();
+
+// Phone: digits (and spaces) only — letters and symbols are removed as they are typed or pasted
+document.getElementById('phone')?.addEventListener('input', (e) => {
+    const clean = e.target.value.replace(/[^\d ]/g, '');
+    if (clean !== e.target.value) e.target.value = clean;
+});
 
 // Inline validation for the contact fields (replaces browser pop-ups)
 const CONTACT_FIELDS = ['firstName', 'lastName', 'email', 'phone'];
@@ -281,28 +258,16 @@ CONTACT_FIELDS.forEach(id => {
     });
 });
 
-['financerTerm', 'financerRate', 'financerStartDate'].forEach(id => {
-    const input = document.getElementById(id);
-    if (!input) return;
-    input.addEventListener('input', () => {
-        const err = document.getElementById('financerProposalError');
-        if (err && !err.classList.contains('hidden') && !readFinancerProposal().error) err.classList.add('hidden');
-    });
-});
-
-function renderContactSuccess(partnerType) {
-    const isPartner = PARTNER_TYPES.includes(partnerType);
+function renderContactSuccess(isPartner) {
     const badge = document.getElementById('contactSuccessBadge');
     const intro = document.getElementById('contactSuccessIntro');
     const steps = document.getElementById('contactNextSteps');
-    if (badge) badge.textContent = isPartner ? `${partnerType} Partner Inquiry Received` : 'Message Sent';
+    if (badge) badge.textContent = isPartner ? 'Partner Inquiry Received' : 'Message Sent';
     if (intro) intro.textContent = isPartner
-        ? `Your ${partnerType} partnership inquiry is now with our team for review.`
+        ? 'Your partnership inquiry is now with our team for review.'
         : 'We have received your message.';
     const list = isPartner
-        ? (partnerType === 'Financer'
-            ? ['Our team reviews your contract proposal', 'We contact you to confirm terms', 'Your Financer account is set up after approval']
-            : [`Our team reviews your ${partnerType} inquiry`, 'We contact you to confirm details', `Your ${partnerType} account is set up after approval`])
+        ? ['Our team reviews your partnership inquiry', 'We contact you to confirm details', 'Your partner account is set up after approval']
         : ['Review of your home usage profile', 'Personalized solar proposal & savings breakdown', 'Complimentary rooftop irradiance scan'];
     if (steps) {
         steps.innerHTML = list.map((t, i) => `
@@ -312,24 +277,14 @@ function renderContactSuccess(partnerType) {
     }
 }
 
-function readFinancerProposal() {
-    const term = Number(document.getElementById('financerTerm').value);
-    const rateRaw = document.getElementById('financerRate').value;
-    const rate = Number(rateRaw);
-    const startDate = document.getElementById('financerStartDate').value;
-    if (!Number.isInteger(term) || term < 1 || term > 360) return { error: 'Proposed financing term must be a whole number of months (1–360).' };
-    if (rateRaw === '' || !Number.isFinite(rate) || rate < 0 || rate > 100) return { error: 'Annual rate must be between 0% and 100%.' };
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return { error: 'Please choose a proposed contract start date.' };
-    return { contractTermMonths: term, annualRate: Math.round(rate * 100) / 100, contractStartDate: startDate };
-}
-
-function savePartnerInquiry(fields, financerProposal) {
+function savePartnerInquiry(fields) {
     const now = new Date();
     const fullName = `${fields.firstName} ${fields.lastName}`.trim();
     const record = {
         id: `PINQ-${now.getTime()}`,
         inquiryType: 'Partner',
-        partnerType: fields.partnerType,
+        // No partner type on the form — Super Admin chooses the role (from the message) when creating the account
+        partnerType: '',
         source: 'Landing Page — Contact Us',
         name: fullName,
         firstName: fields.firstName,
@@ -338,26 +293,20 @@ function savePartnerInquiry(fields, financerProposal) {
         phone: fields.phone,
         location: fields.country,
         country: fields.country,
-        category: `${fields.partnerType} Partner`,
-        subject: `${fields.partnerType} Partnership Inquiry`,
+        category: 'Partner',
+        subject: 'Partnership Inquiry',
         message: fields.message,
-        financerProposal: financerProposal || null,
+        financerProposal: null,
         status: 'Unread',
         inquiryStatus: 'Pending Review',
         timestamp: now.toISOString(),
         accountCreated: false,
-        // Field names match Super Admin → Create Account (and Financer contract fields) for prefill after approval
+        // Field names match Super Admin → Create Account for prefill after approval
         createAccountPrefill: {
-            role: fields.partnerType,
             firstName: fields.firstName,
             lastName: fields.lastName,
             email: fields.email,
-            phone: fields.phone,
-            ...(financerProposal ? {
-                contractTermMonths: financerProposal.contractTermMonths,
-                annualRate: financerProposal.annualRate,
-                contractStartDate: financerProposal.contractStartDate
-            } : {})
+            phone: fields.phone
         }
     };
     // api mode (shared/hello-solar-config.js): POST /public/inquiries — the backend stores the inquiry,
@@ -371,7 +320,7 @@ function savePartnerInquiry(fields, financerProposal) {
         const queue = Array.isArray(list) ? list : [];
         // Duplicate guard (same concept as customer inquiries): same id, or the same partner request
         // re-sent within 2 minutes. Returns the existing inquiry instead of adding a second one.
-        const fingerprint = r => [r.source, r.partnerType, r.email, r.phone, r.message, JSON.stringify(r.financerProposal || null)]
+        const fingerprint = r => [r.source, r.inquiryType, r.email, r.phone, r.message]
             .map(v => String(v || '').trim().toLowerCase()).join('|');
         const fp = fingerprint(record);
         const nowMs = Date.parse(record.timestamp) || Date.now();
@@ -430,25 +379,11 @@ function handleContactSubmit(e) {
     const companyName = document.getElementById('companyName').value.trim();
     const message = document.getElementById('message').value.trim();
 
-    if (!validatePartnerType()) return;
     if (!validateContactFields()) return;
 
-    // Partner inquiry: Financer requires the proposal fields; Installer / Merchant use contact fields only
-    if (PARTNER_TYPES.includes(companyName)) {
-        let financerProposal = null;
-        if (companyName === 'Financer') {
-            financerProposal = readFinancerProposal();
-            const errEl = document.getElementById('financerProposalError');
-            if (financerProposal.error) {
-                if (errEl) {
-                    errEl.textContent = financerProposal.error;
-                    errEl.classList.remove('hidden');
-                }
-                return;
-            }
-            if (errEl) errEl.classList.add('hidden');
-        }
-        savePartnerInquiry({ firstName, lastName, email, phone, country, partnerType: companyName, message }, financerProposal);
+    const isPartner = companyName === 'Partner';
+    if (isPartner) {
+        savePartnerInquiry({ firstName, lastName, email, phone, country, message });
     } else {
         // Customer inquiry → Super Admin → Contact Inquiries
         const ts = new Date();
@@ -494,7 +429,7 @@ function handleContactSubmit(e) {
         const successContactEl = document.getElementById('successLeadContact');
 
         if (successNameEl) successNameEl.textContent = firstName || 'there';
-        renderContactSuccess(companyName);
+        renderContactSuccess(isPartner);
         if (successContactEl) successContactEl.textContent = email || phone;
 
         if (formEl) formEl.classList.add('hidden');
@@ -598,7 +533,6 @@ function resetContactForm() {
 
     if (formEl) {
         formEl.reset();
-        toggleFinancerProposalFields();
 
         // Reset Country custom select
         const countryLabel = document.getElementById('countryTriggerLabel');
@@ -618,7 +552,7 @@ function resetContactForm() {
         }
 
         // Reset Inquiry Type to Customer and clear validation
-        setInquiryType('');
+        setInquiryGroup('customer');
         CONTACT_FIELDS.forEach(id => setContactError(id, ''));
 
         formEl.classList.remove('hidden');

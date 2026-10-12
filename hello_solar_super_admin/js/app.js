@@ -7,7 +7,7 @@
   const SESSION = (window.SuperAdminAuth && window.SuperAdminAuth.getSession && window.SuperAdminAuth.getSession()) || {};
   const IS_ENGINEER = SESSION.role === "direct-engineer";
   const ENGINEER = { name: SESSION.name || "Direct Installation Engineer", actorId: SESSION.accountId || SESSION.actorId || "ENG-DEMO" };
-  const ENGINEER_PAGES = ["applications", "installations"];
+  const ENGINEER_PAGES = ["applications", "installations", "site-visits"];
   const $ = selector => document.querySelector(selector);
   const $$ = selector => [...document.querySelectorAll(selector)];
   const safeText = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -342,6 +342,9 @@
       case "installations":
         renderInstallations();
         break;
+      case "site-visits":
+        renderSiteVisits();
+        break;
       case "accounts":
         renderAccounts();
         break;
@@ -381,6 +384,19 @@
     if ($("#navBadgeInstalls")) $("#navBadgeInstalls").textContent = installs.length;
     const unresolvedSupport = support.filter(s => s.status === "Open" || s.status === "In Progress").length;
     if ($("#navBadgeSupport")) $("#navBadgeSupport").textContent = unresolvedSupport;
+
+    // Site visits (landing page Site Assessment requests)
+    const svAll = visibleSiteVisits();
+    const svToAssign = svAll.filter(v => v.status === "Pending Assignment").length;
+    const svScheduled = svAll.filter(v => v.status === "Scheduled").length;
+    if ($("#kpiSiteVisits")) $("#kpiSiteVisits").textContent = svToAssign + svScheduled;
+    if ($("#kpiSiteVisitsSub")) $("#kpiSiteVisitsSub").textContent = `${svToAssign} to assign`;
+    const svBadge = $("#navBadgeSiteVisits");
+    if (svBadge) {
+      const n = IS_ENGINEER ? svScheduled : svToAssign;
+      svBadge.textContent = n;
+      svBadge.style.display = n > 0 ? "inline-flex" : "none";
+    }
 
     // Contact Inquiries badge (Unread public landing page inquiries)
     const inquiries = db.getInquiries ? db.getInquiries() : [];
@@ -542,7 +558,10 @@
       }
     }
 
-    // 4. Recent Activity
+    // 4. Upcoming Site Visits
+    renderOverviewSiteVisits();
+
+    // 5. Recent Activity
     renderOverviewActivity();
   }
 
@@ -770,53 +789,56 @@
       $("#drawerStagePill").textContent = app.stage;
       $("#drawerStagePill").className = `status-pill ${getStatusClass(app.stage)}`;
     }
+    // Down payment received, shown beside the APP ID
+    const dpPill = $("#drawerDpPill");
+    if (dpPill) {
+      const dpInfo = drawerDownPaymentInfo(app);
+      dpPill.style.display = dpInfo ? "" : "none";
+      if (dpInfo) {
+        dpPill.className = `status-pill ${dpInfo.cls}`;
+        dpPill.textContent = dpInfo.text;
+        dpPill.title = dpInfo.title;
+      }
+    }
     if ($("#drawerCustomerName")) $("#drawerCustomerName").textContent = `${app.customer} • ${app.customerId}`;
     if ($("#drawerUpdated")) $("#drawerUpdated").textContent = `Last updated ${app.updated}`;
 
     // 2. Stepper Progression (Overview Tab)
+    // Both plans: Account Created → Down Payment → … → Installation → Completed
     const isFullPayment = (app.paymentType || "").toLowerCase().includes("full") || app.financer === "Not Required";
     const stages = isFullPayment
-      ? [
-          "Account Created",
-          "Payment Required",
-          "Ready for Installation",
-          "Installation",
-          "Completed"
-        ]
-      : [
-          "Account Created",
-          "Financing Review",
-          "Under Review",
-          "Approved",
-          "Ready for Installation",
-          "Completed"
-        ];
+      ? ["Account Created", "Down Payment", "Payment Required", "Ready for Installation", "Installation", "Completed"]
+      : ["Account Created", "Down Payment", "Financing Review", "Under Review", "Approved", "Ready for Installation", "Installation", "Completed"];
+    const at = name => stages.indexOf(name);
+    const dpState = db.downPaymentState(app);
+    // Installation progress lives on the installation job / installationStatus, not only on app.stage
+    const installJob = (db.data.installations || []).find(j => j.appId === app.id && j.status !== "Cancelled");
+    const installDone = app.installationStatus === "COMPLETED" || (installJob && installJob.status === "Completed");
+    const installing = ["Installation", "In Progress"].includes(app.stage) || app.installationStatus === "INSTALLATION_IN_PROGRESS" ||
+      (installJob && ["In Progress", "Testing", "Delayed"].includes(installJob.status));
 
-    let currentStageIndex = 0;
-    if (isFullPayment) {
-      if (app.stage === "Payment Required") currentStageIndex = 1;
-      else if (app.stage === "Approved" || app.stage === "Ready for Installation") currentStageIndex = 2;
-      else if (app.stage === "In Progress" || app.stage === "Installation") currentStageIndex = 3;
-      else if (app.stage === "Completed") currentStageIndex = 4;
-      else currentStageIndex = 1;
-    } else {
-      if (app.stage === "Financing Review") currentStageIndex = 1;
-      else if (app.stage === "Under Review" || app.stage === "Missing Documents") currentStageIndex = 2;
-      else if (app.stage === "Approved") currentStageIndex = 3;
-      else if (app.stage === "Ready for Installation") currentStageIndex = 4;
-      else if (app.stage === "Completed") currentStageIndex = 5;
-      else currentStageIndex = 1;
-    }
+    let currentStageIndex;
+    if (app.stage === "Completed" || installDone) currentStageIndex = at("Completed");
+    else if (installing) currentStageIndex = at("Installation");
+    else if (app.stage === "Ready for Installation" || (isFullPayment && app.stage === "Approved")) currentStageIndex = at("Ready for Installation");
+    else if (!isFullPayment && app.stage === "Approved") currentStageIndex = at("Approved");
+    else if (!isFullPayment && (app.stage === "Under Review" || app.stage === "Missing Documents")) currentStageIndex = at("Under Review");
+    else currentStageIndex = 2; // Payment Required / Financing Review
+    // The down payment must be verified before the project can move toward installation
+    if (dpState !== "Verified" && currentStageIndex < at("Ready for Installation")) currentStageIndex = at("Down Payment");
+    // Completed is only ticked once the application itself is marked Completed
+    const finished = app.stage === "Completed";
 
     const stepperEl = $("#drawerStepper");
     if (stepperEl) {
       stepperEl.innerHTML = stages.map((stg, i) => {
         let cls = "";
-        if (i < currentStageIndex) cls = "completed";
+        const done = i < currentStageIndex || (finished && i === currentStageIndex);
+        if (done) cls = "completed";
         else if (i === currentStageIndex) cls = "active";
         return `
           <div class="step-item ${cls}">
-            <div class="step-bubble">${i < currentStageIndex ? '✓' : i + 1}</div>
+            <div class="step-bubble">${done ? '✓' : i + 1}</div>
             <div class="step-label">${stg}</div>
           </div>
         `;
@@ -838,6 +860,13 @@
     if ($("#drawerAmount")) $("#drawerAmount").textContent = peso(app.amount);
     if ($("#drawerOverviewStage")) $("#drawerOverviewStage").textContent = app.stage;
     if ($("#drawerFinancer")) $("#drawerFinancer").textContent = app.financer;
+    const dpEl = $("#drawerDownPayment");
+    if (dpEl) {
+      const dpAmount = peso(app.downPaymentAmount || 10000);
+      const hasReceipt = !!(app.downPaymentProof && app.downPaymentProof.dataUrl);
+      dpEl.innerHTML = `${safeText(dpAmount)} · <span class="status-pill ${dpState === "Verified" ? "success" : "warn"}" style="font-size:11px;">${safeText(dpState)}</span>` +
+        (hasReceipt ? ` <button type="button" class="link-btn" id="btnViewDownPaymentReceipt" style="font-size:12px;">View receipt</button>` : "");
+    }
     if ($("#drawerInstallerSummary")) {
       $("#drawerInstallerSummary").textContent = isDirect
         ? "Hello Solar Internal Team (Direct)"
@@ -1091,6 +1120,11 @@
         footHtml = `
           <span class="badge-direct-installed">🏠 Hello Solar Direct Active</span>
         `;
+      }
+      if (!IS_ENGINEER && db.downPaymentState(app) !== "Verified") {
+        footHtml = `
+          <button class="btn btn-primary btn-sm" id="btnDrawerVerifyDownPayment">Verify Down Payment</button>
+        ` + footHtml;
       }
       const reviewStages = ["Submitted", "Financing Review", "Under Review", "Missing Documents"];
       if (!db.isFullPaymentApp(app) && app.stage !== "Declined" && (!app.financerId || reviewStages.includes(app.stage))) {
@@ -2796,6 +2830,403 @@
   }
 
   // ==================== ACCOUNTING / ANALYTICS (Super Admin only) ====================
+  // ─────────────────────────────────────────────────────────────────────────
+  // DOWN PAYMENT (drawer pill)
+  // ─────────────────────────────────────────────────────────────────────────
+  function drawerDownPaymentInfo(app) {
+    const hasField = app.downPaymentStatus !== undefined;
+    if (!hasField && !(!db.isFullPaymentApp(app) && Number(app.downPayment) > 0)) return null;
+    const amount = peso(app.downPaymentAmount || app.downPayment || 10000);
+    const st = db.downPaymentState(app);
+    if (app.refund && app.refund.status === "Refunded") return { cls: "neutral", text: `DP ${amount} · Refunded`, title: "Down payment refunded" };
+    if (st === "Verified") return { cls: "success", text: `DP ${amount} received`, title: "Down payment received and verified" };
+    if (st === "Pending Verification") return { cls: "warn", text: `DP ${amount} · Pending`, title: "Down payment receipt awaiting verification" };
+    return { cls: "neutral", text: "DP not received", title: "No down payment received yet" };
+  }
+
+  // Opens an uploaded receipt / document (browsers block opening data: URLs directly)
+  function openStoredFile(dataUrl) {
+    if (!dataUrl) {
+      showToast("The file preview is not available for this record.", "warn", "⚠");
+      return;
+    }
+    fetch(dataUrl).then(r => r.blob()).then(blob => window.open(URL.createObjectURL(blob), "_blank"));
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SITE VISITS
+  // ─────────────────────────────────────────────────────────────────────────
+  const SV_STATUS_CLASS = { "Pending Assignment": "warn", Scheduled: "direct", Completed: "success", Cancelled: "danger" };
+  const svDate = (d, t) => {
+    if (!d) return "—";
+    const dt = new Date(`${d}T${t || "00:00"}`);
+    if (Number.isNaN(dt.getTime())) return d;
+    const date = dt.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+    return t ? `${date} · ${dt.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}` : date;
+  };
+
+  function visibleSiteVisits() {
+    const list = db.getSiteVisits ? db.getSiteVisits() : [];
+    if (!IS_ENGINEER) return list;
+    return list.filter(v => v.assignee && v.assignee.type === "engineer" && v.assignee.refId === ENGINEER.actorId);
+  }
+
+  function assigneeLabel(v) {
+    if (!v.assignee) return `<span class="sub-info">Not assigned</span>`;
+    const type = { installer: "Installer", engineer: "Engineer", other: "Other" }[v.assignee.type] || "";
+    const doc = v.assignee.document ? ` · <button type="button" class="link-btn" data-sv-doc="${safeText(v.id)}">ID</button>` : "";
+    return `<div class="sv-assignee"><strong>${safeText(v.assignee.name)}</strong><small>${type}${v.assignee.phone ? ` · ${safeText(v.assignee.phone)}` : ""}${doc}</small></div>`;
+  }
+
+  function assigneeOptions(selected) {
+    const { installers, engineers } = db.getSiteVisitAssignees();
+    const opt = (val, label) => `<option value="${safeText(val)}" ${val === selected ? "selected" : ""}>${safeText(label)}</option>`;
+    return opt("", "— Choose who visits —") +
+      `<optgroup label="Registered Installers">${installers.map(i => opt(`installer:${i.id}`, `${i.name}${i.type === "Internal" ? " (Internal)" : ""}`)).join("")}</optgroup>` +
+      `<optgroup label="Engineers">${engineers.length ? engineers.map(e => opt(`engineer:${e.id}`, e.name)).join("") : `<option disabled>No engineer accounts yet</option>`}</optgroup>` +
+      `<optgroup label="Others">${opt("other", "Other person (upload ID)…")}</optgroup>`;
+  }
+
+  function assigneeValue(v) {
+    if (!v.assignee) return "";
+    return v.assignee.type === "other" ? "other" : `${v.assignee.type}:${v.assignee.refId}`;
+  }
+
+  function renderOverviewSiteVisits() {
+    const body = $("#overviewSiteVisitsBody");
+    if (!body) return;
+    const open = visibleSiteVisits().filter(v => v.status === "Pending Assignment" || v.status === "Scheduled")
+      .sort((x, y) => String(x.scheduledDate || "9999").localeCompare(String(y.scheduledDate || "9999")));
+    if ($("#overviewSiteVisitCount")) $("#overviewSiteVisitCount").textContent = open.length;
+    body.innerHTML = open.length ? open.slice(0, 5).map(v => `
+      <tr>
+        <td><strong>${safeText(v.id)}</strong></td>
+        <td>${safeText(v.customer)}</td>
+        <td><span class="sub-info">${safeText(v.location)}</span></td>
+        <td>${safeText(svDate(v.scheduledDate, v.scheduledTime))}</td>
+        <td>${assigneeLabel(v)}</td>
+        <td><span class="status-pill ${SV_STATUS_CLASS[v.status] || "neutral"}">${safeText(v.status)}</span></td>
+      </tr>`).join("")
+      : `<tr><td colspan="6" style="text-align:center; color:var(--muted); padding:18px;">No upcoming site visits.</td></tr>`;
+  }
+
+  function renderSiteVisits() {
+    const body = $("#siteVisitTableBody");
+    if (!body) return;
+    const q = ($("#siteVisitSearch")?.value || "").trim().toLowerCase();
+    const filter = state.siteVisitFilter || "All";
+    const rows = visibleSiteVisits().filter(v => (filter === "All" || v.status === filter) &&
+      (!q || [v.id, v.customer, v.location, v.phone, v.email, v.package, v.assignee && v.assignee.name].some(x => String(x || "").toLowerCase().includes(q))));
+    $$("#siteVisitFilterTabs .chip-btn").forEach(b => b.classList.toggle("active", b.dataset.status === filter));
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--muted); padding:22px;">${IS_ENGINEER ? "No site visits assigned to you." : "No site visits yet."}</td></tr>`;
+      return;
+    }
+    body.innerHTML = rows.map(v => {
+      const open = v.status === "Pending Assignment" || v.status === "Scheduled";
+      const feeCls = v.feePaymentStatus === "Verified" ? "success" : (v.feePaymentStatus === "Pending Verification" ? "warn" : "neutral");
+      const fee = `<span class="status-pill ${feeCls}">${peso(v.fee || 1000)} · ${safeText(v.feePaymentStatus)}</span>` +
+        (v.feeProof && v.feeProof.dataUrl ? `<div style="margin-top:4px;"><button type="button" class="link-btn" style="margin:0;" data-sv-receipt="${safeText(v.id)}">View receipt</button>` +
+          (!IS_ENGINEER && v.feePaymentStatus === "Pending Verification" ? ` · <button type="button" class="link-btn" data-sv-verify="${safeText(v.id)}">Verify</button>` : "") + `</div>` : "");
+      const assign = !IS_ENGINEER && open
+        ? `<select class="input-field sv-assign-select" data-sv-select="${safeText(v.id)}" aria-label="Assign site visit ${safeText(v.id)}">${assigneeOptions(assigneeValue(v))}</select>
+           ${v.assignee ? `<div style="margin-top:4px;">${assigneeLabel(v)}</div>` : ""}`
+        : assigneeLabel(v);
+      let actions = "";
+      if (IS_ENGINEER) {
+        actions = v.status === "Scheduled" ? `<button class="btn btn-primary btn-sm" data-sv-complete="${safeText(v.id)}">Mark Completed</button>` : "—";
+      } else if (v.status === "Pending Assignment") {
+        actions = `<button class="btn btn-primary btn-sm" data-sv-assign="${safeText(v.id)}">Assign</button> <button class="btn btn-secondary btn-sm" data-sv-cancel="${safeText(v.id)}">Cancel</button>`;
+      } else if (v.status === "Scheduled") {
+        actions = `<button class="btn btn-primary btn-sm" data-sv-complete="${safeText(v.id)}">Mark Completed</button> <button class="btn btn-secondary btn-sm" data-sv-cancel="${safeText(v.id)}">Cancel</button>`;
+      } else {
+        actions = v.completedAt ? `<span class="sub-info">${safeText(svDate(v.completedAt.slice(0, 10)))}</span>` : "—";
+      }
+      const preferred = v.preferredDate && v.preferredDate !== v.scheduledDate ? `<span class="sub-info">Preferred: ${safeText(svDate(v.preferredDate))}</span>` : "";
+      return `
+        <tr>
+          <td><strong>${safeText(v.id)}</strong><span class="sub-info">${safeText(v.customer)} · ${safeText(v.phone)}</span></td>
+          <td><span style="font-size:12.5px;">${safeText(v.location)}</span><span class="sub-info">${safeText(v.package || "")}</span></td>
+          <td>${safeText(svDate(v.scheduledDate, v.scheduledTime))}${preferred}</td>
+          <td>${fee}</td>
+          <td>${assign}</td>
+          <td><span class="status-pill ${SV_STATUS_CLASS[v.status] || "neutral"}">${safeText(v.status)}</span></td>
+          <td style="text-align:right; white-space:nowrap;">${actions}</td>
+        </tr>`;
+    }).join("");
+  }
+
+  let svaVisitId = null;
+  function openSiteVisitAssignModal(visitId, preset) {
+    const v = db.getSiteVisits().find(x => x.id === visitId);
+    if (!v) return;
+    svaVisitId = visitId;
+    $("#svaVisitId").textContent = v.id;
+    $("#svaClient").textContent = `${v.customer} · ${v.phone}`;
+    $("#svaLocation").textContent = v.location || "—";
+    const sel = $("#svaAssignee");
+    sel.innerHTML = assigneeOptions(preset !== undefined ? preset : assigneeValue(v));
+    $("#svaDate").value = v.scheduledDate || v.preferredDate || "";
+    $("#svaTime").value = v.scheduledTime || "";
+    $("#svaOtherName").value = v.assignee && v.assignee.type === "other" ? v.assignee.name : "";
+    $("#svaOtherPhone").value = v.assignee && v.assignee.type === "other" ? v.assignee.phone : "";
+    $("#svaOtherDoc").value = "";
+    $("#svaOtherFields").style.display = sel.value === "other" ? "block" : "none";
+    $("#svaError").style.display = "none";
+    $("#siteVisitAssignModal").classList.add("open");
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("read"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function confirmSiteVisitAssign() {
+    const err = msg => { $("#svaError").textContent = msg; $("#svaError").style.display = msg ? "block" : "none"; };
+    const value = $("#svaAssignee").value;
+    if (!value) return err("Choose who will do the site visit.");
+    const assignment = { scheduledDate: $("#svaDate").value, scheduledTime: $("#svaTime").value };
+    if (value === "other") {
+      assignment.type = "other";
+      assignment.name = $("#svaOtherName").value;
+      assignment.phone = $("#svaOtherPhone").value;
+      const file = $("#svaOtherDoc").files && $("#svaOtherDoc").files[0];
+      const v = db.getSiteVisits().find(x => x.id === svaVisitId);
+      if (file) {
+        if (file.size > 5 * 1024 * 1024) return err("The document must be 5 MB or smaller.");
+        if (!/^(image\/(jpeg|png|webp)|application\/pdf)$/.test(file.type)) return err("Upload a JPG, PNG or PDF file.");
+        try {
+          assignment.document = { fileName: file.name, fileType: file.type, dataUrl: await readFileAsDataUrl(file) };
+        } catch (e) { return err("Could not read the document. Try another file."); }
+      } else if (v && v.assignee && v.assignee.type === "other" && v.assignee.document) {
+        assignment.document = v.assignee.document; // keep the document already on file
+      }
+    } else {
+      const [type, refId] = value.split(":");
+      assignment.type = type;
+      assignment.refId = refId;
+    }
+    if (!assignment.scheduledDate) return err("Choose the visit date.");
+    const res = db.assignSiteVisit(svaVisitId, assignment, { adminUser: SESSION.name ? `ADMIN (${SESSION.name})` : "ADMIN (Limuel)" });
+    if (!res.success) return err(res.error);
+    $("#siteVisitAssignModal").classList.remove("open");
+    showToast(`${res.visit.id} assigned to ${safeText(res.visit.assignee.name)}.`, "success", "✓");
+    renderCurrentPage();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ACCOUNTING: client payments (refund policy) and reimbursement requests
+  // ─────────────────────────────────────────────────────────────────────────
+  const ACC_PAY_CLASS = { Verified: "success", "Pending Verification": "warn", "Not Submitted": "neutral" };
+  const ACC_DECISION_CLASS = { Proceeding: "success", "Not Proceeding": "danger", Awaiting: "neutral" };
+  const ACC_REFUND_CLASS = { Refunded: "success", "Eligible for Refund": "warn", "Non-refundable": "danger", "Pending Decision": "neutral", "Awaiting Verification": "neutral" };
+
+  function renderClientPayments() {
+    const body = $("#accClientPaymentsBody");
+    if (!body) return;
+    const all = db.getClientPayments();
+    const paid = all.filter(r => r.paymentStatus === "Verified").reduce((s, r) => s + r.amount, 0);
+    const refunded = all.filter(r => r.refundStatus === "Refunded").reduce((s, r) => s + Number((r.refund && r.refund.amount) || r.amount), 0);
+    if ($("#accClientPaid")) $("#accClientPaid").textContent = peso(paid);
+    if ($("#accClientRefunded")) $("#accClientRefunded").textContent = peso(refunded);
+    const q = ($("#accClientSearch")?.value || "").trim().toLowerCase();
+    const rows = all.filter(r => !q || [r.ref, r.client, r.type].some(x => String(x || "").toLowerCase().includes(q)));
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--muted); padding:18px;">No client payments yet.</td></tr>`;
+      return;
+    }
+    body.innerHTML = rows.map(r => {
+      const key = `data-kind="${r.kind}" data-id="${safeText(r.id)}"`;
+      let action;
+      if (r.refundStatus === "Awaiting Verification") {
+        action = r.paymentStatus === "Pending Verification" ? `<button class="btn btn-primary btn-sm" data-acc-verify ${key}>Verify Payment</button>` : `<span class="sub-info">No payment yet</span>`;
+      } else if (r.refundStatus === "Pending Decision") {
+        action = `<span class="acc-actions"><button class="btn btn-secondary btn-sm" data-acc-decision="Proceeding" ${key}>Proceeding</button><button class="btn btn-secondary btn-sm" data-acc-decision="Not Proceeding" ${key}>Not Proceeding</button></span>`;
+      } else if (r.refundStatus === "Eligible for Refund") {
+        action = `<span class="acc-actions"><button class="btn btn-primary btn-sm" data-acc-refund ${key}>Refund</button><button class="btn btn-secondary btn-sm" data-acc-decision="Not Proceeding" ${key}>Not Proceeding</button></span>`;
+      } else if (r.refundStatus === "Non-refundable") {
+        action = `<span class="acc-actions"><span class="sub-info" style="margin:0;">No refund</span><button class="btn btn-secondary btn-sm" data-acc-decision="Proceeding" ${key}>Mark Proceeding</button></span>`;
+      } else {
+        action = r.refund ? `<span class="sub-info">${safeText(r.refund.reference || r.refund.method)}<br>${safeText(svDate(String(r.refund.refundedAt || "").slice(0, 10)))}</span>` : "—";
+      }
+      const refLink = r.kind === "dp" ? `<button type="button" class="link-btn" style="margin:0;" data-view-app="${safeText(r.ref)}">${safeText(r.ref)}</button>` : `<strong>${safeText(r.ref)}</strong>`;
+      return `
+        <tr>
+          <td>${refLink}</td>
+          <td>${safeText(r.client)}</td>
+          <td>${safeText(r.type)}</td>
+          <td class="num">${peso(r.amount)}</td>
+          <td><span class="status-pill ${ACC_PAY_CLASS[r.paymentStatus] || "neutral"}">${safeText(r.paymentStatus)}</span>${r.hasReceipt ? `<div><button type="button" class="link-btn" style="margin:0;" data-acc-receipt ${key}>View receipt</button></div>` : ""}</td>
+          <td><span class="status-pill ${ACC_DECISION_CLASS[r.decision] || "neutral"}">${safeText(r.decision)}</span></td>
+          <td><span class="status-pill ${ACC_REFUND_CLASS[r.refundStatus] || "neutral"}">${safeText(r.refundStatus)}</span></td>
+          <td style="text-align:right;">${action}</td>
+        </tr>`;
+    }).join("");
+  }
+
+  function renderReimbursements() {
+    const body = $("#accReimbursementsBody");
+    if (!body) return;
+    const list = db.getReimbursements();
+    if ($("#accReimbPendingCount")) $("#accReimbPendingCount").textContent = list.filter(r => r.status === "Pending").length;
+    if (!list.length) {
+      body.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--muted); padding:18px;">No reimbursement requests.</td></tr>`;
+      return;
+    }
+    const cls = { Pending: "warn", Approved: "success", Declined: "danger" };
+    body.innerHTML = list.map(r => {
+      const action = r.status === "Pending"
+        ? `<span class="acc-actions"><button class="btn btn-primary btn-sm" data-reimb-approve="${safeText(r.id)}">Approve</button><button class="btn btn-secondary btn-sm" data-reimb-decline="${safeText(r.id)}">Decline</button></span>`
+        : `<span class="sub-info">${safeText(r.resolutionNote || r.reference || "")}${r.resolvedAt ? `<br>${safeText(svDate(r.resolvedAt.slice(0, 10)))}` : ""}</span>`;
+      return `
+        <tr>
+          <td><strong>${safeText(r.id)}</strong><span class="sub-info">${safeText(svDate(String(r.requestedAt || "").slice(0, 10)))}</span></td>
+          <td>${safeText(r.customer)}<span class="sub-info"><button type="button" class="link-btn" style="margin:0;" data-view-app="${safeText(r.appId)}">${safeText(r.appId)}</button></span></td>
+          <td>${safeText(r.type)}</td>
+          <td class="num">${peso(r.amount)}</td>
+          <td style="max-width:260px;"><span style="font-size:12.5px;">${safeText(r.reason)}</span>${r.attachment && r.attachment.dataUrl ? `<div><button type="button" class="link-btn" style="margin:0;" data-reimb-file="${safeText(r.id)}">View attachment</button></div>` : ""}${r.payoutDetails ? `<span class="sub-info">Pay to: ${safeText(r.payoutDetails)}</span>` : ""}</td>
+          <td><span class="status-pill ${cls[r.status] || "neutral"}">${safeText(r.status)}</span></td>
+          <td style="text-align:right;">${action}</td>
+        </tr>`;
+    }).join("");
+  }
+
+  // Refund / reimbursement modal
+  let accModal = null; // { mode: "refund" | "approve" | "decline", kind, id }
+  function openAccRefundModal(mode, kind, id) {
+    accModal = { mode, kind, id };
+    let ref, client, type, amount, policy = "";
+    if (mode === "refund") {
+      const row = db.getClientPayments().find(r => r.kind === kind && r.id === id);
+      if (!row) return;
+      ({ ref, client, type, amount } = row);
+      policy = "The client proceeded with the installation, so this payment is refundable.";
+    } else {
+      const r = db.getReimbursements().find(x => x.id === id);
+      if (!r) return;
+      ref = `${r.id} · ${r.appId}`; client = r.customer; type = r.type; amount = r.amount;
+      if (r.type === "Down Payment") {
+        const app = db.data.applications.find(a => a.id === r.appId);
+        const decision = app ? db.clientDecisionFor("dp", app) : "Awaiting";
+        policy = decision === "Not Proceeding" ? "Policy: the client is not proceeding with the installation, so the down payment is non-refundable."
+          : decision === "Proceeding" ? "Policy: the client proceeded with the installation, so the down payment is refundable." : "Policy: refundable only if the client proceeds with the installation.";
+      }
+    }
+    $("#arfRef").textContent = ref;
+    $("#arfClient").textContent = client;
+    $("#arfType").textContent = type;
+    $("#arfAmount").textContent = peso(amount);
+    $("#arfPolicy").textContent = policy;
+    $("#arfPolicy").style.display = policy ? "block" : "none";
+    $("#arfEyebrow").textContent = mode === "refund" ? "ACCOUNTING · REFUND" : "ACCOUNTING · REIMBURSEMENT";
+    $("#arfTitle").textContent = mode === "refund" ? "Refund Payment" : (mode === "approve" ? "Approve Reimbursement" : "Decline Reimbursement");
+    $("#arfPayFields").style.display = mode === "decline" ? "none" : "block";
+    $("#arfNoteLabel").textContent = mode === "decline" ? "Reason for declining" : "Notes (optional)";
+    $("#btnConfirmAccRefund").textContent = mode === "refund" ? "Confirm Refund" : (mode === "approve" ? "Approve & Record Payout" : "Decline Request");
+    $("#arfReference").value = "";
+    $("#arfNote").value = "";
+    $("#arfError").style.display = "none";
+    $("#accRefundModal").classList.add("open");
+  }
+
+  function confirmAccRefund() {
+    if (!accModal) return;
+    const adminUser = SESSION.name ? `ADMIN (${SESSION.name})` : "ADMIN (Limuel)";
+    const payload = { method: $("#arfMethod").value, reference: $("#arfReference").value, notes: $("#arfNote").value, note: $("#arfNote").value };
+    const res = accModal.mode === "refund"
+      ? db.refundClientPayment(accModal.kind, accModal.id, payload, { adminUser })
+      : db.resolveReimbursement(accModal.id, accModal.mode === "approve" ? "Approved" : "Declined", payload, { adminUser });
+    if (!res.success) {
+      $("#arfError").textContent = res.error;
+      $("#arfError").style.display = "block";
+      return;
+    }
+    $("#accRefundModal").classList.remove("open");
+    showToast(accModal.mode === "refund" ? "Refund recorded." : `Reimbursement ${accModal.mode === "approve" ? "approved" : "declined"}.`, "success", "✓");
+    renderCurrentPage();
+  }
+
+  function wireSiteVisitAndAccountingEvents() {
+    $("#btnSavePartnerTerms")?.addEventListener("click", e => {
+      const id = e.currentTarget.dataset.inquiryId;
+      const res = db.setPartnerProposal(id, {
+        contractTermMonths: $("#inqPartnerTermInput").value,
+        annualRate: $("#inqPartnerRateInput").value,
+        contractStartDate: $("#inqPartnerStartInput").value
+      }, SESSION.name ? `ADMIN (${SESSION.name})` : "ADMIN (Limuel)");
+      if (!res.success) {
+        const msg = $("#inqPartnerTermsMsg");
+        msg.textContent = res.error;
+        msg.style.color = "var(--danger)";
+        return;
+      }
+      showToast(`Contract terms saved for ${safeText(id)}.`, "success", "✓");
+      renderPartnerInquiryPanel(res.inquiry);
+    });
+    $("#inqPartnerTypeSelect")?.addEventListener("change", e => {
+      const id = e.target.dataset.inquiryId;
+      const res = db.setPartnerInquiryType(id, e.target.value, SESSION.name ? `ADMIN (${SESSION.name})` : "ADMIN (Limuel)");
+      if (!res.success) { showToast(res.error, "danger", "⚠"); return; }
+      if (e.target.value) showToast(`${id} set as ${e.target.value} partner.`, "success", "✓");
+      renderPartnerInquiryPanel(res.inquiry);
+      renderInquiries();
+    });
+    $$("#siteVisitFilterTabs .chip-btn").forEach(btn => btn.addEventListener("click", () => {
+      state.siteVisitFilter = btn.dataset.status;
+      renderSiteVisits();
+    }));
+    $("#siteVisitSearch")?.addEventListener("input", renderSiteVisits);
+    $("#accClientSearch")?.addEventListener("input", renderClientPayments);
+    $("#svaAssignee")?.addEventListener("change", e => { $("#svaOtherFields").style.display = e.target.value === "other" ? "block" : "none"; });
+    $("#btnConfirmSiteVisitAssign")?.addEventListener("click", confirmSiteVisitAssign);
+    $("#btnConfirmAccRefund")?.addEventListener("click", confirmAccRefund);
+    $("#svaOtherPhone")?.addEventListener("input", e => { e.target.value = e.target.value.replace(/[^\d ]/g, ""); });
+
+    document.addEventListener("change", e => {
+      const sel = e.target.closest("[data-sv-select]");
+      if (sel && sel.value) openSiteVisitAssignModal(sel.dataset.svSelect, sel.value);
+    });
+    document.addEventListener("click", e => {
+      const t = e.target.closest("[data-sv-receipt],[data-sv-verify],[data-sv-assign],[data-sv-complete],[data-sv-cancel],[data-sv-doc],[data-acc-verify],[data-acc-decision],[data-acc-refund],[data-acc-receipt],[data-reimb-approve],[data-reimb-decline],[data-reimb-file]");
+      if (!t) return;
+      const adminUser = SESSION.name ? `ADMIN (${SESSION.name})` : "ADMIN (Limuel)";
+      const visit = id => db.getSiteVisits().find(v => v.id === id);
+      const done = (res, msg) => {
+        if (!res.success) { showToast(res.error, "danger", "⚠"); return; }
+        showToast(msg, "success", "✓");
+        renderCurrentPage();
+      };
+      const d = t.dataset;
+      if (d.svReceipt) openStoredFile(visit(d.svReceipt)?.feeProof?.dataUrl);
+      else if (d.svDoc) openStoredFile(visit(d.svDoc)?.assignee?.document?.dataUrl);
+      else if (d.svVerify && !IS_ENGINEER) done(db.verifySiteVisitFee(d.svVerify, { adminUser }), `Site visit fee verified for ${d.svVerify}.`);
+      else if (d.svAssign && !IS_ENGINEER) openSiteVisitAssignModal(d.svAssign);
+      else if (d.svComplete) {
+        const opts = IS_ENGINEER ? { role: "Installer", user: ENGINEER.name, actorId: ENGINEER.actorId } : { user: adminUser };
+        if (IS_ENGINEER) {
+          const v = visit(d.svComplete);
+          if (!v || !v.assignee || v.assignee.refId !== ENGINEER.actorId) return;
+        }
+        done(db.updateSiteVisitStatus(d.svComplete, "Completed", opts), `${d.svComplete} marked as completed.`);
+      } else if (d.svCancel && !IS_ENGINEER) done(db.updateSiteVisitStatus(d.svCancel, "Cancelled", { user: adminUser }), `${d.svCancel} cancelled.`);
+      else if (t.hasAttribute("data-acc-verify")) {
+        const res = d.kind === "dp" ? db.verifyDownPayment(d.id, { adminUser }) : db.verifySiteVisitFee(d.id, { adminUser });
+        done(res, `Payment verified for ${d.id}.`);
+      } else if (d.accDecision) done(db.setClientDecision(d.kind, d.id, d.accDecision, { adminUser }), `${d.id} marked as ${d.accDecision}.`);
+      else if (t.hasAttribute("data-acc-refund")) openAccRefundModal("refund", d.kind, d.id);
+      else if (t.hasAttribute("data-acc-receipt")) {
+        const row = db.getClientPayments().find(r => r.kind === d.kind && r.id === d.id);
+        openStoredFile(row && row.proof && row.proof.dataUrl);
+      } else if (d.reimbApprove) openAccRefundModal("approve", null, d.reimbApprove);
+      else if (d.reimbDecline) openAccRefundModal("decline", null, d.reimbDecline);
+      else if (d.reimbFile) openStoredFile(db.getReimbursements().find(r => r.id === d.reimbFile)?.attachment?.dataUrl);
+    });
+  }
+
   function renderAccounting() {
     if (IS_ENGINEER) return;
     if (typeof db.syncFinancerContracts === "function") db.syncFinancerContracts();
@@ -2819,6 +3250,8 @@
     set("#accContractsExpired", s.contracts.expired);
     set("#accContractsOther", `${s.contracts.terminated} / ${s.contracts.pendingStart}`);
 
+    renderClientPayments();
+    renderReimbursements();
     renderInstallationCostTable();
     renderSystemConnectionTable();
   }
@@ -3856,7 +4289,7 @@
         const createAction = inq.accountCreated
           ? `<button type="button" class="btn btn-secondary btn-sm inquiry-create-action" disabled>Account Created · ${safeText(inq.linkedAccountId || "")}</button>`
           : (inq.inquiryStatus === "Approved"
-            ? `<button type="button" class="btn btn-secondary btn-sm inquiry-create-action" data-create-partner-account="${safeText(inq.id)}">Create ${safeText(inq.partnerType)} Account</button>`
+            ? `<button type="button" class="btn btn-secondary btn-sm inquiry-create-action" data-create-partner-account="${safeText(inq.id)}">Create ${safeText(partnerAccountLabel(inq))}</button>`
             : "");
         return `
         <tr style="${isUnread ? 'background: rgba(245, 158, 11, 0.03);' : ''}">
@@ -3867,7 +4300,7 @@
             </div>
           </td>
           <td>
-            <span class="status-pill direct" style="font-size:11px;">${safeText(inq.partnerType)} Partner</span>
+            <span class="status-pill direct" style="font-size:11px;">${safeText(partnerTypeLabel(inq))}</span>
           </td>
           <td>
             <span style="font-size:12px; color:var(--muted);">—</span>
@@ -3937,6 +4370,14 @@
     }).join("");
   }
 
+  // "Financer Partner" for typed inquiries, "Partner" when the role is chosen at account creation
+  function partnerTypeLabel(inq) {
+    return inq && inq.partnerType ? `${inq.partnerType} Partner` : "Partner";
+  }
+  function partnerAccountLabel(inq) {
+    return inq && inq.partnerType ? `${inq.partnerType} Account` : "Partner Account";
+  }
+
   function partnerInquiryStatusLabel(inq) {
     if (inq.accountCreated) return "Account Created";
     return inq.inquiryStatus || "Pending Review";
@@ -3955,14 +4396,38 @@
 
     const p = inq.financerProposal || null;
     const status = partnerInquiryStatusLabel(inq);
-    $("#inqPartnerType").textContent = `${inq.partnerType} Partner`;
+    $("#inqPartnerType").textContent = partnerTypeLabel(inq);
     $("#inqPartnerStatus").className = `status-pill ${inq.accountCreated || inq.inquiryStatus === "Approved" ? "success" : "warn"}`;
     $("#inqPartnerStatus").textContent = status;
-    $("#inqPartnerFinancerRow").style.display = inq.partnerType === "Financer" ? "" : "none";
-    if (inq.partnerType === "Financer") {
+    // Financer: editable agreed terms until the account exists, then read-only
+    const isFin = inq.partnerType === "Financer";
+    const editTerms = isFin && !inq.accountCreated;
+    $("#inqPartnerTermsEdit").style.display = editTerms ? "block" : "none";
+    $("#inqPartnerFinancerRow").style.display = isFin && !editTerms ? "" : "none";
+    if (editTerms) {
+      $("#inqPartnerTermInput").value = p && p.contractTermMonths ? p.contractTermMonths : "";
+      $("#inqPartnerRateInput").value = p && p.annualRate != null ? p.annualRate : "";
+      $("#inqPartnerStartInput").value = p && p.contractStartDate ? p.contractStartDate : "";
+      $("#btnSavePartnerTerms").dataset.inquiryId = inq.id;
+      const msg = $("#inqPartnerTermsMsg");
+      msg.style.color = "";
+      msg.textContent = p ? `Saved · ${p.contractTermMonths} mo @ ${p.annualRate}% from ${formatReadableDate(p.contractStartDate)}` : "";
+    }
+    if (isFin) {
       $("#inqPartnerTerm").textContent = p && p.contractTermMonths ? `${p.contractTermMonths} months` : "Not provided";
       $("#inqPartnerRate").textContent = p && p.annualRate !== undefined && p.annualRate !== null ? `${p.annualRate}% p.a.` : "Not provided";
       $("#inqPartnerStart").textContent = p && p.contractStartDate ? formatReadableDate(p.contractStartDate) : "Not provided";
+    }
+
+    // Partner type picked by Super Admin from the message
+    const typeSel = $("#inqPartnerTypeSelect");
+    if (typeSel) {
+      typeSel.value = inq.partnerType || "";
+      typeSel.disabled = !!inq.accountCreated;
+      typeSel.dataset.inquiryId = inq.id;
+      const hint = $("#inqPartnerTypeHint");
+      const guess = suggestPartnerType(inq.message);
+      if (hint) hint.textContent = !inq.partnerType && guess ? `Suggested: ${guess}` : "";
     }
 
     const approveBtn = $("#btnApprovePartnerInquiry");
@@ -3972,15 +4437,27 @@
     approveBtn.dataset.approvePartnerInquiry = inq.id;
     createBtn.style.display = inq.inquiryStatus === "Approved" ? "inline-flex" : "none";
     createBtn.dataset.createPartnerAccount = inq.id;
-    createBtn.disabled = !!inq.accountCreated;
-    createBtn.textContent = inq.accountCreated ? `Account Created · ${inq.linkedAccountId || ""}` : `Create ${inq.partnerType} Account`;
+    createBtn.disabled = !!inq.accountCreated || !inq.partnerType;
+    createBtn.title = !inq.partnerType && !inq.accountCreated ? "Select the partner type first" : "";
+    createBtn.textContent = inq.accountCreated ? `Account Created · ${inq.linkedAccountId || ""}` : `Create ${partnerAccountLabel(inq)}`;
     if (inq.accountCreated) {
       note.textContent = `Linked to ${inq.partnerType} account ${inq.linkedAccountId}.`;
     } else if (inq.inquiryStatus === "Approved") {
-      note.textContent = `Approved${inq.approvedBy ? ` by ${inq.approvedBy}` : ""}. Create Account opens the form prefilled — the account is created only when you submit it.`;
+      note.textContent = inq.partnerType
+        ? `Approved${inq.approvedBy ? ` by ${inq.approvedBy}` : ""}.${isFin && !p ? " Save the contract terms before creating the account." : ""}`
+        : `Approved${inq.approvedBy ? ` by ${inq.approvedBy}` : ""}. Select the partner type to create the account.`;
     } else {
-      note.textContent = "Review the partner details, then approve to enable account creation.";
+      note.textContent = "Review the message, then approve.";
     }
+  }
+
+  // Keyword hint only — Super Admin makes the final choice
+  function suggestPartnerType(message) {
+    const m = String(message || "").toLowerCase();
+    if (/financ|loan|lend|bank|credit|fund/.test(m)) return "Financer";
+    if (/install|contractor|electrician|engineer|technician|roof/.test(m)) return "Installer";
+    if (/suppl|product|equipment|distribut|wholesale|panel|inverter|batter|merchant|sell|store/.test(m)) return "Merchant";
+    return "";
   }
 
   function prefillPartnerInquiry(inq) {
@@ -3996,7 +4473,7 @@
     });
     const p = inq.financerProposal;
     const notes = [
-      `Partner inquiry ${inq.id} (${inq.partnerType})`,
+      `Partner inquiry ${inq.id}${inq.partnerType ? ` (${inq.partnerType})` : ""}`,
       p ? `Proposed contract: ${p.contractTermMonths} months @ ${p.annualRate}% p.a., starting ${p.contractStartDate}` : "",
       inq.message ? `Message: ${inq.message}` : ""
     ].filter(Boolean).join("\n");
@@ -4047,10 +4524,11 @@
 
     // Header
     if ($("#inqModalTitle")) $("#inqModalTitle").textContent = `${inq.id} · ${inq.name}`;
+    const converted = !!inq.customerId;
     if ($("#inqModalStatusBadge")) {
-      const isUnread = inq.status === "Unread";
+      const isUnread = inq.status === "Unread" && !converted;
       $("#inqModalStatusBadge").className = `status-pill ${isUnread ? "warn" : "success"}`;
-      $("#inqModalStatusBadge").textContent = inq.status;
+      $("#inqModalStatusBadge").textContent = converted ? `Customer · ${inq.customerId}` : inq.status;
     }
 
     // Detail Grid
@@ -4076,6 +4554,22 @@
     if ($("#inqDetailPackage")) $("#inqDetailPackage").textContent = inq.selectedSolarModel || inq.package || "Custom Solar Package";
     if ($("#inqDetailElectricBill")) $("#inqDetailElectricBill").textContent = inq.electricBill || (inq.monthlyBill || "₱10,000 - ₱15,000");
     if ($("#inqDetailPaymentPreference")) $("#inqDetailPaymentPreference").textContent = inq.paymentPreference === "Not specified" ? "—" : (inq.paymentPreference || "Full Payment");
+    // Landing page request type (Buy Now / Site Assessment) and the uploaded payment proof
+    if ($("#inqDetailRequestRow")) {
+      $("#inqDetailRequestRow").style.display = inq.requestType ? "" : "none";
+      $("#inqDetailRequestType").textContent = inq.requestType
+        ? `${inq.requestType}${inq.preferredVisitDate ? ` · ${svDate(inq.preferredVisitDate)}` : ""}` : "—";
+    }
+    if ($("#inqDetailProofRow")) {
+      const proof = inq.paymentProof;
+      $("#inqDetailProofRow").style.display = proof ? "" : "none";
+      if (proof) {
+        $("#inqDetailProof").innerHTML = `${peso(proof.amount)} ${safeText(proof.purpose || "")} · <span class="status-pill warn" style="font-size:11px;">${safeText(proof.status || "Pending Verification")}</span>` +
+          (proof.dataUrl ? ` <button type="button" class="link-btn" id="btnInqViewProof">View receipt</button>` : "");
+        const btn = $("#btnInqViewProof");
+        if (btn) btn.onclick = () => openStoredFile(proof.dataUrl);
+      }
+    }
     if ($("#inqDetailCategory")) $("#inqDetailCategory").textContent = inq.category || "General Inquiry";
 
     // Message Status & Customer Response Pills in Detail Grid
@@ -4091,7 +4585,7 @@
       $("#inqDetailCustomerResponse").textContent = inqStatus;
     }
     if ($("#inqDetailInquiryStatus")) {
-      $("#inqDetailInquiryStatus").textContent = inq.customerId ? `(Customer Account: ${inq.customerId})` : "";
+      $("#inqDetailInquiryStatus").textContent = "";
     }
 
     // Confirmation Email Card
@@ -4118,9 +4612,9 @@
     const emailDesc = $("#inqEmailStatusDesc");
     if (emailDesc) {
       if (inq.confirmationEmailSentAt) {
-        emailDesc.textContent = `Sent to ${inq.email} · ${calculateRelativeTime(inq.confirmationEmailSentAt) || "Recently"}. The customer chooses Proceed or Not Proceeding on the confirmation page.`;
+        emailDesc.textContent = `Sent to ${inq.email} · ${calculateRelativeTime(inq.confirmationEmailSentAt) || "recently"}`;
       } else {
-        emailDesc.textContent = `Not sent yet. The link goes to ${inq.email} so the customer can choose Proceed or Not Proceeding.`;
+        emailDesc.textContent = `Not sent yet · ${inq.email}`;
       }
     }
 
@@ -4182,13 +4676,16 @@
       emailComposeBtn.href = `mailto:${inq.email}?subject=${emailSubj}&body=${emailBody}`;
     }
 
+    // Once the customer account exists, the confirmation editor and reply note are no longer needed
+    if ($("#inqConfirmationEditor")) $("#inqConfirmationEditor").style.display = converted ? "none" : "";
+
     // Status Banner & Forms
     const isReplied = inq.status === "Replied";
     const banner = $("#inqRepliedBanner");
     const replyForm = $("#inqReplyForm");
 
     if (banner) banner.style.display = isReplied ? "block" : "none";
-    if (replyForm) replyForm.style.display = isReplied ? "none" : "block";
+    if (replyForm) replyForm.style.display = isReplied || converted ? "none" : "block";
 
     if (isReplied) {
       const rep = inq.reply || {};
@@ -4354,7 +4851,7 @@
       `"${(i.email || "").replace(/"/g, '""')}"`,
       `"${(i.phone || "").replace(/"/g, '""')}"`,
       `"${(i.location || "").replace(/"/g, '""')}"`,
-      `"${((isPartner ? `${i.partnerType} Partner` : i.category) || "").replace(/"/g, '""')}"`,
+      `"${((isPartner ? partnerTypeLabel(i) : i.category) || "").replace(/"/g, '""')}"`,
       `"${(i.selectedSolarModel || i.package || "").replace(/"/g, '""')}"`,
       `"${(i.electricBill || "").replace(/"/g, '""')}"`,
       `"${(isPartner ? "" : (i.paymentPreference || "Full Payment")).replace(/"/g, '""')}"`,
@@ -4725,7 +5222,8 @@
       notes,
       inquiryId: role === 'Customer' ? state.createInquiryId : null,
       // Partner inquiry link applies only when creating the inquiry's own partner type
-      partnerInquiryId: state.createPartnerInquiryId && role === state.createPartnerInquiryRole ? state.createPartnerInquiryId : null,
+      // (untyped inquiries link to whichever partner role Super Admin picks)
+      partnerInquiryId: state.createPartnerInquiryId && (state.createPartnerInquiryRole ? role === state.createPartnerInquiryRole : ["Financer", "Installer", "Merchant"].includes(role)) ? state.createPartnerInquiryId : null,
       appId: state.projectIds?.appId,
       hsId: state.projectIds?.hsId,
       projectType: $('#newAccProjectType')?.value || '',
@@ -5883,6 +6381,22 @@
         if (state.selectedAppId) openDirectInstallModal(state.selectedAppId);
       } else if (e.target.id === "btnTabAssignPartner" || e.target.id === "btnDrawerFootPartner" || e.target.id === "btnTabChangePartner") {
         if (state.selectedAppId) openAssignPartnerModal(state.selectedAppId);
+      } else if (e.target.id === "btnDrawerVerifyDownPayment") {
+        if (!state.selectedAppId || IS_ENGINEER) return;
+        const res = db.verifyDownPayment(state.selectedAppId, { adminUser: SESSION.name ? `ADMIN (${SESSION.name})` : "ADMIN (Limuel)" });
+        if (!res.success) {
+          showToast(res.error, "danger", "⚠");
+          return;
+        }
+        showToast(`Down payment verified for ${safeText(state.selectedAppId)}.`, "success", "✓");
+        openAppDrawer(state.selectedAppId);
+        if (typeof renderCurrentPage === "function") renderCurrentPage();
+      } else if (e.target.id === "btnViewDownPaymentReceipt") {
+        const app = db.data.applications.find(x => x.id === state.selectedAppId);
+        const proof = app && app.downPaymentProof;
+        if (!proof || !proof.dataUrl) return;
+        // Open the receipt via a blob URL (browsers block opening data: URLs directly)
+        openStoredFile(proof.dataUrl);
       } else if (e.target.id === "btnDrawerAssignFinancer") {
         if (state.selectedAppId) openAssignFinancerModal(state.selectedAppId);
       } else if (e.target.id === "btnDrawerReviewDocs") {
@@ -6245,7 +6759,7 @@
           showToast(res.error, "danger", "⚠");
           return;
         }
-        showToast(`${safeText(res.inquiry.partnerType)} partner inquiry ${safeText(res.inquiry.id)} approved. You can now create the account.`, "success", "✓");
+        showToast(`${safeText(partnerTypeLabel(res.inquiry))} inquiry ${safeText(res.inquiry.id)} approved. You can now create the account.`, "success", "✓");
         openInquiryModal(res.inquiry.id);
         renderInquiries();
         updateBadgesAndKPIs();
@@ -6263,6 +6777,12 @@
         }
         if (inq.accountCreated) {
           showToast(`This inquiry already has an account (${safeText(inq.linkedAccountId || "")}).`, "danger", "⚠");
+          return;
+        }
+        // The partner type (chosen in Contact Inquiries from their message) decides which account is created
+        if (!inq.partnerType) {
+          showToast("Select the partner type (Financer, Installer or Merchant) in the inquiry details first.", "warn", "⚠");
+          openInquiryModal(inq.id);
           return;
         }
         state.createAccountRole = inq.partnerType;
@@ -6860,6 +7380,7 @@
     if (!window.SuperAdminAuth.isSignedIn()) return;
     applyRoleRestrictions();
     wireEvents();
+    wireSiteVisitAndAccountingEvents();
     wireDirectEngineerEvents();
     initTableRowLimits();
     window.addEventListener('storage', event => {

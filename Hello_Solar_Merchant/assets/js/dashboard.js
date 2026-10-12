@@ -1574,7 +1574,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         const dataset = await window.MerchantData.loadAllData();
         const faqs = (dataset.support && dataset.support.faqs) ? dataset.support.faqs : [];
         const form = document.getElementById("supportTicketForm");
-        const DRAFT_KEY = "hello_solar_merchant_support_draft";
+        // Drafts are kept per merchant account
+        const draftSession = window.HSShared ? window.HSShared.session.get("merchant") : null;
+        const DRAFT_KEY = `hello_solar_merchant_support_draft${draftSession ? ":" + draftSession.accountId : ""}`;
 
         // Load existing draft
         let existingDraft = {};

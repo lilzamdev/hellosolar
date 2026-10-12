@@ -3592,6 +3592,291 @@
       return this.getFinancerContract(view, day + "T12:00:00");
     }
 
+    // Down payment (₱10,000, both plans). Applications created before this field existed count as verified.
+    downPaymentState(app) {
+      return (app && app.downPaymentStatus) || "Verified";
+    }
+
+    verifyDownPayment(appId, options = {}) {
+      const app = this.data.applications.find(a => a.id === appId);
+      if (!app) return { success: false, error: "Application not found" };
+      if (this.downPaymentState(app) === "Verified") return { success: false, error: "The down payment is already verified." };
+      const adminUser = options.adminUser || "ADMIN (Limuel)";
+      app.downPaymentStatus = "Verified";
+      app.downPaymentVerifiedAt = new Date().toISOString();
+      app.downPaymentVerifiedBy = adminUser;
+      if (app.downPaymentProof) app.downPaymentProof.status = "Verified";
+      app.updated = "Just now";
+      this.logActivity("Admin", adminUser,
+        `ADMIN verified the ₱${Number(app.downPaymentAmount || INSTALLMENT_DOWN_PAYMENT).toLocaleString("en-PH")} down payment for ${appId} (${app.customer})`,
+        appId, {
+          actorId: "ADMIN-01", recordType: "Application", deferSave: true,
+          details: { appId, downPaymentAmount: app.downPaymentAmount || INSTALLMENT_DOWN_PAYMENT, receipt: app.downPaymentProof ? app.downPaymentProof.fileName : null, referenceNo: app.downPaymentProof ? app.downPaymentProof.referenceNo || null : null, status: "Verified" }
+        });
+      this.save();
+      return { success: true, app };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SITE VISITS (landing page "Request Assessment" → ₱1,000 site visit fee)
+    // ─────────────────────────────────────────────────────────────────────────
+    _siteVisits() {
+      if (!Array.isArray(this.data.siteVisits)) this.data.siteVisits = [];
+      return this.data.siteVisits;
+    }
+
+    // Creates one site visit per landing page Site Assessment inquiry (imported once by inquiry id)
+    syncSiteVisits() {
+      const visits = this._siteVisits();
+      const known = new Set(visits.map(v => v.inquiryId));
+      let added = 0;
+      (this.data.inquiries || []).forEach(inq => {
+        if (!inq || inq.requestType !== "Site Assessment" || known.has(inq.id)) return;
+        let max = 1000;
+        visits.forEach(v => { const n = parseInt(String(v.id).replace(/\D/g, ""), 10); if (n > max) max = n; });
+        const proof = inq.paymentProof || null;
+        visits.unshift({
+          id: `SV-${max + 1}`,
+          inquiryId: inq.id,
+          customer: inq.name || `${inq.firstName || ""} ${inq.lastName || ""}`.trim(),
+          email: inq.email || "", phone: inq.phone || "",
+          location: inq.location || "", address: inq.address || null,
+          packageId: inq.packageId || null, package: inq.selectedSolarModel || inq.package || "",
+          preferredDate: inq.preferredVisitDate || "", scheduledDate: inq.preferredVisitDate || "", scheduledTime: "",
+          status: "Pending Assignment", assignee: null,
+          fee: Number(proof && proof.amount) || 1000,
+          feePaymentStatus: proof ? "Pending Verification" : "Not Submitted",
+          feeProof: proof ? { ...proof } : null,
+          clientDecision: null, refund: null,
+          createdAt: inq.timestamp || new Date().toISOString(), completedAt: null, notes: ""
+        });
+        known.add(inq.id);
+        added++;
+      });
+      if (added) this.save();
+      return added;
+    }
+
+    getSiteVisits() {
+      this.getInquiries(); // imports new landing page requests
+      return this._siteVisits();
+    }
+
+    // People who can be sent on a site visit: registered partner installers, Direct Installation Engineers, or someone else
+    getSiteVisitAssignees() {
+      return {
+        installers: (this.data.installers || []).filter(i => i.status !== "Inactive").map(i => ({ id: i.id, name: i.name, contact: i.contact || "", phone: i.phone || "", type: i.type })),
+        engineers: (this.data.engineers || []).filter(e => e.status !== "Inactive" && e.status !== "Suspended").map(e => ({ id: e.id, name: e.name, contact: e.email || "", phone: e.phone || "" }))
+      };
+    }
+
+    assignSiteVisit(visitId, assignment = {}, options = {}) {
+      const v = this._siteVisits().find(x => x.id === visitId);
+      if (!v) return { success: false, error: "Site visit not found." };
+      if (v.status === "Completed" || v.status === "Cancelled") return { success: false, error: `This site visit is already ${v.status.toLowerCase()}.` };
+      const adminUser = options.adminUser || "ADMIN (Limuel)";
+      let assignee;
+      if (assignment.type === "installer") {
+        const ins = (this.data.installers || []).find(i => i.id === assignment.refId);
+        if (!ins) return { success: false, error: "Choose a registered installer." };
+        assignee = { type: "installer", refId: ins.id, name: ins.name, contact: ins.contact || "", phone: ins.phone || "" };
+      } else if (assignment.type === "engineer") {
+        const eng = (this.data.engineers || []).find(e => e.id === assignment.refId);
+        if (!eng) return { success: false, error: "Choose a registered engineer." };
+        assignee = { type: "engineer", refId: eng.id, name: eng.name, contact: eng.email || "", phone: eng.phone || "" };
+      } else if (assignment.type === "other") {
+        const name = String(assignment.name || "").trim();
+        if (name.length < 2) return { success: false, error: "Enter the name of the person assigned." };
+        if (!assignment.document || !assignment.document.fileName) return { success: false, error: "Upload an ID or authorization document for this person." };
+        assignee = { type: "other", refId: null, name, contact: String(assignment.contact || "").trim(), phone: String(assignment.phone || "").trim(),
+          document: { fileName: assignment.document.fileName, fileType: assignment.document.fileType || "", dataUrl: assignment.document.dataUrl || null } };
+      } else {
+        return { success: false, error: "Choose who will do the site visit." };
+      }
+      if (assignment.scheduledDate) v.scheduledDate = assignment.scheduledDate;
+      if (assignment.scheduledTime !== undefined) v.scheduledTime = assignment.scheduledTime;
+      v.assignee = assignee;
+      v.status = "Scheduled";
+      v.assignedAt = new Date().toISOString();
+      v.updatedAt = v.assignedAt;
+      this.logActivity("Admin", adminUser, `ADMIN assigned site visit ${v.id} (${v.customer}) to ${assignee.name}${v.scheduledDate ? ` on ${v.scheduledDate}` : ""}`, v.id, {
+        actorId: "ADMIN-01", recordType: "Site Visit", deferSave: true,
+        details: { visitId: v.id, assigneeType: assignee.type, assignee: assignee.name, scheduledDate: v.scheduledDate, scheduledTime: v.scheduledTime }
+      });
+      this.save();
+      return { success: true, visit: v };
+    }
+
+    verifySiteVisitFee(visitId, options = {}) {
+      const v = this._siteVisits().find(x => x.id === visitId);
+      if (!v) return { success: false, error: "Site visit not found." };
+      if (v.feePaymentStatus === "Verified") return { success: false, error: "The site visit fee is already verified." };
+      v.feePaymentStatus = "Verified";
+      v.feeVerifiedAt = new Date().toISOString();
+      if (v.feeProof) v.feeProof.status = "Verified";
+      this.logActivity("Admin", options.adminUser || "ADMIN (Limuel)", `ADMIN verified the ₱${Number(v.fee).toLocaleString("en-PH")} site visit fee for ${v.id} (${v.customer})`, v.id, {
+        actorId: "ADMIN-01", recordType: "Site Visit", deferSave: true, details: { visitId: v.id, amount: v.fee, status: "Verified" }
+      });
+      this.save();
+      return { success: true, visit: v };
+    }
+
+    updateSiteVisitStatus(visitId, status, options = {}) {
+      const v = this._siteVisits().find(x => x.id === visitId);
+      if (!v) return { success: false, error: "Site visit not found." };
+      if (!["Completed", "Cancelled", "Scheduled"].includes(status)) return { success: false, error: "Unknown status." };
+      if (status === "Completed" && !v.assignee) return { success: false, error: "Assign someone before completing the visit." };
+      v.status = status;
+      v.updatedAt = new Date().toISOString();
+      if (status === "Completed") v.completedAt = v.updatedAt;
+      if (options.notes) v.notes = options.notes;
+      this.logActivity(options.role || "Admin", options.user || "ADMIN (Limuel)", `${options.user || "ADMIN"} marked site visit ${v.id} (${v.customer}) as ${status}`, v.id, {
+        actorId: options.actorId || "ADMIN-01", recordType: "Site Visit", deferSave: true, details: { visitId: v.id, status, notes: options.notes || "" }
+      });
+      this.save();
+      return { success: true, visit: v };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CLIENT PAYMENTS (Accounting): ₱10,000 down payments and ₱1,000 site visit fees
+    // Policy: refundable when the client proceeds with installation; non-refundable when they do not.
+    // ─────────────────────────────────────────────────────────────────────────
+    _clientRecord(kind, id) {
+      if (kind === "dp") return (this.data.applications || []).find(a => a.id === id) || null;
+      if (kind === "sv") return this._siteVisits().find(v => v.id === id) || null;
+      return null;
+    }
+
+    clientDecisionFor(kind, rec) {
+      if (!rec) return "Awaiting";
+      if (rec.clientDecision) return rec.clientDecision;
+      if (kind === "dp") {
+        if (["Declined", "Cancelled"].includes(rec.stage)) return "Not Proceeding";
+        const job = (this.data.installations || []).some(j => j.appId === rec.id && j.status !== "Cancelled");
+        if (job || ["Ready for Installation", "Installation", "In Progress", "Completed"].includes(rec.stage)) return "Proceeding";
+        return "Awaiting";
+      }
+      // Site visit: the client proceeded once they have an application
+      const email = String(rec.email || "").toLowerCase();
+      const phone = String(rec.phone || "").replace(/\D/g, "").slice(-10);
+      const hasApp = (this.data.applications || []).some(a => a.stage !== "Declined" &&
+        ((email && String(a.email || "").toLowerCase() === email) || (phone && String(a.phone || "").replace(/\D/g, "").slice(-10) === phone)));
+      return hasApp ? "Proceeding" : "Awaiting";
+    }
+
+    getClientPayments() {
+      const rows = [];
+      (this.data.applications || []).forEach(app => {
+        const hasField = app.downPaymentStatus !== undefined;
+        const legacyDp = !hasField && !this.isFullPaymentApp(app) && Number(app.downPayment) > 0;
+        if (!hasField && !legacyDp) return;
+        rows.push(this._clientPaymentRow("dp", app, {
+          ref: app.id, client: app.customer, customerId: app.customerId, type: "Down Payment",
+          amount: Number(app.downPaymentAmount || app.downPayment || 10000),
+          paymentStatus: this.downPaymentState(app), proof: app.downPaymentProof || null
+        }));
+      });
+      this.getSiteVisits().forEach(v => {
+        rows.push(this._clientPaymentRow("sv", v, {
+          ref: v.id, client: v.customer, customerId: null, type: "Site Visit Fee",
+          amount: Number(v.fee || 1000), paymentStatus: v.feePaymentStatus || "Not Submitted", proof: v.feeProof || null
+        }));
+      });
+      return rows;
+    }
+
+    _clientPaymentRow(kind, rec, base) {
+      const decision = this.clientDecisionFor(kind, rec);
+      let refundStatus;
+      if (rec.refund && rec.refund.status === "Refunded") refundStatus = "Refunded";
+      else if (base.paymentStatus !== "Verified") refundStatus = "Awaiting Verification";
+      else if (decision === "Proceeding") refundStatus = "Eligible for Refund";
+      else if (decision === "Not Proceeding") refundStatus = "Non-refundable";
+      else refundStatus = "Pending Decision";
+      return { kind, id: rec.id, ...base, hasReceipt: !!(base.proof && base.proof.dataUrl), decision, refundStatus, refund: rec.refund || null };
+    }
+
+    setClientDecision(kind, id, decision, options = {}) {
+      const rec = this._clientRecord(kind, id);
+      if (!rec) return { success: false, error: "Record not found." };
+      if (!["Proceeding", "Not Proceeding"].includes(decision)) return { success: false, error: "Unknown decision." };
+      if (rec.refund && rec.refund.status === "Refunded") return { success: false, error: "This payment was already refunded." };
+      rec.clientDecision = decision;
+      const label = kind === "dp" ? "down payment" : "site visit fee";
+      this.logActivity("Admin", options.adminUser || "ADMIN (Limuel)", `ACCOUNTING marked ${id} as ${decision} with installation (${label} ${decision === "Proceeding" ? "refundable" : "non-refundable"})`, id, {
+        actorId: "ADMIN-01", recordType: "Accounting", deferSave: true, details: { kind, id, decision }
+      });
+      this.save();
+      return { success: true };
+    }
+
+    refundClientPayment(kind, id, payload = {}, options = {}) {
+      const rec = this._clientRecord(kind, id);
+      if (!rec) return { success: false, error: "Record not found." };
+      const row = kind === "dp"
+        ? this._clientPaymentRow("dp", rec, { paymentStatus: this.downPaymentState(rec), amount: Number(rec.downPaymentAmount || rec.downPayment || 10000) })
+        : this._clientPaymentRow("sv", rec, { paymentStatus: rec.feePaymentStatus, amount: Number(rec.fee || 1000) });
+      if (row.refundStatus === "Refunded") return { success: false, error: "This payment was already refunded." };
+      if (row.refundStatus === "Awaiting Verification") return { success: false, error: "Verify the payment before refunding it." };
+      if (row.refundStatus === "Non-refundable") return { success: false, error: "Non-refundable: the client did not proceed with the installation." };
+      if (row.refundStatus !== "Eligible for Refund") return { success: false, error: "Refunds apply only once the client proceeds with the installation." };
+      const amount = Number(payload.amount) > 0 ? Number(payload.amount) : row.amount;
+      rec.refund = {
+        status: "Refunded", amount, method: payload.method || "Bank Transfer", reference: String(payload.reference || "").trim(),
+        notes: String(payload.notes || "").trim(), refundedAt: new Date().toISOString(), refundedBy: options.adminUser || "ADMIN (Limuel)",
+        reimbursementId: payload.reimbursementId || null
+      };
+      this.logActivity("Admin", rec.refund.refundedBy, `ACCOUNTING refunded ₱${amount.toLocaleString("en-PH")} ${kind === "dp" ? "down payment" : "site visit fee"} for ${id}`, id, {
+        actorId: "ADMIN-01", recordType: "Accounting", deferSave: true, details: { kind, id, ...rec.refund }
+      });
+      if (kind === "dp" && rec.customerId && typeof window !== "undefined" && window.HSShared && window.HSShared.notify) {
+        window.HSShared.notify({ recipientRole: "customer", recipientId: rec.customerId, eventType: "DOWN_PAYMENT_REFUNDED", recordId: id,
+          title: "Down payment refunded", message: `Your ₱${amount.toLocaleString("en-PH")} down payment for ${id} has been refunded.`, targetUrl: "payments.html", actionLabel: "View Payments" });
+      }
+      this.save();
+      return { success: true, refund: rec.refund };
+    }
+
+    // Reimbursement requests filed by customers (Customer portal → Payments)
+    getReimbursements() {
+      if (!Array.isArray(this.data.reimbursements)) this.data.reimbursements = [];
+      return this.data.reimbursements;
+    }
+
+    resolveReimbursement(id, decision, payload = {}, options = {}) {
+      const r = this.getReimbursements().find(x => x.id === id);
+      if (!r) return { success: false, error: "Reimbursement request not found." };
+      if (r.status !== "Pending") return { success: false, error: `This request is already ${r.status.toLowerCase()}.` };
+      if (!["Approved", "Declined"].includes(decision)) return { success: false, error: "Unknown decision." };
+      const note = String(payload.note || "").trim();
+      if (decision === "Declined" && note.length < 3) return { success: false, error: "Add a short reason for declining." };
+      const adminUser = options.adminUser || "ADMIN (Limuel)";
+      r.status = decision;
+      r.resolvedAt = new Date().toISOString();
+      r.resolvedBy = adminUser;
+      r.resolutionNote = note;
+      r.reference = String(payload.reference || "").trim();
+      // An approved down payment reimbursement also records the down payment as refunded
+      if (decision === "Approved" && r.type === "Down Payment" && r.appId) {
+        const app = (this.data.applications || []).find(a => a.id === r.appId);
+        if (app && !(app.refund && app.refund.status === "Refunded")) {
+          app.refund = { status: "Refunded", amount: r.amount, method: payload.method || "Bank Transfer", reference: r.reference, notes: `Reimbursement ${r.id}`,
+            refundedAt: r.resolvedAt, refundedBy: adminUser, reimbursementId: r.id };
+        }
+      }
+      this.logActivity("Admin", adminUser, `ACCOUNTING ${decision.toLowerCase()} reimbursement ${r.id} (${r.customer}, ₱${Number(r.amount).toLocaleString("en-PH")})`, r.appId || r.id, {
+        actorId: "ADMIN-01", recordType: "Accounting", deferSave: true, details: { reimbursementId: r.id, decision, amount: r.amount, note, reference: r.reference }
+      });
+      if (r.customerId && typeof window !== "undefined" && window.HSShared && window.HSShared.notify) {
+        window.HSShared.notify({ recipientRole: "customer", recipientId: r.customerId, eventType: `REIMBURSEMENT_${decision.toUpperCase()}`, recordId: r.id,
+          title: `Reimbursement ${decision.toLowerCase()}`, message: decision === "Approved"
+            ? `Your reimbursement request ${r.id} for ₱${Number(r.amount).toLocaleString("en-PH")} was approved.`
+            : `Your reimbursement request ${r.id} was declined: ${note}`, targetUrl: "payments.html", actionLabel: "View Payments" });
+      }
+      this.save();
+      return { success: true, request: r };
+    }
+
     verifyPaymentReceipt(appId, options = {}) {
       const app = this.data.applications.find(a => a.id === appId);
       if (!app) return { success: false, error: "Application not found" };
@@ -4232,7 +4517,9 @@
         if (!this.isPartnerInquiry(partnerInquiry)) return fail('The linked partner inquiry no longer exists.');
         if (partnerInquiry.inquiryStatus !== 'Approved') return fail('Approve the partner inquiry before creating an account.');
         if (partnerInquiry.accountCreated) return fail(`This partner inquiry already has an account (${partnerInquiry.linkedAccountId || 'created'}).`);
-        if (payload.role !== partnerInquiry.partnerType) return fail(`This inquiry is for a ${partnerInquiry.partnerType} account.`);
+        if (!PARTNER_TYPES.includes(payload.role)) return fail('A partner inquiry can only become a Financer, Installer or Merchant account.');
+        // Older inquiries carry a partner type; newer ones leave it to Super Admin (chosen from the message)
+        if (partnerInquiry.partnerType && payload.role !== partnerInquiry.partnerType) return fail(`This inquiry is for a ${partnerInquiry.partnerType} account.`);
       }
       const snapshot = JSON.stringify(this.data);
       const role = payload.role || "Customer";
@@ -4323,6 +4610,10 @@
           stage, installer, installerType: 'Partner Installer',
           financer, financerId: null,
           ...pricing,
+          // ₱10,000 down payment (both plans). Landing page "Buy Now" receipts arrive Pending Verification.
+          downPaymentAmount: INSTALLMENT_DOWN_PAYMENT,
+          downPaymentStatus: inquiry && inquiry.paymentProof && inquiry.paymentProof.purpose === 'Down Payment' ? 'Pending Verification' : 'Not Submitted',
+          downPaymentProof: inquiry && inquiry.paymentProof && inquiry.paymentProof.purpose === 'Down Payment' ? { ...inquiry.paymentProof } : null,
           docs: isFullPayment ? '1/1' : '0/5',
           paymentStatus: isFullPayment ? 'Payment Required' : 'Financing Review',
           nextDue: 'N/A',
@@ -4330,6 +4621,7 @@
           invitationStatus, activationLink,
           updated: 'Just now', createdAt: new Date().toISOString(), notes
         };
+        if (application.inquirySnapshot && application.inquirySnapshot.paymentProof) delete application.inquirySnapshot.paymentProof.dataUrl;
         if (!Array.isArray(this.data.applications)) this.data.applications = [];
         this.data.applications.unshift(application);
         if (inquiry) Object.assign(inquiry, {
@@ -4462,7 +4754,21 @@
       // so accountCreated is true only when creation succeeds.
       if (partnerInquiry && newRecord) {
         newRecord.partnerInquiryId = partnerInquiry.id;
-        if (partnerInquiry.financerProposal && role === "Financer") newRecord.proposedContract = { ...partnerInquiry.financerProposal };
+        const proposal = partnerInquiry.financerProposal;
+        if (proposal && role === "Financer") {
+          newRecord.proposedContract = { ...proposal };
+          // Agreed terms become the financer's contract (still editable in Portal Accounts → Financers)
+          if (proposal.contractTermMonths && proposal.contractStartDate && proposal.annualRate != null) {
+            newRecord.contractTermMonths = proposal.contractTermMonths;
+            newRecord.annualRate = proposal.annualRate;
+            newRecord.contractStartDate = proposal.contractStartDate;
+            newRecord.contractEndDate = HelloSolarStore.addMonthsISO(proposal.contractStartDate, proposal.contractTermMonths);
+            newRecord.contractStatusOverride = null;
+            newRecord.contractUpdatedAt = new Date().toISOString();
+          }
+        }
+        partnerInquiry.partnerType = role;
+        partnerInquiry.category = `${role} Partner`;
         partnerInquiry.accountCreated = true;
         partnerInquiry.linkedAccountId = id;
         partnerInquiry.linkedAccountType = tabKey;
@@ -4488,7 +4794,11 @@
         this.data = JSON.parse(snapshot);
         return fail('Account could not be saved. Check browser storage and try again.');
       }
-      if (partnerInquiry) this.markPartnerQueueRecord(partnerInquiry.id, { accountCreated: true, linkedAccountId: id, inquiryStatus: partnerInquiry.inquiryStatus });
+      if (partnerInquiry) this.markPartnerQueueRecord(partnerInquiry.id, { accountCreated: true, linkedAccountId: id, inquiryStatus: partnerInquiry.inquiryStatus, partnerType: partnerInquiry.partnerType });
+      if (role === "Financer" && newRecord && newRecord.contractStartDate && typeof this.syncFinancerContracts === "function") {
+        this.syncFinancerContracts({ silent: true });
+        this.save();
+      }
       window.HELLO_SOLAR_DATA = this.data;
       return { success: true, account: newRecord, role, id, tabKey, activationLink: newRecord?.activationLink || null };
     }
@@ -4534,13 +4844,18 @@
       const existing = new Set(this.data.inquiries.map(i => i.id));
       let added = 0;
       queue.forEach(rec => {
-        if (!rec || !rec.id || existing.has(rec.id) || !PARTNER_TYPES.includes(rec.partnerType)) return;
+        if (!rec || !rec.id || existing.has(rec.id)) return;
+        // Accept untyped partner inquiries (inquiryType "Partner") as well as older typed ones
+        const typed = PARTNER_TYPES.includes(rec.partnerType);
+        if (!typed && rec.inquiryType !== "Partner") return;
+        const label = typed ? `${rec.partnerType} Partner` : "Partner";
         this.data.inquiries.unshift({
           ...rec,
+          partnerType: typed ? rec.partnerType : "",
           isPartnerInquiry: true,
           name: rec.name || `${rec.firstName || ""} ${rec.lastName || ""}`.trim(),
-          category: `${rec.partnerType} Partner`,
-          subject: rec.subject || `${rec.partnerType} Partnership Inquiry`,
+          category: label,
+          subject: rec.subject || `${typed ? rec.partnerType + " " : ""}Partnership Inquiry`,
           status: rec.status || "Unread",
           inquiryStatus: rec.inquiryStatus || "Pending Review",
           accountCreated: rec.accountCreated === true
@@ -4611,7 +4926,54 @@
     }
 
     isPartnerInquiry(inq) {
-      return !!inq && (inq.isPartnerInquiry === true || inq.inquiryType === "Partner") && PARTNER_TYPES.includes(inq.partnerType);
+      return !!inq && (inq.isPartnerInquiry === true || inq.inquiryType === "Partner") && (!inq.partnerType || PARTNER_TYPES.includes(inq.partnerType));
+    }
+
+    // Super Admin sets the partner type from the partner's message (landing page no longer asks for it)
+    setPartnerInquiryType(inquiryId, partnerType, adminUser = "ADMIN (Limuel)") {
+      const inq = (this.data.inquiries || []).find(i => i.id === inquiryId);
+      if (!this.isPartnerInquiry(inq)) return { success: false, error: "Partner inquiry not found." };
+      if (inq.accountCreated) return { success: false, error: "The account is already created for this inquiry." };
+      const type = PARTNER_TYPES.includes(partnerType) ? partnerType : "";
+      if (type === (inq.partnerType || "")) return { success: true, inquiry: inq };
+      inq.partnerType = type;
+      inq.category = type ? `${type} Partner` : "Partner";
+      inq.subject = `${type ? type + " " : ""}Partnership Inquiry`;
+      this.markPartnerQueueRecord(inq.id, { partnerType: type });
+      this.logActivity("Admin", adminUser, `ADMIN set partner inquiry ${inq.id} (${inq.name}) as ${type || "unspecified"}`, inq.id, {
+        actorId: "ADMIN-01", recordType: "Partner Inquiry", deferSave: true, details: { inquiryId: inq.id, partnerType: type || null }
+      });
+      this.save();
+      return { success: true, inquiry: inq };
+    }
+
+    // Financer partner: contract terms agreed with Super Admin (from their message / discussion)
+    setPartnerProposal(inquiryId, payload = {}, adminUser = "ADMIN (Limuel)") {
+      const inq = (this.data.inquiries || []).find(i => i.id === inquiryId);
+      if (!this.isPartnerInquiry(inq)) return { success: false, error: "Partner inquiry not found." };
+      if (inq.accountCreated) return { success: false, error: "The account is already created. Edit the contract in Portal Accounts → Financers." };
+      const rawTerm = String(payload.contractTermMonths ?? "").trim();
+      const rawRate = String(payload.annualRate ?? "").trim();
+      const start = String(payload.contractStartDate || "").trim();
+      if (!rawTerm && !rawRate && !start) {
+        inq.financerProposal = null;
+      } else {
+        const term = Number(rawTerm);
+        const rate = Number(rawRate);
+        if (!Number.isInteger(term) || term < 1 || term > 360) return { success: false, error: "Contract term must be a whole number of months (1–360)." };
+        if (rawRate === "" || !Number.isFinite(rate) || rate < 0 || rate > 100) return { success: false, error: "Annual rate must be between 0% and 100%." };
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return { success: false, error: "Choose the contract start date." };
+        inq.financerProposal = { contractTermMonths: term, annualRate: Math.round(rate * 100) / 100, contractStartDate: start };
+      }
+      this.markPartnerQueueRecord(inq.id, { financerProposal: inq.financerProposal });
+      const p = inq.financerProposal;
+      this.logActivity("Admin", adminUser, p
+        ? `ADMIN recorded agreed contract terms for ${inq.id} (${inq.name}): ${p.contractTermMonths} mo @ ${p.annualRate}% p.a., starting ${p.contractStartDate}`
+        : `ADMIN cleared the contract terms for ${inq.id} (${inq.name})`, inq.id, {
+        actorId: "ADMIN-01", recordType: "Partner Inquiry", deferSave: true, details: { inquiryId: inq.id, financerProposal: p }
+      });
+      this.save();
+      return { success: true, inquiry: inq };
     }
 
     approvePartnerInquiry(inquiryId, adminUser = "ADMIN (Limuel)") {
@@ -4624,7 +4986,7 @@
       inq.approvedBy = adminUser;
       this.markPartnerQueueRecord(inq.id, { inquiryStatus: "Approved" });
       this.logActivity("Admin", adminUser,
-        `ADMIN approved ${inq.partnerType} partner inquiry ${inq.id} (${inq.name})`,
+        `ADMIN approved ${inq.partnerType ? inq.partnerType + " " : ""}partner inquiry ${inq.id} (${inq.name})`,
         inq.id, {
           recordType: "Partner Inquiry", deferSave: true,
           details: { inquiryId: inq.id, partnerType: inq.partnerType, email: inq.email, financerProposal: inq.financerProposal || null, status: "Approved" }
@@ -4639,6 +5001,7 @@
       }
       this.syncPartnerInquiries();
       this.syncCustomerInquiries();
+      this.syncSiteVisits();
       this.data.inquiries.forEach(inq => {
         if (!inq.confirmationToken && !IS_API) { // api mode: the backend issues confirmation tokens
           inq.confirmationToken = "token_" + inq.id.toLowerCase().replace(/[^a-z0-9]/g, '') + "_" + (inq.email ? inq.email.split('@')[0].replace(/[^a-z0-9]/g, '').slice(0, 4) : 'sec') + '9a';

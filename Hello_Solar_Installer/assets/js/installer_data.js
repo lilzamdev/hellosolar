@@ -1149,8 +1149,12 @@ const InstallerData = (() => {
     /**
      * Returns all normalized payout records
      */
+    // Sample payouts (installer.json) belong to the demo installer only — other accounts see their own (none yet)
     function getPayouts() {
         if (!cachedData || !Array.isArray(cachedData.payouts)) return [];
+        const ctx = projectContext();
+        const owner = String((cachedData.profile && cachedData.profile.email) || '').toLowerCase();
+        if (!ctx || !owner || String(ctx.account.email || '').toLowerCase() !== owner) return [];
         return cachedData.payouts;
     }
 

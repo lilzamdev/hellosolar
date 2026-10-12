@@ -957,7 +957,7 @@
     </div>
 
     <!-- 3. INQUIRY / LEAD CAPTURE MODAL -->
-    <div id="inquiryModal" role="dialog" aria-modal="true" aria-label="Free Solar Assessment Request"
+    <div id="inquiryModal" role="dialog" aria-modal="true" aria-label="Buy Now"
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
         <div
             class="relative w-full max-w-lg bg-[#FCFAF8] rounded-[28px] 2xl:rounded-[36px] border border-[#E7E2D7] shadow-2xl p-5 sm:p-7 2xl:p-8 max-h-[92vh] overflow-y-auto no-scrollbar">
@@ -976,12 +976,12 @@
                 <div id="leadFormHeader" class="space-y-1.5 mb-5 pr-12">
                     <span
                         class="inline-block bg-amber-500/10 text-amber-700 text-[10px] 2xl:text-xs font-black px-3 py-0.5 rounded-full uppercase tracking-wider">
-                        Free Site Assessment
+                        Buy Now
                     </span>
-                    <h3 id="inquiryTitle" class="text-2xl 2xl:text-3xl font-black text-[#1C1917] tracking-tight">Request
-                        Solar Proposal</h3>
-                    <p class="text-xs 2xl:text-sm text-stone-500 font-semibold">Get your savings estimate within 24
-                        hours.</p>
+                    <h3 id="inquiryTitle" class="text-2xl 2xl:text-3xl font-black text-[#1C1917] tracking-tight">Reserve
+                        Your System</h3>
+                    <p class="text-xs 2xl:text-sm text-stone-500 font-semibold">Reserve your system with a ₱10,000 down
+                        payment.</p>
                 </div>
 
                 <form id="leadForm" onsubmit="handleLeadSubmit(event)" class="space-y-4" novalidate>
@@ -1124,7 +1124,7 @@
                         <div>
                             <label for="leadPhone" class="lead-label">Mobile <span
                                     class="text-amber-600">*</span></label>
-                            <input type="tel" id="leadPhone" required autocomplete="tel" inputmode="tel"
+                            <input type="tel" id="leadPhone" required autocomplete="tel" inputmode="numeric" maxlength="16" data-digits-only
                                 placeholder="0917 123 4567" class="lead-input" aria-describedby="leadPhoneError" />
                             <p id="leadPhoneError" class="lead-error hidden" role="alert"></p>
                         </div>
@@ -1132,11 +1132,14 @@
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label for="leadLocation" class="lead-label">City <span
-                                    class="text-amber-600">*</span></label>
-                            <input type="text" id="leadLocation" required autocomplete="address-level2"
-                                placeholder="e.g. Quezon City" class="lead-input"
-                                aria-describedby="leadLocationError" />
+                            <label for="leadLocation" class="lead-label">City / Municipality <span class="text-amber-600">*</span></label>
+                            <div class="hs-combo" data-combo="city" data-value-input="leadCityCode">
+                                <input type="text" id="leadLocation" class="lead-input" role="combobox" aria-autocomplete="list"
+                                    aria-expanded="false" aria-controls="leadLocationList" autocomplete="off"
+                                    placeholder="Search your city" aria-describedby="leadLocationError" />
+                                <ul id="leadLocationList" class="hs-combo-list hidden" role="listbox"></ul>
+                                <input type="hidden" id="leadCityCode" />
+                            </div>
                             <p id="leadLocationError" class="lead-error hidden" role="alert"></p>
                         </div>
                         <div>
@@ -1221,53 +1224,257 @@
                         </div>
                     </div>
 
-                    <button type="submit" id="submitLeadBtn" class="lead-submit">
-                        <span>Request Free Assessment</span> &rarr;
+                    <!-- Terms & Conditions (opens in its own modal; must be accepted before payment) -->
+                    <div class="hs-agree">
+                        <label class="hs-check">
+                            <input type="checkbox" id="leadTerms" aria-describedby="leadTermsError" />
+                            <span>I have read and agree to the <button type="button" class="hs-terms-link"
+                                    onclick="openTerms(leadTermsKind())">Terms &amp; Conditions</button>.</span>
+                        </label>
+                        <p id="leadTermsError" class="lead-error hidden" role="alert"></p>
+                    </div>
+
+                    <button type="submit" id="submitLeadBtn" class="lead-submit lead-submit--compact">
+                        <span>Pay Now</span> &rarr;
                     </button>
                 </form>
 
-                <!-- Success Screen (Replaces Form on submission) -->
-                <div id="leadSuccessScreen" class="hidden text-center py-4 space-y-5">
-                    <div
-                        class="w-16 h-16 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                            class="lucide lucide-check w-8 h-8 stroke-[2.5]" aria-hidden="true">
-                            <path d="M20 6 9 17l-5-5" />
-                        </svg>
-                    </div>
-                    <div class="space-y-1.5">
-                        <h4 class="text-2xl font-black text-[#1C1917]">Request Submitted</h4>
-                        <p class="text-xs sm:text-sm font-semibold text-stone-500 max-w-sm mx-auto leading-relaxed">
-                            Thank you, <span id="successUserName" class="text-stone-900 font-bold"></span>. A Hello
-                            Solar
-                            consultant will contact you within 24 hours.
-                        </p>
-                    </div>
-                    <dl
-                        class="bg-amber-50/90 border border-amber-200/80 rounded-2xl p-4 text-left max-w-sm mx-auto divide-y divide-amber-200/70 text-xs sm:text-sm">
-                        <div class="flex items-start justify-between gap-4 pb-2.5">
-                            <dt class="font-bold text-stone-500">System</dt>
-                            <dd id="successPackageName" class="font-black text-stone-900 text-right"></dd>
-                        </div>
-                        <div class="flex items-start justify-between gap-4 py-2.5">
-                            <dt class="font-bold text-stone-500">Payment</dt>
-                            <dd class="text-right">
-                                <span id="successPaymentType" class="block font-black text-stone-900"></span>
-                                <span id="successPaymentAmount" class="block font-bold text-amber-700"></span>
-                            </dd>
-                        </div>
-                        <div class="flex items-start justify-between gap-4 pt-2.5">
-                            <dt class="font-bold text-stone-500">Monthly Bill</dt>
-                            <dd id="successBill" class="font-black text-stone-900 text-right"></dd>
-                        </div>
-                    </dl>
-                    <button type="button" onclick="closeModal('inquiryModal')"
-                        class="bg-[#1C1917] hover:bg-black text-white text-sm font-extrabold px-8 h-12 rounded-full transition cursor-pointer">
-                        Done
-                    </button>
-                </div>
             </div>
+        </div>
+    </div>
+
+    <!-- 4. SITE ASSESSMENT MODAL (ready for site visit · ₱1,000 site visit fee) -->
+    <div id="assessmentModal" role="dialog" aria-modal="true" aria-labelledby="assessTitle" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+        <div class="relative w-full max-w-lg bg-[#FCFAF8] rounded-[28px] 2xl:rounded-[36px] border border-[#E7E2D7] shadow-2xl p-5 sm:p-7 2xl:p-8 max-h-[92vh] overflow-y-auto no-scrollbar">
+            <button onclick="closeModal('assessmentModal')" aria-label="Close site assessment modal" class="absolute top-5 right-5 w-10 h-10 rounded-full bg-stone-100/90 hover:bg-amber-100 text-stone-700 flex items-center justify-center transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-amber-500/50 cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-x w-5 h-5" aria-hidden="true">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                </svg>
+            </button>
+
+            <div class="space-y-1.5 mb-5 pr-12">
+                <span class="inline-block bg-amber-500/10 text-amber-700 text-[10px] 2xl:text-xs font-black px-3 py-0.5 rounded-full uppercase tracking-wider">Site Assessment · Ready for Site Visit</span>
+                <h3 id="assessTitle" class="text-2xl 2xl:text-3xl font-black text-[#1C1917] tracking-tight">Book Your
+                    Site Assessment</h3>
+                <p class="text-xs 2xl:text-sm text-stone-500 font-semibold">Book an engineer site visit for your <strong
+                        id="assessSystemName" class="text-stone-900">HS 6 LITE</strong>.</p>
+            </div>
+
+            <form id="assessmentForm" onsubmit="handleAssessmentSubmit(event)" class="space-y-4" novalidate>
+                <input type="hidden" id="assessPackage" value="hs6-lite" />
+                <div>
+                    <label for="assessDate" class="lead-label">Preferred Visit Date <span
+                            class="text-amber-600">*</span></label>
+                    <input type="date" id="assessDate" required class="lead-input"
+                        aria-describedby="assessDateError" />
+                    <p id="assessDateError" class="lead-error hidden" role="alert"></p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="assessName" class="lead-label">Full Name <span
+                                class="text-amber-600">*</span></label>
+                        <input type="text" id="assessName" required autocomplete="name" placeholder="Juan Dela Cruz"
+                            class="lead-input" aria-describedby="assessNameError" />
+                        <p id="assessNameError" class="lead-error hidden" role="alert"></p>
+                    </div>
+                    <div>
+                        <label for="assessPhone" class="lead-label">Contact Number <span
+                                class="text-amber-600">*</span></label>
+                        <input type="tel" id="assessPhone" required autocomplete="tel" inputmode="numeric" maxlength="16" data-digits-only
+                            placeholder="0917 123 4567" class="lead-input" aria-describedby="assessPhoneError" />
+                        <p id="assessPhoneError" class="lead-error hidden" role="alert"></p>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="assessEmail" class="lead-label">Email <span class="text-amber-600">*</span></label>
+                    <input type="email" id="assessEmail" required autocomplete="email" placeholder="juan@example.com"
+                        class="lead-input" aria-describedby="assessEmailError" />
+                    <p id="assessEmailError" class="lead-error hidden" role="alert"></p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                            <label for="assessCity" class="lead-label">City / Municipality <span class="text-amber-600">*</span></label>
+                            <div class="hs-combo" data-combo="city" data-value-input="assessCityCode">
+                                <input type="text" id="assessCity" class="lead-input" role="combobox" aria-autocomplete="list"
+                                    aria-expanded="false" aria-controls="assessCityList" autocomplete="off"
+                                    placeholder="Search your city" aria-describedby="assessCityError" />
+                                <ul id="assessCityList" class="hs-combo-list hidden" role="listbox"></ul>
+                                <input type="hidden" id="assessCityCode" />
+                            </div>
+                            <p id="assessCityError" class="lead-error hidden" role="alert"></p>
+                    </div>
+                    <div>
+                            <label for="assessBarangay" class="lead-label">Barangay <span class="text-amber-600">*</span></label>
+                            <div class="hs-combo" data-combo="barangay" data-value-input="assessBarangayValue" data-city-input="assessCityCode">
+                                <input type="text" id="assessBarangay" class="lead-input" role="combobox" aria-autocomplete="list"
+                                    aria-expanded="false" aria-controls="assessBarangayList" autocomplete="off"
+                                    placeholder="Select city first" aria-describedby="assessBarangayError" disabled />
+                                <ul id="assessBarangayList" class="hs-combo-list hidden" role="listbox"></ul>
+                                <input type="hidden" id="assessBarangayValue" />
+                            </div>
+                            <p id="assessBarangayError" class="lead-error hidden" role="alert"></p>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="assessStreet" class="lead-label">House No. / Street <span
+                            class="text-amber-600">*</span></label>
+                    <input type="text" id="assessStreet" required autocomplete="address-line1"
+                        placeholder="e.g. 12 Rizal St." class="lead-input" aria-describedby="assessStreetError" />
+                    <p id="assessStreetError" class="lead-error hidden" role="alert"></p>
+                </div>
+
+                <div class="hs-agree">
+                    <label class="hs-check">
+                        <input type="checkbox" id="assessTerms" aria-describedby="assessTermsError" />
+                        <span>I have read and agree to the <button type="button" class="hs-terms-link"
+                                onclick="openTerms('assessment')">Terms &amp; Conditions</button>.</span>
+                    </label>
+                    <p id="assessTermsError" class="lead-error hidden" role="alert"></p>
+                </div>
+
+                <button type="submit" class="lead-submit lead-submit--compact">
+                    <span>Pay Now</span> &rarr;
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 5. PAYMENT MODAL (bank details + proof of payment) — shared by Site Assessment and Buy Now -->
+    <div id="paymentModal" role="dialog" aria-modal="true" aria-labelledby="payTitle" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+        <div class="relative w-full max-w-lg bg-[#FCFAF8] rounded-[28px] 2xl:rounded-[36px] border border-[#E7E2D7] shadow-2xl p-5 sm:p-7 2xl:p-8 max-h-[92vh] overflow-y-auto no-scrollbar">
+            <button onclick="closeModal('paymentModal')" aria-label="Close payment modal" class="absolute top-5 right-5 w-10 h-10 rounded-full bg-stone-100/90 hover:bg-amber-100 text-stone-700 flex items-center justify-center transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-amber-500/50 cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-x w-5 h-5" aria-hidden="true">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                </svg>
+            </button>
+
+            <div id="payFormView">
+                <div class="space-y-1.5 mb-5 pr-12">
+                    <span id="payBadge" class="inline-block bg-amber-500/10 text-amber-700 text-[10px] 2xl:text-xs font-black px-3 py-0.5 rounded-full uppercase tracking-wider">Payment</span>
+                    <h3 id="payTitle" class="text-2xl 2xl:text-3xl font-black text-[#1C1917] tracking-tight">Complete
+                        Your Payment</h3>
+                    <p class="text-xs 2xl:text-sm text-stone-500 font-semibold">Pay via bank transfer, then upload your
+                        receipt.</p>
+                </div>
+
+                <form id="paymentForm" onsubmit="handlePaymentSubmit(event)" class="space-y-4" novalidate>
+                    <div class="hs-amount">
+                        <div>
+                            <div class="hs-amount-label" id="payPurpose">Site Visit Fee</div>
+                            <div class="hs-amount-sub" id="paySystem">HS 6 LITE</div>
+                        </div>
+                        <div class="hs-amount-value" id="payAmount">₱1,000</div>
+                    </div>
+
+                    <div class="hs-bank">
+                        <div class="hs-bank-title">Bank Details</div>
+                        <div class="hs-bank-row"><span>Bank</span><strong id="payBankName"></strong></div>
+                        <div class="hs-bank-row"><span>Account Name</span><strong id="payAccountName"></strong></div>
+                        <div class="hs-bank-row">
+                            <span>Account Number</span>
+                            <span class="hs-bank-copy">
+                                <strong id="payAccountNumber"></strong>
+                                <button type="button" class="hs-copy" onclick="copyAccountNumber(this)">Copy</button>
+                            </span>
+                        </div>
+                        <p class="hs-bank-note">Use your full name as the reference.</p>
+                    </div>
+
+                    <p class="hs-notice" id="payPolicy"></p>
+
+                    <div>
+                        <span class="lead-label" id="payProofLabel">Proof of Payment <span
+                                class="text-amber-600">*</span></span>
+                        <label class="hs-upload" id="payUploadBox" for="payProof">
+                            <input type="file" id="payProof" accept="image/jpeg,image/png,image/webp,application/pdf"
+                                class="sr-only" aria-labelledby="payProofLabel" aria-describedby="payProofError" />
+                            <span class="hs-upload-empty" id="payUploadEmpty">
+                                <strong>Upload receipt</strong>
+                                <span>JPG, PNG or PDF · up to 5 MB</span>
+                            </span>
+                            <span class="hs-upload-file hidden" id="payUploadFile">
+                                <img id="payUploadThumb" alt="" class="hidden" />
+                                <span class="hs-upload-name" id="payUploadName"></span>
+                                <span class="hs-upload-change">Change</span>
+                            </span>
+                        </label>
+                        <p id="payProofError" class="lead-error hidden" role="alert"></p>
+                    </div>
+
+                    <div>
+                        <label for="payReference" class="lead-label">Transaction Reference No. <span
+                                class="normal-case tracking-normal font-semibold text-stone-400">(optional)</span></label>
+                        <input type="text" id="payReference" placeholder="As shown on your receipt"
+                            class="lead-input" />
+                    </div>
+
+                    <div class="hs-pay-actions">
+                        <button type="button" class="hs-btn-secondary" onclick="backFromPayment()">&larr; Back</button>
+                        <button type="submit" id="paySubmitBtn" class="lead-submit">
+                            <span>Submit Proof of Payment</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Confirmation (replaces the payment form after submission) -->
+            <div id="paySuccessView" class="hidden text-center py-4 space-y-5">
+                <div
+                    class="w-16 h-16 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="lucide lucide-check w-8 h-8 stroke-[2.5]" aria-hidden="true">
+                        <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                </div>
+                <div class="space-y-1.5">
+                    <h4 id="paySuccessTitle" class="text-2xl font-black text-[#1C1917]">Payment Submitted</h4>
+                    <p id="paySuccessText"
+                        class="text-xs sm:text-sm font-semibold text-stone-500 max-w-sm mx-auto leading-relaxed"></p>
+                </div>
+                <dl id="paySuccessSummary"
+                    class="bg-amber-50/90 border border-amber-200/80 rounded-2xl p-4 text-left max-w-sm mx-auto divide-y divide-amber-200/70 text-xs sm:text-sm">
+                </dl>
+                <button type="button" onclick="closeModal('paymentModal')"
+                    class="bg-[#1C1917] hover:bg-black text-white text-sm font-extrabold px-8 h-12 rounded-full transition cursor-pointer">
+                    Done
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- 6. TERMS & CONDITIONS MODAL (Site Assessment / Full Payment / Installment) -->
+    <div id="termsModal" role="dialog" aria-modal="true" aria-labelledby="termsTitle"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+        <div
+            class="relative w-full max-w-lg bg-[#FCFAF8] rounded-[28px] 2xl:rounded-[36px] border border-[#E7E2D7] shadow-2xl p-5 sm:p-7 2xl:p-8 max-h-[92vh] overflow-y-auto no-scrollbar">
+            <button onclick="closeTerms()" aria-label="Close terms and conditions"
+                class="absolute top-5 right-5 w-10 h-10 rounded-full bg-stone-100/90 hover:bg-amber-100 text-stone-700 flex items-center justify-center transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-amber-500/50 cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-x w-5 h-5" aria-hidden="true">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                </svg>
+            </button>
+            <div class="space-y-1.5 mb-4 pr-12">
+                <span id="termsBadge"
+                    class="inline-block bg-amber-500/10 text-amber-700 text-[10px] 2xl:text-xs font-black px-3 py-0.5 rounded-full uppercase tracking-wider">Site
+                    Assessment</span>
+                <h3 id="termsTitle" class="text-2xl 2xl:text-3xl font-black text-[#1C1917] tracking-tight">Terms
+                    &amp; Conditions</h3>
+            </div>
+            <ol id="termsList" class="hs-terms-list"></ol>
+            <button type="button" class="lead-submit" onclick="agreeTerms()">I Agree</button>
         </div>
     </div>
 

@@ -30,6 +30,7 @@
 
     <link rel="stylesheet" href="css/payments-page-2.css">
     <link rel="stylesheet" href="css/customer-polish.css">
+    <link rel="stylesheet" href="css/down-payment.css">
 </head>
 
 <body>
@@ -338,6 +339,22 @@
                                 </div>
                             </div>
                         </section>
+                        <!-- Down payment & reimbursement (Super Admin → Accounting) -->
+                        <section class="panel dp-card" id="downPaymentCard" hidden>
+                            <div class="panel-header">
+                                <div>
+                                    <h2 class="panel-title">Down Payment</h2>
+                                </div>
+                            </div>
+                            <div class="panel-body">
+                                <div class="dp-row"><span>Amount</span><strong class="dp-amount" id="dpAmount">₱10,000</strong></div>
+                                <div class="dp-row"><span>Status</span><span id="dpStatus"></span></div>
+                                <div class="dp-row"><span>Refund</span><strong id="dpRefundInfo">—</strong></div>
+                                <p class="dp-policy">Refundable should you proceed with the installation; non-refundable should you decide not to proceed.</p>
+                                <ul class="dp-requests" id="dpRequests" hidden></ul>
+                                <button type="button" class="btn btn-outline" id="openReimbursementBtn">Request Reimbursement</button>
+                            </div>
+                        </section>
                         <button type="button" class="payment-history-launch" id="openPaymentHistoryBtn"
                             aria-haspopup="dialog" aria-controls="paymentHistoryModal">Payment History <span
                                 aria-hidden="true">↗</span></button>
@@ -353,6 +370,46 @@
             </footer>
         </main>
     </div>
+
+    <!-- Reimbursement request (handled by Super Admin → Accounting) -->
+    <dialog id="reimbursementModal" aria-labelledby="rmTitle">
+        <div class="rm-head">
+            <button type="button" class="rm-close" id="rmClose" aria-label="Close">✕</button>
+            <h2 id="rmTitle">Request Reimbursement</h2>
+            <p>For <strong id="rmAppId">APP</strong>. Our accounting team reviews every request.</p>
+        </div>
+        <form id="rmForm" novalidate>
+            <div class="proof-field-group">
+                <label class="proof-field-label" for="rmType">Type <span class="required-star">*</span></label>
+                <select id="rmType" class="proof-field-select">
+                    <option value="Down Payment">Down Payment</option>
+                    <option value="Site Visit Fee">Site Visit Fee</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="proof-field-group">
+                <label class="proof-field-label" for="rmAmount">Amount (₱) <span class="required-star">*</span></label>
+                <input type="text" id="rmAmount" class="proof-field-input" inputmode="decimal" placeholder="10000">
+            </div>
+            <div class="proof-field-group">
+                <label class="proof-field-label" for="rmReason">Reason <span class="required-star">*</span></label>
+                <textarea id="rmReason" class="proof-field-input" placeholder="Tell us why you are requesting a reimbursement."></textarea>
+            </div>
+            <div class="proof-field-group">
+                <label class="proof-field-label" for="rmPayout">Send refund to</label>
+                <input type="text" id="rmPayout" class="proof-field-input" placeholder="e.g. GCash 0917 123 4567 · Juan Dela Cruz">
+            </div>
+            <div class="proof-field-group">
+                <label class="proof-field-label" for="rmAttachment">Supporting file (optional)</label>
+                <input type="file" id="rmAttachment" class="proof-field-input" accept="image/jpeg,image/png,image/webp,application/pdf">
+            </div>
+            <p class="rm-error" id="rmError" hidden></p>
+            <div class="rm-actions">
+                <button type="button" class="btn btn-outline" id="rmCancel">Cancel</button>
+                <button type="submit" class="btn btn-primary">Submit Request</button>
+            </div>
+        </form>
+    </dialog>
 
     <dialog id="paymentHistoryModal" aria-labelledby="paymentHistoryTitle">
 
@@ -560,6 +617,7 @@
     <script src="js/notifications.js"></script>
 
     <script src="js/payments-page-3.js"></script>
+    <script src="js/down-payment.js"></script>
 </body>
 
 </html>

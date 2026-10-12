@@ -304,6 +304,27 @@
                         </div>
                     </section>
 
+                    <!-- Site Visits assigned by Super Admin (landing page site assessment bookings) -->
+                    <section class="panel-card" id="siteVisitsPanel" style="margin-top: 20px;">
+                        <div class="panel-header">
+                            <h2 class="panel-title">Site Visits <span class="status-badge badge-progress" id="siteVisitsCount" style="margin-left:6px;">0</span></h2>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="data-table" id="siteVisitsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Visit</th>
+                                        <th>Client</th>
+                                        <th>Address</th>
+                                        <th>Schedule</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="siteVisitsBody"></tbody>
+                            </table>
+                        </div>
+                    </section>
+
                     <!-- Preserved Data-Loader elements (Hidden from UI) -->
                     <div style="display: none;" aria-hidden="true">
                         <input type="file" id="jsonFileInput" accept=".json,application/json">
@@ -596,6 +617,7 @@
     <script src="assets/js/workspace.js"></script>
     <script src="assets/js/installation-progress.js"></script>
     <script src="assets/js/notifications.js"></script>
+    <script src="assets/js/site-visits.js"></script>
 </body>
 
 </html>

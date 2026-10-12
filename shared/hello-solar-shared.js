@@ -434,6 +434,90 @@
         }, r => ({ name: "receipt.submit", payload: { appId, customerId, submission: r.submission } }));
     }
 
+    // ------------------------------------------------------------------
+    // Site visits (landing page Site Assessment requests, assigned by Super Admin)
+    // ------------------------------------------------------------------
+    function siteVisitsFor(assigneeType, assigneeId, data) {
+        const d = data || read();
+        if (!d || !assigneeId) return [];
+        return (Array.isArray(d.siteVisits) ? d.siteVisits : []).filter(v =>
+            v && v.assignee && v.assignee.type === assigneeType && v.assignee.refId === assigneeId && v.status !== "Cancelled");
+    }
+
+    // Installer / engineer marks an assigned site visit as completed
+    function completeSiteVisit(visitId, actor, notes) {
+        return update(data => {
+            const v = (Array.isArray(data.siteVisits) ? data.siteVisits : []).find(x => x.id === visitId);
+            if (!v) return { ok: false, error: "Site visit not found." };
+            if (!v.assignee || v.assignee.refId !== actor.id) return { ok: false, error: "This site visit is not assigned to you." };
+            if (v.status === "Completed") return { ok: false, error: "This site visit is already completed." };
+            v.status = "Completed";
+            v.completedAt = nowISO();
+            v.updatedAt = v.completedAt;
+            if (notes) v.notes = String(notes).trim();
+            logActivity(data, {
+                role: actor.role || "Installer", actorId: actor.id, user: actor.name || actor.id, record: v.id, recordType: "Site Visit",
+                action: `${actor.name || actor.id} completed site visit ${v.id} (${v.customer})`,
+                details: { visitId: v.id, notes: v.notes || "" }
+            });
+            return { visit: v };
+        }, r => ({ name: "siteVisit.complete", payload: { visitId, actorId: actor.id, notes: notes || "" } }));
+    }
+
+    // ------------------------------------------------------------------
+    // Down payment & reimbursements (Customer portal → Accounting)
+    // ------------------------------------------------------------------
+    function downPaymentFor(app) {
+        if (!app) return null;
+        const status = app.downPaymentStatus || (Number(app.downPayment) > 0 ? "Verified" : null);
+        if (!status) return null;
+        return {
+            amount: Number(app.downPaymentAmount || app.downPayment || 10000),
+            status,
+            refunded: !!(app.refund && app.refund.status === "Refunded"),
+            refund: app.refund || null,
+            receiptName: app.downPaymentProof ? app.downPaymentProof.fileName : ""
+        };
+    }
+
+    function reimbursementsFor(customerId, data) {
+        const d = data || read();
+        return (d && Array.isArray(d.reimbursements) ? d.reimbursements : []).filter(r => r.customerId === customerId);
+    }
+
+    function requestReimbursement(customerId, appId, payload) {
+        return update(data => {
+            const app = (data.applications || []).find(a => a.id === appId && a.customerId === customerId);
+            if (!app) return { ok: false, error: "This system is not linked to your account." };
+            const amount = Number(String(payload.amount || "").replace(/[^0-9.]/g, ""));
+            if (!(amount > 0)) return { ok: false, error: "Enter the amount to be reimbursed." };
+            const reason = String(payload.reason || "").trim();
+            if (reason.length < 10) return { ok: false, error: "Please describe the reason (at least 10 characters)." };
+            if (!Array.isArray(data.reimbursements)) data.reimbursements = [];
+            if (data.reimbursements.some(r => r.appId === appId && r.type === payload.type && r.status === "Pending")) {
+                return { ok: false, error: "You already have a pending request of this type." };
+            }
+            let max = 1000;
+            data.reimbursements.forEach(r => { const n = parseInt(String(r.id).replace(/\D/g, ""), 10); if (n > max) max = n; });
+            const customer = (data.customers || []).find(c => c.id === customerId);
+            const request = {
+                id: `RMB-${max + 1}`, customerId, customer: customer ? customer.name : app.customer, appId,
+                type: ["Down Payment", "Site Visit Fee", "Other"].includes(payload.type) ? payload.type : "Other",
+                amount, reason,
+                attachment: payload.attachment && payload.attachment.fileName ? { fileName: payload.attachment.fileName, fileType: payload.attachment.fileType || "", dataUrl: payload.attachment.dataUrl || null } : null,
+                payoutDetails: String(payload.payoutDetails || "").trim(),
+                status: "Pending", requestedAt: nowISO(), resolvedAt: null, resolvedBy: null, resolutionNote: ""
+            };
+            data.reimbursements.unshift(request);
+            logActivity(data, {
+                role: "Customer", actorId: customerId, user: request.customer, record: appId, recordType: "Accounting",
+                action: `Customer requested a ₱${amount.toLocaleString("en-PH")} reimbursement (${request.type}) for ${appId}`,
+                details: { reimbursementId: request.id, type: request.type, amount }
+            });
+            return { request };
+        }, r => ({ name: "reimbursement.request", payload: { customerId, appId, request: r.request } }));
+    }
+
     // Installment schedule of an application — the single source for billing periods, due dates, installment
     // status and payment history in every portal. A schedule Super Admin has not generated yet is generated with
     // the Super Admin rules and saved on first read, so its dates never change afterwards.
@@ -777,6 +861,11 @@
         migrateDocumentRecord,
         DOCUMENT_REQUESTS,
         DOCUMENT_SUBMITTED_STATES,
-        notify
+        notify,
+        siteVisitsFor,
+        completeSiteVisit,
+        downPaymentFor,
+        reimbursementsFor,
+        requestReimbursement
     };
 })(typeof window !== "undefined" ? window : this);

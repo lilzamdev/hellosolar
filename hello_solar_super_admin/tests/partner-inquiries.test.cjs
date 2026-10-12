@@ -88,7 +88,11 @@ test('creating the account links the inquiry and sets accountCreated only on suc
   const account = db.data.financers.find(f => f.id === res.id);
   assert.equal(account.partnerInquiryId, fin.id);
   assert.equal(account.proposedContract.contractTermMonths, 36);
-  assert.equal(account.contractStartDate, null, 'contract is not auto-applied; Super Admin sets it');
+  // Agreed terms from the inquiry become the financer's contract
+  assert.equal(account.contractTermMonths, 36);
+  assert.equal(account.annualRate, 8.5);
+  assert.equal(account.contractStartDate, '2026-11-01');
+  assert.equal(account.contractEndDate, '2029-11-01');
   assert.equal(JSON.parse(local.get(QUEUE_KEY))[0].accountCreated, true);
 
   const again = db.createAccount({ role: 'Financer', firstName: 'Test', lastName: 'Financer', email: 'f2@partner.test', phone: '0917', companyName: 'Dup', password: 'secret123', status: 'Active', partnerInquiryId: fin.id });
@@ -108,4 +112,53 @@ test('failed save leaves accountCreated false', () => {
   const inq = db.getInquiries().find(i => i.id === ins.id);
   assert.equal(inq.accountCreated, false);
   assert.ok(!inq.linkedAccountId);
+});
+
+test('untyped partner inquiries (no Partner Type on the form) are imported and Super Admin picks the role', () => {
+  const rec = { ...landingRecord('Installer'), partnerType: '', category: 'Partner', subject: 'Partnership Inquiry', financerProposal: null, message: 'We are an installer in Cebu', createAccountPrefill: { firstName: 'Test', lastName: 'Partner', email: 'p@partner.test', phone: '0917 000 0000' } };
+  const { db, local } = environment([rec]);
+  const inq = db.getInquiries().find(i => i.id === rec.id);
+  assert.ok(inq && db.isPartnerInquiry(inq));
+  assert.equal(inq.category, 'Partner');
+  db.approvePartnerInquiry(rec.id);
+
+  const base = { firstName: 'Test', lastName: 'Partner', email: 'p@partner.test', phone: '0917', companyName: 'Cebu Solar', password: 'secret123', status: 'Active', partnerInquiryId: rec.id };
+  const asCustomer = db.createAccount({ ...base, role: 'Engineer' });
+  assert.equal(asCustomer.success, false, 'partner inquiry cannot become a non-partner account');
+
+  const res = db.createAccount({ ...base, role: 'Installer' });
+  assert.equal(res.success, true);
+  const after = db.getInquiries().find(i => i.id === rec.id);
+  assert.equal(after.accountCreated, true);
+  assert.equal(after.partnerType, 'Installer', 'role chosen by Super Admin is recorded on the inquiry');
+  assert.equal(JSON.parse(local.get(QUEUE_KEY))[0].partnerType, 'Installer');
+});
+
+test('Super Admin sets the partner type from the message, which decides the account', () => {
+  const rec = { ...landingRecord('Merchant'), partnerType: '', category: 'Partner', subject: 'Partnership Inquiry', financerProposal: null, message: 'We supply inverters and batteries' };
+  const { db, local } = environment([rec]);
+  db.getInquiries();
+  const set = db.setPartnerInquiryType(rec.id, 'Merchant', 'ADMIN (Test)');
+  assert.equal(set.success, true);
+  const inq = db.getInquiries().find(i => i.id === rec.id);
+  assert.equal(inq.partnerType, 'Merchant');
+  assert.equal(inq.category, 'Merchant Partner');
+  assert.equal(JSON.parse(local.get(QUEUE_KEY))[0].partnerType, 'Merchant');
+  db.approvePartnerInquiry(rec.id);
+  const base = { firstName: 'T', lastName: 'M', email: 'm@partner.test', phone: '0917', companyName: 'Volt Supply', password: 'secret123', status: 'Active', partnerInquiryId: rec.id };
+  assert.equal(db.createAccount({ ...base, role: 'Installer' }).success, false, 'must match the selected type');
+  assert.equal(db.createAccount({ ...base, role: 'Merchant' }).success, true);
+  assert.equal(db.setPartnerInquiryType(rec.id, 'Installer').success, false, 'locked after account creation');
+});
+
+test('agreed financer terms entered in Partner Review are validated and saved', () => {
+  const rec = { ...landingRecord('Financer'), partnerType: '', financerProposal: null, message: 'We offer solar loans' };
+  const { db, local } = environment([rec]);
+  db.getInquiries();
+  assert.match(db.setPartnerProposal(rec.id, { contractTermMonths: '0', annualRate: '8', contractStartDate: '2026-11-01' }).error, /term/);
+  assert.match(db.setPartnerProposal(rec.id, { contractTermMonths: '24', annualRate: '120', contractStartDate: '2026-11-01' }).error, /rate/);
+  assert.equal(db.setPartnerProposal(rec.id, { contractTermMonths: '24', annualRate: '9.25', contractStartDate: '2026-12-01' }).success, true);
+  const inq = db.getInquiries().find(i => i.id === rec.id);
+  assert.deepEqual({ ...inq.financerProposal }, { contractTermMonths: 24, annualRate: 9.25, contractStartDate: '2026-12-01' });
+  assert.equal(JSON.parse(local.get(QUEUE_KEY))[0].financerProposal.annualRate, 9.25);
 });

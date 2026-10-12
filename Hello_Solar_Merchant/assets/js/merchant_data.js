@@ -290,10 +290,31 @@
         throw new Error(`Failed to load JSON resource: ${filename}`);
     }
 
+    // Sample data (projects.json, payouts.json, merchant_data.json) belongs to the demo merchant account only.
+    // Every other merchant account starts with its own empty records instead of seeing someone else's.
+    const SAMPLE_OWNER_EMAIL = 'merchant@hellosolar.ph';
+    function scopeToAccount(dataset) {
+        const session = merchantSession();
+        if (!dataset || !session) return dataset;
+        const record = window.HSShared ? (window.HSShared.getAccount('merchant', session.accountId) || {}) : {};
+        const email = String(record.email || session.email || '').toLowerCase();
+        if (email !== SAMPLE_OWNER_EMAIL) {
+            dataset.projects = [];
+            dataset.payouts = [];
+            dataset.milestones = [];
+            dataset.activity = [];
+        }
+        return dataset;
+    }
+
     async function loadAllData(forceReload = false) {
         if (!forceReload && cachedDataset) {
             return cachedDataset;
         }
+        return scopeToAccount(await loadDataset());
+    }
+
+    async function loadDataset() {
 
         // api mode / demo data off: no sample projects, payouts, crews or activity — the merchant profile comes from
         // the signed-in MER-### account (merchant projects/payouts need their APIs, see BACKEND_INTEGRATION.md)
