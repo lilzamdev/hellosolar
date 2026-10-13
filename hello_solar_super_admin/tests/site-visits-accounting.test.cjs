@@ -12,7 +12,7 @@ function environment(queue = []) {
   const context = { console, crypto: require('node:crypto').webcrypto, localStorage: { getItem: k => (local.has(k) ? local.get(k) : null), setItem: (k, v) => local.set(k, String(v)), removeItem: k => local.delete(k) } };
   context.window = context;
   vm.createContext(context);
-  vm.runInContext(fs.readFileSync(path.join(root, 'js/data.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(root, '../shared/hello-solar-store.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, '../shared/hello-solar-shared.js'), 'utf8'), context);
   return { db: context.HELLO_SOLAR_DB, shared: context.HSShared, local };
 }

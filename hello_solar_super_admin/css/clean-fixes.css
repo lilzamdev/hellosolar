@@ -1,0 +1,59 @@
+/* Hello Solar Super Admin — five clean-up fixes (load after styles.css) */
+:root { --text-orange: #B45309; }
+
+/* 1. Readable orange text (#FF8400 stays for buttons/icons) */
+.eyebrow,
+.kpi-action-link,
+.ops-link,
+.panel-footer-action,
+.btn-toggle-see-more { color: var(--text-orange) !important; }
+
+/* 2. Fewer outlines: soft filled status pills, flat KPI cards */
+.status-pill { border: 0 !important; padding: 3px 10px; }
+.status-pill.success { background: #ECFDF3 !important; color: #067647 !important; }
+.status-pill.warn    { background: #FFFAEB !important; color: #B54708 !important; }
+.status-pill.danger  { background: #FEF3F2 !important; color: #B42318 !important; }
+.status-pill.neutral { background: #F2F2F0 !important; color: #44403C !important; }
+.status-pill.direct  { background: #FFF4E8 !important; color: #9A4A00 !important; }
+.kpi-card, .ops-card { box-shadow: none !important; }
+
+/* 3. Underline-style filter tabs */
+.filter-tabs {
+  gap: 2px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: none;
+}
+.filter-tabs::-webkit-scrollbar { display: none; }
+.chip-btn {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 2px solid transparent !important;
+  border-radius: 0 !important;
+  padding: 10px 12px !important;
+  margin-bottom: -1px;
+  font-size: 13px !important;
+  color: var(--muted) !important;
+  white-space: nowrap;
+}
+.chip-btn:hover { color: var(--ink) !important; }
+.chip-btn.active {
+  color: var(--ink) !important;
+  border-bottom-color: #FF8400 !important;
+  font-weight: 700;
+}
+
+/* 4. No wrapping in table headers / short cells */
+table th,
+table td .sub-info:only-child,
+table td .record-id { white-space: nowrap; }
+
+/* 5. KPI labels: sentence-style case, lighter weight (cards are too narrow at 6-up for one line) */
+.kpi-top {
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+}
+.kpi-top > span:first-child { line-height: 1.3; }

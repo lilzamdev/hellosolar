@@ -1,7 +1,7 @@
 /**
  * Hello Solar — runtime configuration, API client and shared-record cache.
  *
- * Load this file FIRST on every page (before hello_solar_super_admin/js/data.js, shared/hello-solar-shared.js,
+ * Load this file FIRST on every page (before shared/hello-solar-store.js, shared/hello-solar-shared.js,
  * Super Admin auth.js and the landing-page scripts). See BACKEND_INTEGRATION.md.
  *
  * Modes
@@ -93,7 +93,7 @@
     /**
      * request(method, path, body, options) → Promise<{ ok, status, data, error }>
      * requestSync(...) → { ok, status, data, error } — used only where today's UI expects an immediate answer
-     * (page bootstrap, login, signup). Sync XHR is a transitional bridge; see BACKEND_INTEGRATION.md §11.
+     * (page bootstrap, login, signup). Sync XHR is a transitional bridge; see API_CONTRACT.md, "Known limitations".
      */
     function headers(options) {
         const h = { Accept: "application/json" };
@@ -141,6 +141,7 @@
         // Applications & payments (customer)
         "application.claim":           ["POST",  "/applications/claim"],
         "receipt.submit":              ["POST",  "/applications/:appId/receipts"],
+        "reimbursement.request":       ["POST",  "/applications/:appId/reimbursements"],
         // Documents
         "document.upload":             ["POST",  "/applications/:appId/documents/:docId"],   // multipart
         "document.review":             ["PATCH", "/applications/:appId/documents/:docId"],
@@ -157,6 +158,7 @@
         "installer.complete":          ["POST",  "/installations/:appId/complete"],
         "installer.activate":          ["POST",  "/installations/:appId/activate"],
         "installation.progress":       ["PUT",   "/installations/:appId/progress"],
+        "siteVisit.complete":          ["POST",  "/site-visits/:visitId/complete"],
         // Landing page (public, no token)
         "inquiry.submit":              ["POST",  "/public/inquiries"],
         "inquiry.respond":             ["POST",  "/public/inquiries/:inquiryId/response"],
@@ -176,7 +178,7 @@
     }
 
     function emit(type, detail) {
-        try { window.dispatchEvent(new window.CustomEvent(type, { detail })); } catch (e) { /* no window events (tests) */ }
+        try { window.dispatchEvent(new window.CustomEvent(type, { detail, cancelable: true })); } catch (e) { /* no window events (tests) */ }
     }
 
     /**
@@ -233,7 +235,8 @@
     const COLLECTION_DEFAULTS = {
         customers: [], financers: [], installers: [], merchants: [], engineers: [],
         applications: [], installations: [], payments: [], paymentSchedules: {},
-        support: [], inquiries: [], activity: [], settings: {}
+        support: [], inquiries: [], activity: [], settings: {},
+        siteVisits: [], reimbursements: [], disconnectRequests: []
     };
 
     const cache = {
@@ -300,6 +303,43 @@
         }
         return res;
     }
+
+    // ------------------------------------------------------------------
+    // Failed saves (api mode): the screen already shows the change, so tell the user the server rejected it and
+    // offer a reload to show the saved records again. Pages can handle "hs:api-error" themselves and call
+    // event.preventDefault() to skip this message.
+    // ------------------------------------------------------------------
+    function showSaveError(event) {
+        if (event.defaultPrevented || !window.document || !window.document.body) return;
+        const doc = window.document;
+        let box = doc.getElementById("hs-save-error");
+        if (!box) {
+            box = doc.createElement("div");
+            box.id = "hs-save-error";
+            box.setAttribute("role", "alert");
+            box.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:99999;max-width:380px;padding:14px 16px;" +
+                "background:#FFFFFF;color:#1C1917;border:1px solid #FCA5A5;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.12);" +
+                "font:500 13.5px/1.45 'Plus Jakarta Sans',system-ui,sans-serif;display:flex;gap:12px;align-items:flex-start";
+            doc.body.appendChild(box);
+        }
+        const detail = (event.detail && event.detail.error) || "The server did not accept the change.";
+        box.textContent = "";
+        const text = doc.createElement("div");
+        text.style.flex = "1";
+        const title = doc.createElement("strong");
+        title.textContent = "Your change was not saved.";
+        title.style.cssText = "display:block;color:#B42318;margin-bottom:2px";
+        text.appendChild(title);
+        text.appendChild(doc.createTextNode(detail + " Reload to see the latest saved data."));
+        const reload = doc.createElement("button");
+        reload.type = "button";
+        reload.textContent = "Reload";
+        reload.style.cssText = "border:1px solid #D6D0C5;background:#FFFFFF;border-radius:8px;padding:6px 12px;font:inherit;font-weight:700;cursor:pointer";
+        reload.addEventListener("click", () => window.location.reload());
+        box.appendChild(text);
+        box.appendChild(reload);
+    }
+    if (typeof window.addEventListener === "function") window.addEventListener("hs:api-error", showSaveError);
 
     window.HSApi = Object.freeze({ config, KEYS, tokens, request, requestSync, command, routeFor, COMMAND_ROUTES, bootstrap });
     window.HSStore = Object.freeze({ getItem: store.getItem, setItem: store.setItem, removeItem: store.removeItem, json: store.json, cache, KEYS });

@@ -2,10 +2,10 @@
  * Hello Solar — shared data access layer (window.HSShared)
  *
  * The single way portals read and write shared records. The system of record is the Super Admin store
- * (HELLO_SOLAR_SUPER_ADMIN_DATA_V2, seeded by hello_solar_super_admin/js/data.js) and stands in for the backend API.
+ * (HELLO_SOLAR_SUPER_ADMIN_DATA_V2, seeded by shared/hello-solar-store.js) and stands in for the backend API.
  * All portals must be served from one origin for these records to be shared (see INTEGRATION_PLAN.md).
  *
- * Load order on every portal page: ../hello_solar_super_admin/js/data.js → ../shared/hello-solar-shared.js → portal scripts.
+ * Load order on every portal page: ../shared/hello-solar-store.js → ../shared/hello-solar-shared.js → portal scripts.
  */
 (function (window) {
     "use strict";
@@ -324,7 +324,7 @@
             || String(app.applicationStatus || "").toUpperCase() === "READY_FOR_INSTALLATION";
     }
 
-    // Partner installer job visibility (see INTEGRATION_PLAN.md §4)
+    // Partner installer job visibility (see API_CONTRACT.md, "Installer job visibility")
     function isVisibleToInstaller(app, installer, includeDeclined) {
         if (!app || !installer || isDirect(app)) return false;
         const declined = (app.declinedInstallerIds || []).includes(installer.id);

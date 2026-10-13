@@ -15,13 +15,11 @@ for (const name of [...portals, 'login', 'signup', 'index']) {
         const scripts = [...html.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
         assert.deepEqual(styles, ['css/portal.css', `css/${name}.css`, 'css/notifications.css']);
         // Shared data layer (Super Admin seed + HSShared) loads before every portal script
-        assert.deepEqual(scripts, ['../hello_solar_super_admin/data.js', '../shared/hello-solar-shared.js', 'js/portal_data.js', 'js/portal.js', `js/${name}.js`, 'js/notifications.js']);
+        assert.deepEqual(scripts, ['../shared/hello-solar-config.js', '../shared/hello-solar-store.js', '../shared/hello-solar-shared.js', 'js/portal_data.js', 'js/portal.js', `js/${name}.js`, 'js/notifications.js']);
     }
     if (['login', 'signup'].includes(name)) {
-        assert.ok(html.includes('href="css/auth.css"'));
-        assert.ok(html.includes(`src="js/${name}.js"`));
-        assert.ok(html.indexOf('src="js/auth.js"') < html.indexOf(`src="js/${name}.js"`));
-        assert.ok(!/<style\b|\sstyle=|\son\w+=|<script(?![^>]*\bsrc=)/i.test(html), `${name}: inline CSS/JS remains`);
+        // Old portal login/signup pages only redirect to the shared login page
+        assert.ok(html.includes('../login.html'), `${name}: should redirect to ../login.html`);
     }
     assert.ok(!/assets\/(?:css|js|data)\//.test(html), `${name}: stale asset path`);
 }
@@ -29,4 +27,4 @@ for (const file of fs.readdirSync(path.join(root, 'js')).filter(f => f.endsWith(
     execFileSync(process.execPath, ['--check', path.join(root, 'js', file)], { stdio: 'pipe' });
 }
 JSON.parse(fs.readFileSync(path.join(root, 'data/financer_data.json'), 'utf8'));
-console.log('Passed: all HTML references, page asset ownership, authentication extraction, JSON parsing and JS syntax.');
+console.log('Passed: all HTML references, page script order, login redirects, JSON parsing and JS syntax.');

@@ -1,5 +1,8 @@
 # Hello Solar — Backend Integration Guide
 
+> **Start here, then read `API_CONTRACT.md`** for every endpoint, its named fields and the record shapes.
+> The folder map is in `README.md`.
+
 ## 1. Goal
 
 The frontend is already complete.
@@ -34,6 +37,15 @@ HSApi
 Backend API
         ↓
 Database
+
+Where each layer lives:
+
+| Layer | File | Role |
+|---|---|---|
+| HSApi / HSStore | `shared/hello-solar-config.js` | Mode switch, HTTP client, command routes, page-load bootstrap, record cache |
+| HelloSolarStore | `shared/hello-solar-store.js` | Data model, demo seed, business rules, Super Admin / Direct Engineer commands |
+| HSShared | `shared/hello-solar-shared.js` | Sessions and portal commands (Customer, Financer, Installer, Merchant) |
+| HSLogin | `shared/hello-solar-login.js` | Shared login, forgot / set password |
 
 ### Local Mode
 Uses localStorage and demo data.
@@ -267,7 +279,8 @@ Examples:
 - System Disconnect
 - Settings
 
-`HelloSolarStore` already contains the frontend reference logic.
+`HelloSolarStore` (`shared/hello-solar-store.js`) already contains the frontend reference logic.
+Each command is sent as `POST /admin/commands/<method>` with **named** fields in `params`; the full list is in `API_CONTRACT.md` §10.
 
 ## 7. Payments
 
@@ -403,6 +416,7 @@ Do not trust the browser for these rules.
 ## 15. Remaining Integration Work
 
 Still needs real backend connection:
+(file locations and storage keys: `API_CONTRACT.md` §11)
 
 - Customer activation / set-password page
 - Receipt file upload
