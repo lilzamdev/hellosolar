@@ -670,9 +670,9 @@ function renderWizard() {
         const rec = PRODUCTS[recommendedId];
 
         container.innerHTML = `
-            <div class="space-y-6">
+            <div class="rec-result">
                 <!-- Result Eyebrow & Title -->
-                <div class="text-center space-y-1.5">
+                <div class="rec-head text-center">
                     <span class="inline-block bg-amber-500/10 text-amber-700 border border-amber-500/20 text-[11px] font-black px-3.5 py-1 rounded-full uppercase tracking-wider">
                         ⭐ Your Tailored Solar Match
                     </span>
@@ -681,7 +681,7 @@ function renderWizard() {
                 </div>
 
                 <!-- System Specs & Estimated Savings -->
-                <div class="bg-gradient-to-br from-amber-50/90 via-amber-50/50 to-orange-50/60 rounded-2xl p-5 sm:p-6 border border-amber-200/80 space-y-4 shadow-xs">
+                <div class="rec-card bg-gradient-to-br from-amber-50/90 via-amber-50/50 to-orange-50/60 rounded-2xl border border-amber-200/80 shadow-xs">
                     <div class="grid grid-cols-3 gap-2.5 text-center">
                         <div class="bg-white rounded-xl p-3 border border-amber-200/70 shadow-2xs">
                             <div class="text-[10px] font-black text-stone-500 uppercase tracking-wider">Solar Panels</div>
@@ -698,7 +698,7 @@ function renderWizard() {
                     </div>
 
                     <!-- Financial Breakdown -->
-                    <div class="pt-3 grid grid-cols-2 gap-3 border-t border-amber-200/70">
+                    <div class="rec-fin grid grid-cols-2 gap-3 border-t border-amber-200/70">
                         <div>
                             <div class="text-[10px] font-black uppercase tracking-wider text-stone-500">Full Payment</div>
                             <div class="text-base sm:text-lg font-black text-[#1C1917]">${rec.cashPrice}</div>
@@ -714,9 +714,9 @@ function renderWizard() {
                 </div>
 
                 <!-- Why We Recommend It -->
-                <div class="bg-stone-50/90 border border-[#E5E0D8] rounded-2xl p-4 sm:p-5 space-y-2">
+                <div class="rec-why bg-stone-50/90 border border-[#E5E0D8] rounded-2xl">
                     <h4 class="text-xs font-black text-[#1C1917] uppercase tracking-wider">Why we recommend this system:</h4>
-                    <ul class="space-y-1.5 text-xs text-stone-600 font-semibold">
+                    <ul class="text-xs text-stone-600 font-semibold">
                         <li class="flex items-start gap-2">
                             <span class="text-emerald-600 font-black mt-0.5">✓</span>
                             <span>Precision-sized to offset your estimated <strong>${wizardState.bill}</strong> monthly electricity bill.</span>
@@ -733,17 +733,17 @@ function renderWizard() {
                 </div>
 
                 <!-- Action Buttons -->
-                <div class="space-y-2.5 pt-1">
+                <div class="rec-actions">
                     <button onclick="startInquiry('${rec.id}')"
-                        class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold py-4 px-6 rounded-full flex items-center justify-center gap-2 transition text-xs sm:text-sm shadow-sm hover:shadow-md active:scale-98 cursor-pointer">
+                        class="rec-btn w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold px-6 rounded-full flex items-center justify-center gap-2 transition text-xs sm:text-sm shadow-sm hover:shadow-md active:scale-98 cursor-pointer">
                         Buy Now &rarr;
                     </button>
                     <button onclick="startAssessment('${rec.id}')"
-                        class="w-full bg-[#1C1917] hover:bg-black text-white font-extrabold py-4 px-6 rounded-full flex items-center justify-center gap-2 transition text-xs sm:text-sm shadow-sm cursor-pointer">
+                        class="rec-btn w-full bg-[#1C1917] hover:bg-black text-white font-extrabold px-6 rounded-full flex items-center justify-center gap-2 transition text-xs sm:text-sm shadow-sm cursor-pointer">
                         Request ${rec.name} Assessment
                     </button>
                     <button onclick="wizardState.step = 1; renderWizard();"
-                        class="w-full text-center text-xs font-bold text-stone-400 hover:text-stone-700 py-1 transition flex items-center justify-center gap-1 cursor-pointer">
+                        class="rec-back w-full text-center text-xs font-bold text-stone-400 hover:text-stone-700 py-1 transition flex items-center justify-center gap-1 cursor-pointer">
                         &larr; Change Answers / Start Over
                     </button>
                 </div>

@@ -973,7 +973,7 @@
             </button>
 
             <div id="inquiryFormContainer">
-                <div id="leadFormHeader" class="space-y-1.5 mb-5 pr-12">
+                <div id="leadFormHeader" class="space-y-1.5 pr-12">
                     <span
                         class="inline-block bg-amber-500/10 text-amber-700 text-[10px] 2xl:text-xs font-black px-3 py-0.5 rounded-full uppercase tracking-wider">
                         Buy Now
@@ -1224,19 +1224,21 @@
                         </div>
                     </div>
 
-                    <!-- Terms & Conditions (opens in its own modal; must be accepted before payment) -->
-                    <div class="hs-agree">
-                        <label class="hs-check">
-                            <input type="checkbox" id="leadTerms" aria-describedby="leadTermsError" />
-                            <span>I have read and agree to the <button type="button" class="hs-terms-link"
-                                    onclick="openTerms(leadTermsKind())">Terms &amp; Conditions</button>.</span>
-                        </label>
-                        <p id="leadTermsError" class="lead-error hidden" role="alert"></p>
-                    </div>
+                    <!-- Terms & Conditions (opens in its own modal; must be accepted before payment) + Pay Now on one row -->
+                    <div class="lead-final-row">
+                        <div class="hs-agree">
+                            <label class="hs-check">
+                                <input type="checkbox" id="leadTerms" aria-describedby="leadTermsError" />
+                                <span>I have read and agree to the <button type="button" class="hs-terms-link"
+                                        onclick="openTerms(leadTermsKind())">Terms &amp; Conditions</button>.</span>
+                            </label>
+                            <p id="leadTermsError" class="lead-error hidden" role="alert"></p>
+                        </div>
 
-                    <button type="submit" id="submitLeadBtn" class="lead-submit lead-submit--compact">
-                        <span>Pay Now</span> &rarr;
-                    </button>
+                        <button type="submit" id="submitLeadBtn" class="lead-submit lead-submit--compact">
+                            <span>Pay Now</span> &rarr;
+                        </button>
+                    </div>
                 </form>
 
             </div>
