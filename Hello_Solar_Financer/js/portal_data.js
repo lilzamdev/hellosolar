@@ -239,7 +239,7 @@ const FINANCER_DEFAULT_DATA = {
                 "term": "36 Months",
                 "financingTerm": "36 Months",
                 "status": "review",
-                "statusText": "Under Review",
+                "statusText": "Pending Finance",
                 "submittedDate": "Sep 07, 2026",
                 "nextStep": "Evaluate prime bureau score (742) and debt-to-income (26%)",
                 "missingRequirement": "Underwriter credit sign-off",
@@ -396,7 +396,7 @@ const FINANCER_DEFAULT_DATA = {
                 "term": "36 Months",
                 "financingTerm": "36 Months",
                 "status": "review",
-                "statusText": "Under Review",
+                "statusText": "Pending Finance",
                 "submittedDate": "Sep 03, 2026",
                 "nextStep": "Underwrite 32% DTI (check utility savings offset)",
                 "missingRequirement": "Co-maker or utility savings mitigation",
@@ -1089,7 +1089,7 @@ window.HelloSolarStore = {
         const active = String(app.systemStatus || "").toUpperCase() === "ACTIVE" || String(app.applicationStatus || "").toUpperCase() === "ACTIVE";
         if (stage === "Declined") return { financingStatus: "DECLINED", applicationStatus: "FINANCING_DECLINED", loanStatus: "rejected", statusText: "Declined" };
         if (stage === "Missing Documents") return { financingStatus: "DOCUMENTS_REQUIRED", applicationStatus: "DOCUMENTS_REQUIRED", loanStatus: "docs_required", statusText: "Documents Required" };
-        if (stage === "Under Review") return { financingStatus: "UNDER_REVIEW", applicationStatus: "UNDER_REVIEW", loanStatus: "review", statusText: "Under Review" };
+        if (stage === "Pending Finance" || stage === "Under Review") return { financingStatus: "UNDER_REVIEW", applicationStatus: "UNDER_REVIEW", loanStatus: "review", statusText: "Pending Finance" };
         if (stage === "Financing Review" || stage === "Submitted" || stage === "") return { financingStatus: "FINANCING_REVIEW", applicationStatus: "FINANCING_REVIEW", loanStatus: "pending", statusText: "Financing Review" };
         return { financingStatus: "APPROVED", applicationStatus: active ? "ACTIVE" : "READY_FOR_INSTALLATION", loanStatus: "approved", statusText: "Approved" };
     },

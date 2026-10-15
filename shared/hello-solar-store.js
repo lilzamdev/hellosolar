@@ -319,7 +319,7 @@
         system: "25 kW",
         panels: "50x Trina Solar 500W",
         inverter: "Huawei 25KTL",
-        stage: "Under Review",
+        stage: "Pending Finance",
         financer: "BDO Green Energy Financing",
         financerId: "FIN-002",
         installer: "Unassigned",
@@ -668,7 +668,7 @@
         inverter: "Pending Assessment",
         paymentType: "Installment",
         paymentPreference: "Installment",
-        stage: "Under Review",
+        stage: "Pending Finance",
         financer: "SolarTech Financer",
         financerId: "FIN-005",
         installer: "Unassigned",
@@ -740,7 +740,7 @@
         inverter: "Pending Assessment",
         paymentType: "Installment",
         paymentPreference: "Installment",
-        stage: "Under Review",
+        stage: "Pending Finance",
         financer: "SolarTech Financer",
         financerId: "FIN-005",
         installer: "Unassigned",
@@ -1822,6 +1822,14 @@
   // "Ready for Installation" (same as a new Financer approval). Only Financer decisions are moved, and only while
   // no installation has been assigned or started.
   const SCHEMA_VERSION = 5;
+  // "Under Review" was renamed "Pending Finance" (Lifecycle Progression); older saved records still carry the old name
+  function normalizeStageNames(data) {
+    if (data && Array.isArray(data.applications)) {
+      data.applications.forEach(a => { if (a && a.stage === "Under Review") a.stage = "Pending Finance"; });
+    }
+    return data;
+  }
+
   function migrateSharedIdentity(parsed) {
     const version = parsed.schemaVersion || 0;
     if (version >= SCHEMA_VERSION) return false;
@@ -1879,6 +1887,10 @@
     constructor() {
       this.data = this.load();
       this.syncFinancerContracts({ silent: true });
+      // Local mode: pick up Buy Now receipts on any page load so their accounts are created right away
+      if (!IS_API && Array.isArray(this.data.inquiries)) {
+        try { this.syncCustomerInquiries(); } catch (err) { console.warn("Could not import landing page inquiries:", err); }
+      }
     }
 
     load() {
@@ -1887,7 +1899,7 @@
         let cached = null;
         try { cached = JSON.parse(STORE.getItem(STORAGE_KEY) || "null"); } catch (err) { cached = null; }
         const empty = JSON.parse(JSON.stringify(SEED_DATA));
-        return Object.assign(empty, cached && typeof cached === "object" ? cached : {});
+        return normalizeStageNames(Object.assign(empty, cached && typeof cached === "object" ? cached : {}));
       }
       try {
         const stored = STORE.getItem(STORAGE_KEY);
@@ -2037,6 +2049,8 @@
                 }
               });
             }
+
+            normalizeStageNames(parsed);
 
             if (DEMO_DATA && migrateSharedIdentity(parsed)) {
               try { STORE.setItem(STORAGE_KEY, JSON.stringify(parsed)); } catch (err) { /* persisted on next save */ }
@@ -3610,6 +3624,9 @@
       app.downPaymentVerifiedAt = new Date().toISOString();
       app.downPaymentVerifiedBy = adminUser;
       if (app.downPaymentProof) app.downPaymentProof.status = "Verified";
+      // Keep the Contact Inquiry's copy of the receipt in step with the application
+      const inq = (this.data.inquiries || []).find(i => i.id === app.inquiryId);
+      if (inq && inq.paymentProof) inq.paymentProof.status = "Verified";
       app.updated = "Just now";
       this.logActivity("Admin", adminUser,
         `ADMIN verified the ₱${Number(app.downPaymentAmount || INSTALLMENT_DOWN_PAYMENT).toLocaleString("en-PH")} down payment for ${appId} (${app.customer})`,
@@ -4898,6 +4915,7 @@
       if (!Array.isArray(queue) || !queue.length) return 0;
       const existing = new Set(this.data.inquiries.map(i => i.id));
       let added = 0;
+      const autoCreate = [];
       // Queue is newest-first; import oldest-first so the newest ends up on top
       queue.slice().reverse().forEach(rec => {
         if (!rec || !rec.id || existing.has(rec.id) || rec.inquiryType !== "Customer") return;
@@ -4924,9 +4942,61 @@
         });
         existing.add(rec.id);
         added++;
+        if (rec.paymentProof && rec.paymentProof.purpose === "Down Payment") autoCreate.push(rec.id);
       });
       if (added) this.save();
+      // Buy Now: once the down payment receipt is uploaded, the customer account is created automatically
+      // and the activation link is emailed (no Contact Inquiry confirmation or manual Create Account step)
+      autoCreate.forEach(id => this.autoCreateBuyNowAccount(id));
       return added;
+    }
+
+    autoCreateBuyNowAccount(inquiryId) {
+      if (this._autoCreatingAccount) return null;
+      const inq = (this.data.inquiries || []).find(i => i.id === inquiryId);
+      if (!inq || inq.customerId) return null;
+      if (!String(inq.email || "").trim()) {
+        // The activation link goes to the customer's email, so an order without one stays with Super Admin
+        inq.autoAccountError = "No email address was given, so no account was created.";
+        this.save();
+        return { success: false, error: inq.autoAccountError };
+      }
+      const words = String(inq.name || "").trim().split(/\s+/);
+      const lastName = inq.lastName || (words.length > 1 ? words.pop() : "");
+      this._autoCreatingAccount = true;
+      let res;
+      try {
+        res = this.createAccount({
+          role: "Customer",
+          firstName: inq.firstName || words.join(" "),
+          lastName,
+          email: inq.email,
+          phone: inq.phone,
+          password: "Solar2026!Pass",
+          status: "Active",
+          invitationStatus: "Sent",
+          location: inq.address || inq.location,
+          system: inq.selectedSolarModel || inq.package || "",
+          paymentType: inq.paymentType || inq.paymentPreference || "",
+          projectType: inq.projectType || (/Residential Solar|Commercial Solar|Battery Storage/.test(inq.category) ? inq.category : "Residential Solar"),
+          notes: [inq.subject, inq.message].filter(Boolean).join("\n\n"),
+          inquiryId: inq.id
+        });
+      } finally {
+        this._autoCreatingAccount = false;
+      }
+      if (!res || !res.success) {
+        // e.g. the email already has an account: the inquiry stays in Contact Inquiries for Super Admin
+        const current = (this.data.inquiries || []).find(i => i.id === inquiryId);
+        if (current) { current.autoAccountError = res ? res.error : "Account could not be created."; this.save(); }
+        return res;
+      }
+      this.logActivity("System", "SYSTEM (Auto)", `Customer account ${res.id} created automatically after the down payment receipt for ${inquiryId}`, res.id, {
+        actorId: "SYSTEM", recordType: "Customer Account", deferSave: true,
+        details: { inquiryId, customerId: res.id, appId: res.account ? res.account.appId : null, source: "Buy Now" }
+      });
+      this.queueActivationEmail(res.id, "SYSTEM (Auto)");
+      return res;
     }
 
     isPartnerInquiry(inq) {

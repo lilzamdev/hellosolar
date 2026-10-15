@@ -311,7 +311,7 @@
       syncInstallTabs();
     } else if (pageId === "applications" && subOption) {
       if (subOption === "under-review") {
-        state.appStageFilter = "Under Review";
+        state.appStageFilter = "Pending Finance";
       }
       syncAppTabs();
     } else if (pageId === "accounts" && subOption) {
@@ -471,8 +471,8 @@
     if ($("#opsCustomerTotal")) $("#opsCustomerTotal").textContent = customers.length;
     if ($("#opsCustomerNew")) $("#opsCustomerNew").textContent = apps.filter(a => a.stage === "Submitted" || a.stage === "Payment Required" || a.stage === "Financing Review" || a.stage === "Missing Documents").length;
 
-    if ($("#opsFinancerReview")) $("#opsFinancerReview").textContent = apps.filter(a => a.stage === "Under Review" || a.stage === "Financing Review").length;
-    if ($("#opsFinancerPending")) $("#opsFinancerPending").textContent = apps.filter(a => ["Under Review", "Financing Review", "Submitted", "Missing Documents"].includes(a.stage)).length;
+    if ($("#opsFinancerReview")) $("#opsFinancerReview").textContent = apps.filter(a => a.stage === "Pending Finance" || a.stage === "Financing Review").length;
+    if ($("#opsFinancerPending")) $("#opsFinancerPending").textContent = apps.filter(a => ["Pending Finance", "Financing Review", "Submitted", "Missing Documents"].includes(a.stage)).length;
 
     if ($("#opsInstallerActive")) $("#opsInstallerActive").textContent = activeInstalls;
     if ($("#opsInstallerMaint")) $("#opsInstallerMaint").textContent = installs.filter(j => j.installerType === "Maintenance").length;
@@ -671,7 +671,7 @@
     if ($("#countAppPaymentRequired")) $("#countAppPaymentRequired").textContent = apps.filter(a => a.stage === "Payment Required").length;
     if ($("#countAppFinancingReview")) $("#countAppFinancingReview").textContent = apps.filter(a => a.stage === "Financing Review").length;
     if ($("#countAppMissing")) $("#countAppMissing").textContent = apps.filter(a => a.stage === "Missing Documents").length;
-    if ($("#countAppReview")) $("#countAppReview").textContent = apps.filter(a => a.stage === "Under Review").length;
+    if ($("#countAppReview")) $("#countAppReview").textContent = apps.filter(a => a.stage === "Pending Finance").length;
     if ($("#countAppApproved")) $("#countAppApproved").textContent = apps.filter(a => a.stage === "Approved").length;
     if ($("#countAppReady")) $("#countAppReady").textContent = apps.filter(a => a.stage === "Ready for Installation").length;
     if ($("#countAppDeclined")) $("#countAppDeclined").textContent = apps.filter(a => a.stage === "Declined").length;
@@ -804,40 +804,59 @@
     if ($("#drawerUpdated")) $("#drawerUpdated").textContent = `Last updated ${app.updated}`;
 
     // 2. Stepper Progression (Overview Tab)
-    // Both plans: Account Created → Down Payment → … → Installation → Completed
+    // Same 9 steps for both plans. Full Payment has no financing, so the two finance steps show as done.
     const isFullPayment = (app.paymentType || "").toLowerCase().includes("full") || app.financer === "Not Required";
-    const stages = isFullPayment
-      ? ["Account Created", "Down Payment", "Payment Required", "Ready for Installation", "Installation", "Completed"]
-      : ["Account Created", "Down Payment", "Financing Review", "Under Review", "Approved", "Ready for Installation", "Installation", "Completed"];
+    const stages = ["Account Created", "Down Payment", "Pending Finance", "Approved Financing", "Pending Installer",
+      "Installer Accepted", "Pending Installation", "Ongoing Installation", "Completed"];
     const at = name => stages.indexOf(name);
     const dpState = db.downPaymentState(app);
     // Installation progress lives on the installation job / installationStatus, not only on app.stage
     const installJob = (db.data.installations || []).find(j => j.appId === app.id && j.status !== "Cancelled");
-    const installDone = app.installationStatus === "COMPLETED" || (installJob && installJob.status === "Completed");
-    const installing = ["Installation", "In Progress"].includes(app.stage) || app.installationStatus === "INSTALLATION_IN_PROGRESS" ||
-      (installJob && ["In Progress", "Testing", "Delayed"].includes(installJob.status));
+    const instStatus = String(app.installationStatus || "").toUpperCase();
+    const installDone = instStatus === "COMPLETED" || (installJob && installJob.status === "Completed");
+    const installing = instStatus === "INSTALLATION_IN_PROGRESS" || app.stage === "In Progress" ||
+      (installJob && (["Testing", "Delayed"].includes(installJob.status) || (installJob.status === "In Progress" && Number(installJob.progress) > 0))) ||
+      (app.stage === "Installation" && !instStatus && app.installerAcceptance !== "Accepted");
+    const installerAccepted = instStatus === "AWAITING_INSTALLATION" || app.installerAcceptance === "Accepted" ||
+      app.dispatchStatus === "Accepted" || !!(installJob && installJob.engineerAcceptedAt);
+
+    const readyForInstaller = ["Ready for Installation", "Installation"].includes(app.stage);
 
     let currentStageIndex;
     if (app.stage === "Completed" || installDone) currentStageIndex = at("Completed");
-    else if (installing) currentStageIndex = at("Installation");
-    else if (app.stage === "Ready for Installation" || (isFullPayment && app.stage === "Approved")) currentStageIndex = at("Ready for Installation");
-    else if (!isFullPayment && app.stage === "Approved") currentStageIndex = at("Approved");
-    else if (!isFullPayment && (app.stage === "Under Review" || app.stage === "Missing Documents")) currentStageIndex = at("Under Review");
-    else currentStageIndex = 2; // Payment Required / Financing Review
+    else if (installing) currentStageIndex = at("Ongoing Installation");
+    else if (installerAccepted) currentStageIndex = at("Pending Installation");
+    else if (readyForInstaller || isFullPayment) currentStageIndex = at("Pending Installer");
+    else if (app.stage === "Approved") currentStageIndex = at("Approved Financing");
+    else currentStageIndex = at("Pending Finance"); // Financing Review / Pending Finance / Missing Documents
     // The down payment must be verified before the project can move toward installation
-    if (dpState !== "Verified" && currentStageIndex < at("Ready for Installation")) currentStageIndex = at("Down Payment");
+    if (dpState !== "Verified" && (currentStageIndex < at("Pending Installer") || (currentStageIndex === at("Pending Installer") && !readyForInstaller))) {
+      currentStageIndex = at("Down Payment");
+    }
     // Completed is only ticked once the application itself is marked Completed
     const finished = app.stage === "Completed";
+    const financeSkipped = i => isFullPayment && (i === at("Pending Finance") || i === at("Approved Financing"));
+    // Header pill and Current Stage use the Lifecycle step name; a declined application keeps "Declined"
+    const lifecycleLabel = app.stage === "Declined" ? "Declined" : stages[currentStageIndex];
+    if ($("#drawerStagePill")) {
+      $("#drawerStagePill").textContent = lifecycleLabel;
+      $("#drawerStagePill").className = `status-pill ${getStatusClass(lifecycleLabel)}`;
+    }
+    // Full Payment: the system price still owed is shown as a balance, not as the stage.
+    // Buy Now terms: the verified down payment is deducted from the total system price.
+    const payInfo = isFullPayment && !finished && db.calculatePaymentStatus ? db.calculatePaymentStatus(app) : null;
+    const dpCredit = dpState === "Verified" && app.downPaymentStatus ? Number(app.downPaymentAmount || 10000) : 0;
+    const balanceDue = payInfo && payInfo.remainingBalance > 0 ? Math.max(0, payInfo.remainingBalance - dpCredit) : 0;
 
     const stepperEl = $("#drawerStepper");
     if (stepperEl) {
       stepperEl.innerHTML = stages.map((stg, i) => {
         let cls = "";
-        const done = i < currentStageIndex || (finished && i === currentStageIndex);
+        const done = i < currentStageIndex || (finished && i === currentStageIndex) || financeSkipped(i);
         if (done) cls = "completed";
         else if (i === currentStageIndex) cls = "active";
         return `
-          <div class="step-item ${cls}">
+          <div class="step-item ${cls}"${financeSkipped(i) ? ' title="Not required for Full Payment"' : ""}>
             <div class="step-bubble">${done ? '✓' : i + 1}</div>
             <div class="step-label">${stg}</div>
           </div>
@@ -858,7 +877,10 @@
     if ($("#drawerLocation")) $("#drawerLocation").textContent = app.location;
     if ($("#drawerSystem")) $("#drawerSystem").textContent = app.system;
     if ($("#drawerAmount")) $("#drawerAmount").textContent = peso(app.amount);
-    if ($("#drawerOverviewStage")) $("#drawerOverviewStage").textContent = app.stage;
+    if ($("#drawerOverviewStage")) {
+      $("#drawerOverviewStage").innerHTML = safeText(lifecycleLabel) +
+        (balanceDue ? `<span class="sub-info">Full payment balance: ${safeText(peso(balanceDue))} due${dpCredit ? ` (after ${safeText(peso(dpCredit))} down payment)` : ""}</span>` : "");
+    }
     if ($("#drawerFinancer")) $("#drawerFinancer").textContent = app.financer;
     const dpEl = $("#drawerDownPayment");
     if (dpEl) {
@@ -946,7 +968,7 @@
         decisionText = "Application Under Financing Review";
       } else if (app.stage === "Missing Documents") {
         decisionText = "Underwriting On Hold (Incomplete KYC)";
-      } else if (app.stage === "Under Review") {
+      } else if (app.stage === "Pending Finance") {
         decisionText = "Underwriting Review in Progress";
       } else if (app.stage === "Declined") {
         decisionText = "Declined (Debt Service Ratio Exceeded)";
@@ -1092,7 +1114,7 @@
             Review Documents →
           </button>
         `;
-      } else if (app.stage === "Under Review") {
+      } else if (app.stage === "Pending Finance") {
         footHtml = `
           <button class="btn btn-primary btn-sm" id="btnDrawerApproveApp">
             Approve Application
@@ -1126,7 +1148,7 @@
           <button class="btn btn-primary btn-sm" id="btnDrawerVerifyDownPayment">Verify Down Payment</button>
         ` + footHtml;
       }
-      const reviewStages = ["Submitted", "Financing Review", "Under Review", "Missing Documents"];
+      const reviewStages = ["Submitted", "Financing Review", "Pending Finance", "Missing Documents"];
       if (!db.isFullPaymentApp(app) && app.stage !== "Declined" && (!app.financerId || reviewStages.includes(app.stage))) {
         footHtml = `
           <button class="btn ${app.financerId ? "btn-secondary" : "btn-primary"} btn-sm" id="btnDrawerAssignFinancer">
@@ -2845,12 +2867,40 @@
   }
 
   // Opens an uploaded receipt / document (browsers block opening data: URLs directly)
-  function openStoredFile(dataUrl) {
+  // Receipt / attachment preview modal with a download icon (images and PDFs preview inline)
+  function openStoredFile(dataUrl, options = {}) {
     if (!dataUrl) {
       showToast("The file preview is not available for this record.", "warn", "⚠");
       return;
     }
-    fetch(dataUrl).then(r => r.blob()).then(blob => window.open(URL.createObjectURL(blob), "_blank"));
+    const modal = $("#receiptPreviewModal");
+    const preview = $("#rpmPreview");
+    if (!modal || !preview) {
+      fetch(dataUrl).then(r => r.blob()).then(blob => window.open(URL.createObjectURL(blob), "_blank"));
+      return;
+    }
+    const mime = (String(dataUrl).match(/^data:([^;,]+)/) || [])[1] || "";
+    const ext = mime === "application/pdf" ? "pdf" : (mime.split("/")[1] || "file").replace("jpeg", "jpg");
+    const name = options.fileName || `receipt.${ext}`;
+    if ($("#rpmTitle")) $("#rpmTitle").textContent = options.title || name;
+    if ($("#rpmEyebrow")) $("#rpmEyebrow").textContent = options.eyebrow || "PAYMENT PROOF";
+    const download = $("#rpmDownload");
+    if (download) { download.href = dataUrl; download.setAttribute("download", name); }
+    preview.innerHTML = "";
+    if (mime.startsWith("image/")) {
+      const img = document.createElement("img");
+      img.src = dataUrl;
+      img.alt = name;
+      preview.appendChild(img);
+    } else if (mime === "application/pdf") {
+      const frame = document.createElement("iframe");
+      frame.src = dataUrl;
+      frame.title = name;
+      preview.appendChild(frame);
+    } else {
+      preview.innerHTML = `<p class="sub-info">No preview for this file type. Use the download icon to save ${safeText(name)}.</p>`;
+    }
+    modal.classList.add("open");
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -3201,8 +3251,8 @@
         renderCurrentPage();
       };
       const d = t.dataset;
-      if (d.svReceipt) openStoredFile(visit(d.svReceipt)?.feeProof?.dataUrl);
-      else if (d.svDoc) openStoredFile(visit(d.svDoc)?.assignee?.document?.dataUrl);
+      if (d.svReceipt) { const fp = visit(d.svReceipt)?.feeProof; openStoredFile(fp?.dataUrl, { fileName: fp?.fileName, title: `Site visit fee · ${d.svReceipt}` }); }
+      else if (d.svDoc) { const doc = visit(d.svDoc)?.assignee?.document; openStoredFile(doc?.dataUrl, { fileName: doc?.fileName, eyebrow: "DOCUMENT" }); }
       else if (d.svVerify && !IS_ENGINEER) done(db.verifySiteVisitFee(d.svVerify, { adminUser }), `Site visit fee verified for ${d.svVerify}.`);
       else if (d.svAssign && !IS_ENGINEER) openSiteVisitAssignModal(d.svAssign);
       else if (d.svComplete) {
@@ -3220,10 +3270,10 @@
       else if (t.hasAttribute("data-acc-refund")) openAccRefundModal("refund", d.kind, d.id);
       else if (t.hasAttribute("data-acc-receipt")) {
         const row = db.getClientPayments().find(r => r.kind === d.kind && r.id === d.id);
-        openStoredFile(row && row.proof && row.proof.dataUrl);
+        openStoredFile(row && row.proof && row.proof.dataUrl, { fileName: row && row.proof && row.proof.fileName, title: row ? `${row.type} · ${row.ref || row.id}` : "" });
       } else if (d.reimbApprove) openAccRefundModal("approve", null, d.reimbApprove);
       else if (d.reimbDecline) openAccRefundModal("decline", null, d.reimbDecline);
-      else if (d.reimbFile) openStoredFile(db.getReimbursements().find(r => r.id === d.reimbFile)?.attachment?.dataUrl);
+      else if (d.reimbFile) { const att = db.getReimbursements().find(r => r.id === d.reimbFile)?.attachment; openStoredFile(att?.dataUrl, { fileName: att?.fileName, eyebrow: "ATTACHMENT" }); }
     });
   }
 
@@ -4201,6 +4251,24 @@
   }
 
   // ==================== 6B. CONTACT INQUIRIES PAGE ====================
+  // Buy Now with a down payment receipt: the account is created automatically, so there is no Inquiry Confirmation step
+  function buyNowAccountInfo(inq) {
+    if (!inq || !inq.paymentProof || inq.paymentProof.purpose !== "Down Payment") return null;
+    if (inq.customerId) {
+      return { label: "Account Created", cls: "success",
+        note: `Customer account ${inq.customerId} was created automatically after the down payment receipt. The activation link was queued to ${inq.email}.` };
+    }
+    if (inq.autoAccountError) {
+      const email = String(inq.email || "").toLowerCase();
+      const existing = (db.data.customers || []).find(c => String(c.email || "").toLowerCase() === email);
+      return { label: "Existing Account", cls: "warn",
+        note: existing
+          ? `${inq.email} already has customer account ${existing.id} (${existing.name}), so no new account was created. Contact the customer about this order.`
+          : `No account was created: ${inq.autoAccountError}` };
+    }
+    return null;
+  }
+
   function renderInquiries() {
     const inquiries = db.getInquiries ? db.getInquiries() : [];
 
@@ -4329,7 +4397,8 @@
         ? `<span style="font-size:12px; color:var(--muted);">—</span>`
         : `<span class="status-pill neutral" style="font-size:11px; font-weight:600;">${safeText(paymentPref)}</span>`;
       const inqStatus = inq.inquiryStatus || (inq.customerResponse === 'Proceed' ? 'Proceed' : (inq.customerResponse === 'Not Proceed' || inq.customerResponse === 'Not Proceeding' ? 'Not Proceeding' : (inq.status === 'Replied' || inq.customerResponse === 'Awaiting Response' ? 'Awaiting Response' : 'Not Sent')));
-      const responsePillClass = inqStatus === "Proceed" ? "success" : (inqStatus === "Not Proceeding" || inq.customerResponse === "Not Proceed" ? "danger" : "warn");
+      const autoAccount = buyNowAccountInfo(inq);
+      const responsePillClass = autoAccount ? autoAccount.cls : (inqStatus === "Proceed" ? "success" : (inqStatus === "Not Proceeding" || inq.customerResponse === "Not Proceed" ? "danger" : "warn"));
       const canCreateAccount = inqStatus === "Proceed" || inq.customerResponse === "Proceed";
 
       return `
@@ -4350,7 +4419,7 @@
             <span class="status-pill ${statusPillClass}">${safeText(inq.status)}</span>
           </td>
           <td>
-            <span class="status-pill ${responsePillClass}">${safeText(inqStatus)}</span>
+            <span class="status-pill ${responsePillClass}">${safeText(autoAccount ? autoAccount.label : inqStatus)}</span>
           </td>
           <td>
             <span style="font-size:12px; color:var(--ink);">${safeText(relativeTime)}</span>
@@ -4564,10 +4633,18 @@
       const proof = inq.paymentProof;
       $("#inqDetailProofRow").style.display = proof ? "" : "none";
       if (proof) {
-        $("#inqDetailProof").innerHTML = `${peso(proof.amount)} ${safeText(proof.purpose || "")} · <span class="status-pill warn" style="font-size:11px;">${safeText(proof.status || "Pending Verification")}</span>` +
-          (proof.dataUrl ? ` <button type="button" class="link-btn" id="btnInqViewProof">View receipt</button>` : "");
+        // Once the account exists, the receipt status follows Accounting's verification on the application
+        const linkedApp = proof.purpose === "Down Payment" && inq.customerId
+          ? (db.data.applications || []).find(a => (inq.appId && a.id === inq.appId) || (a.inquiryId === inq.id))
+          : null;
+        const proofStatus = linkedApp ? db.downPaymentState(linkedApp) : (proof.status || "Pending Verification");
+        $("#inqDetailProof").innerHTML =
+          `<strong>${peso(proof.amount)} ${safeText(proof.purpose || "")}</strong>` +
+          `<span class="status-pill ${getStatusClass(proofStatus)}" style="font-size:11px;">${safeText(proofStatus)}</span>` +
+          (proof.referenceNo ? `<span class="sub-info">Ref. ${safeText(proof.referenceNo)}</span>` : "") +
+          (proof.dataUrl ? `<button type="button" class="btn btn-secondary btn-sm" id="btnInqViewProof">View receipt</button>` : "");
         const btn = $("#btnInqViewProof");
-        if (btn) btn.onclick = () => openStoredFile(proof.dataUrl);
+        if (btn) btn.onclick = () => openStoredFile(proof.dataUrl, { fileName: proof.fileName, title: `${proof.purpose || "Payment"} · ${inq.id}` });
       }
     }
     if ($("#inqDetailCategory")) $("#inqDetailCategory").textContent = inq.category || "General Inquiry";
@@ -4579,10 +4656,11 @@
       $("#inqDetailMessageStatus").textContent = inq.status;
     }
 
+    const autoAccount = buyNowAccountInfo(inq);
     if ($("#inqDetailCustomerResponse")) {
-      const respPillClass = inqStatus === "Proceed" ? "success" : (inqStatus === "Not Proceeding" || inq.customerResponse === "Not Proceed" ? "danger" : "warn");
+      const respPillClass = autoAccount ? autoAccount.cls : (inqStatus === "Proceed" ? "success" : (inqStatus === "Not Proceeding" || inq.customerResponse === "Not Proceed" ? "danger" : "warn"));
       $("#inqDetailCustomerResponse").className = `status-pill ${respPillClass}`;
-      $("#inqDetailCustomerResponse").textContent = inqStatus;
+      $("#inqDetailCustomerResponse").textContent = autoAccount ? autoAccount.label : inqStatus;
     }
     if ($("#inqDetailInquiryStatus")) {
       $("#inqDetailInquiryStatus").textContent = "";
@@ -4677,7 +4755,17 @@
     }
 
     // Once the customer account exists, the confirmation editor and reply note are no longer needed
-    if ($("#inqConfirmationEditor")) $("#inqConfirmationEditor").style.display = converted ? "none" : "";
+    if ($("#inqConfirmationEditor")) $("#inqConfirmationEditor").style.display = converted || autoAccount ? "none" : "";
+    // Buy Now: the card shows the automatic account result instead of the confirmation flow
+    const confTitle = $(".inquiry-email-flow-card .sa-card-title");
+    if (confTitle) confTitle.textContent = autoAccount ? "Customer Account" : "Inquiry Confirmation";
+    if (autoAccount) {
+      if (emailStatusBadge) { emailStatusBadge.className = `status-pill ${autoAccount.cls}`; emailStatusBadge.textContent = autoAccount.label; }
+      if (custRespCardBadge) custRespCardBadge.style.display = "none";
+      if (emailDesc) emailDesc.textContent = autoAccount.note;
+    } else if (custRespCardBadge) {
+      custRespCardBadge.style.display = "";
+    }
 
     // Status Banner & Forms
     const isReplied = inq.status === "Replied";
@@ -6395,8 +6483,7 @@
         const app = db.data.applications.find(x => x.id === state.selectedAppId);
         const proof = app && app.downPaymentProof;
         if (!proof || !proof.dataUrl) return;
-        // Open the receipt via a blob URL (browsers block opening data: URLs directly)
-        openStoredFile(proof.dataUrl);
+        openStoredFile(proof.dataUrl, { fileName: proof.fileName, title: `Down Payment · ${app.id}` });
       } else if (e.target.id === "btnDrawerAssignFinancer") {
         if (state.selectedAppId) openAssignFinancerModal(state.selectedAppId);
       } else if (e.target.id === "btnDrawerReviewDocs") {

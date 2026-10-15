@@ -124,6 +124,8 @@ Each command body is `{ "command": "<name>", ...fields }`. Path values (`:appId`
 | (direct request) | GET `/public/inquiries/:inquiryId?token=…` | Confirmation page (no token) | Returns `{ inquiry }` for the confirmation link |
 | (direct request) | POST `/public/inquiries/:inquiryId/response` | Confirmation page (no token) | `token`, `decision` → `{ inquiry }` |
 
+**Buy Now down payment:** when `inquiry.submit` carries `paymentProof.purpose = "Down Payment"` (landing page Buy Now), the backend creates the customer account and application right away (same rules as the `createAccount` command, linked to the inquiry; down payment `Pending Verification`) and emails the activation link to the customer. If the email already has an account, no account is created and the inquiry stays in Contact Inquiries for Super Admin.
+
 The Financer and Installer must only be allowed to change applications assigned to them.
 Every installer action must update both the Application and its Installation Job.
 

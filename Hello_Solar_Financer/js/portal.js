@@ -906,7 +906,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     statusBadgeEl.textContent = "Documents Required";
                 } else if (finStatus === "UNDER_REVIEW" || status === "review") {
                     statusBadgeEl.className = "badge badge-review";
-                    statusBadgeEl.textContent = "Under Review";
+                    statusBadgeEl.textContent = "Pending Finance";
                 } else {
                     statusBadgeEl.className = "badge badge-pending";
                     statusBadgeEl.textContent = "Financing Review";
@@ -1257,7 +1257,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     badge.textContent = "Documents Required";
                     badge.className = "badge badge-docs-required";
                 } else if (finStatus === "UNDER_REVIEW" || app.loan?.status === "review") {
-                    badge.textContent = "Under Review";
+                    badge.textContent = "Pending Finance";
                     badge.className = "badge badge-review";
                 } else {
                     badge.textContent = "Financing Review";

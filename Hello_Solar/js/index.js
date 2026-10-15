@@ -1219,7 +1219,11 @@ function getLeadError(id) {
         if (document.getElementById('leadCityCode').value) return '';
         return value ? 'Please choose your city from the list.' : 'Please enter your city.';
     }
-    if (id === 'leadEmail') return !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? '' : 'Enter a valid email address.';
+    // Required: the customer's account activation link is sent to this email
+    if (id === 'leadEmail') {
+        if (!value) return 'Please enter your email.';
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? '' : 'Enter a valid email address.';
+    }
     return '';
 }
 
@@ -1289,6 +1293,22 @@ function queueCustomerInquiry(record) {
         }
         console.warn('Could not queue customer inquiry:', err);
         return false;
+    }
+}
+
+// Buy Now: the down payment receipt creates the customer account and sends the activation link right away
+// (local mode: shared store on this page; api mode: the backend does it when it receives the inquiry)
+function createBuyNowAccount(inquiryId) {
+    const db = window.HELLO_SOLAR_DB;
+    if (!db || (window.HS_CONFIG && window.HS_CONFIG.isApi)) return { created: false };
+    try {
+        db.data = db.load(); // latest shared records (another tab may have changed them)
+        db.syncCustomerInquiries();
+        const inq = (db.data.inquiries || []).find(i => i.id === inquiryId);
+        return { created: !!(inq && inq.customerId), error: inq ? inq.autoAccountError || '' : '' };
+    } catch (err) {
+        console.warn('Could not create the customer account automatically:', err);
+        return { created: false };
     }
 }
 
@@ -1991,13 +2011,18 @@ function handlePaymentSubmit(e) {
     }
 
     queueCustomerInquiry(record);
+    const account = p.purpose === 'Down Payment' ? createBuyNowAccount(record.id) : { created: false };
 
     setTimeout(() => {
         const firstName = (p.name || '').split(/\s+/)[0] || 'there';
         document.getElementById('paySuccessTitle').textContent = p.kind === 'assessment' ? 'Site Visit Requested' : 'Order Request Submitted';
         document.getElementById('paySuccessText').textContent = p.kind === 'assessment'
             ? `Thank you, ${firstName}. We'll verify your payment and confirm your visit schedule within 1–2 business days.`
-            : `Thank you, ${firstName}. We'll verify your payment and contact you within 1–2 business days.`;
+            : account.created
+                ? `Thank you, ${firstName}. Your Hello Solar account has been created. We've sent an activation link to ${record.email} so you can set your password. We'll verify your down payment within 1–2 business days.`
+                : /already exists/i.test(account.error || '')
+                    ? `Thank you, ${firstName}. ${record.email} already has a Hello Solar account, so no new account was created. Sign in with that account; we'll verify your payment and contact you within 1–2 business days.`
+                    : `Thank you, ${firstName}. We'll verify your payment and contact you within 1–2 business days.`;
         const rows = [...p.summary, ['Payment Status', 'Pending Verification']];
         document.getElementById('paySuccessSummary').innerHTML = rows.map(([k, v], i) => `
             <div class="flex items-start justify-between gap-4 ${i === 0 ? 'pb-2.5' : (i === rows.length - 1 ? 'pt-2.5' : 'py-2.5')}">

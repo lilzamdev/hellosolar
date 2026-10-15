@@ -57,3 +57,27 @@ table td .record-id { white-space: nowrap; }
   font-weight: 600 !important;
 }
 .kpi-top > span:first-child { line-height: 1.3; }
+
+/* Lifecycle Progression: 9 steps share the drawer width */
+.stepper { gap: 4px; align-items: flex-start; }
+.stepper .step-item { flex: 1 1 0; min-width: 0; width: auto; }
+.stepper .step-label { font-size: 10px; overflow-wrap: anywhere; }
+
+/* Contact Inquiry: payment proof gets its own full-width row */
+.detail-grid .inq-proof-row { grid-column: 1 / -1; }
+.inq-proof { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.inq-proof .sub-info { margin: 0; }
+.inq-proof .btn { margin-left: auto; }
+
+/* Receipt preview modal (stacks above the inquiry / application panels) */
+#receiptPreviewModal { z-index: 1100; }
+#receiptPreviewModal .receipt-modal { max-width: min(720px, calc(100vw - 24px)); width: 100%; }
+.receipt-modal-actions { display: flex; align-items: center; gap: 6px; }
+.receipt-dl-btn {
+  width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-xs, 6px); color: var(--muted); border: 1px solid var(--border);
+}
+.receipt-dl-btn:hover { color: var(--ink); background: var(--bg); }
+.receipt-preview { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md, 10px); padding: 12px; text-align: center; }
+.receipt-preview img { max-width: 100%; max-height: 70vh; object-fit: contain; display: block; margin: 0 auto; }
+.receipt-preview iframe { width: 100%; height: 70vh; border: 0; }

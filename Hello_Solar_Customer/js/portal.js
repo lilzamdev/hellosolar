@@ -1190,7 +1190,7 @@
         }
         if (stage === "Declined") return "Financing Declined";
         if (stage === "Missing Documents") return "Documents Required / Under Review";
-        if (stage === "Financing Review" || stage === "Under Review" || stage === "Submitted") return "Financing Review";
+        if (stage === "Financing Review" || stage === "Pending Finance" || stage === "Under Review" || stage === "Submitted") return "Financing Review";
         if (stage === "Ready for Installation") return "Ready for Installation";
         return "Financing Approved";
     }

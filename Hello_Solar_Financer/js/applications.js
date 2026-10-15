@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return { key: "docs_required", label: "Documents Required", badgeClass: "badge-docs-required" };
         }
         if (finStatus === "UNDER_REVIEW" || loanStatus === "review") {
-            return { key: "review", label: "Under Review", badgeClass: "badge-review" };
+            return { key: "review", label: "Pending Finance", badgeClass: "badge-review" };
         }
         return { key: "pending", label: "Financing Review", badgeClass: "badge-pending" };
     }
@@ -161,7 +161,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (tabAll) tabAll.textContent = `All Applications (${total})`;
         if (tabPending) tabPending.textContent = `Financing Review (${pending})`;
         if (tabDocsRequired) tabDocsRequired.textContent = `Documents Required (${docsRequired})`;
-        if (tabReview) tabReview.textContent = `Under Review (${review})`;
+        if (tabReview) tabReview.textContent = `Pending Finance (${review})`;
         if (tabApproved) tabApproved.textContent = `Approved (${approved})`;
         if (tabRejected) tabRejected.textContent = `Declined (${rejected})`;
     }

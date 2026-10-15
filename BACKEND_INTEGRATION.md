@@ -296,7 +296,7 @@ Customer uploads receipt
 Backend owns:
 
 - 60-month payment schedule
-- ₱10,000 down payment
+- ₱10,000 down payment (a Buy Now receipt creates the customer account and emails the activation link automatically; see API_CONTRACT.md, `inquiry.submit`)
 - due dates
 - payment status
 - overdue calculation

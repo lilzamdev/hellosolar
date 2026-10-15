@@ -18,7 +18,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css?v=20261006-qafix" />
-  <link rel="stylesheet" href="css/clean-fixes.css?v=20261013" />
+  <link rel="stylesheet" href="css/clean-fixes.css?v=20261014c" />
 </head>
 
 <body>
@@ -481,7 +481,7 @@
                   <div class="ops-title">Financers</div>
                 </div>
                 <div class="ops-metric">
-                  <span>Under Review</span>
+                  <span>Pending Finance</span>
                   <strong id="opsFinancerReview">2</strong>
                 </div>
                 <div class="ops-metric">
@@ -678,7 +678,7 @@
                   id="countAppFinancingReview">1</span>)</button>
               <button class="chip-btn" data-stage="Missing Documents">Missing Documents (<span
                   id="countAppMissing">1</span>)</button>
-              <button class="chip-btn" data-stage="Under Review">Under Review (<span
+              <button class="chip-btn" data-stage="Pending Finance">Pending Finance (<span
                   id="countAppReview">1</span>)</button>
               <button class="chip-btn" data-stage="Approved">Approved (<span id="countAppApproved">4</span>)</button>
               <button class="chip-btn" data-stage="Ready for Installation">Ready for Installation (<span
@@ -3894,16 +3894,16 @@
             <span>Request</span>
             <strong id="inqDetailRequestType">—</strong>
           </div>
-          <div class="detail-item" id="inqDetailProofRow" style="display:none;">
-            <span>Payment Proof</span>
-            <strong id="inqDetailProof">—</strong>
-          </div>
-          <div class="detail-item inq-customer-only sa-span-2">
+          <div class="detail-item inq-customer-only">
             <span>Inquiry Status</span>
             <div class="sa-inline">
               <span id="inqDetailCustomerResponse" class="status-pill warn">Awaiting Response</span>
               <span id="inqDetailInquiryStatus" class="sa-muted-sm"></span>
             </div>
+          </div>
+          <div class="detail-item inq-proof-row" id="inqDetailProofRow" style="display:none;">
+            <span>Payment Proof</span>
+            <div id="inqDetailProof" class="inq-proof">—</div>
           </div>
           <!-- Hidden fallback aliases for legacy compatibility -->
           <span id="inqDetailCategory" hidden></span>
@@ -4110,9 +4110,35 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
-  <script src="../shared/hello-solar-store.js?v=20261013"></script>
+  <!-- RECEIPT PREVIEW (payment proofs, receipts, attachments) -->
+  <div class="modal-overlay" id="receiptPreviewModal">
+    <div class="modal-card receipt-modal">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow" id="rpmEyebrow">PAYMENT PROOF</div>
+          <h2 id="rpmTitle">Receipt</h2>
+        </div>
+        <div class="receipt-modal-actions">
+          <a class="receipt-dl-btn" id="rpmDownload" href="#" download title="Download" aria-label="Download">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </a>
+          <button class="modal-close-btn" data-close-modal="receiptPreviewModal" aria-label="Close">×</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="receipt-preview" id="rpmPreview"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../shared/hello-solar-store.js?v=20261014c"></script>
   <script src="../shared/hello-solar-shared.js"></script>
-  <script src="js/app.js?v=20261012-sv"></script>
+  <script src="js/app.js?v=20261014c"></script>
 </body>
 
 </html>

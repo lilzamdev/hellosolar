@@ -21,7 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const loan = (app.loan?.status || "").toLowerCase();
             let badge = ["badge-pending", "Financing Review"];
             if (fin === "DOCUMENTS_REQUIRED" || loan === "docs_required") badge = ["badge-docs-required", "Documents Required"];
-            else if (fin === "UNDER_REVIEW" || loan === "review") badge = ["badge-review", "Under Review"];
+            else if (fin === "UNDER_REVIEW" || loan === "review") badge = ["badge-review", "Pending Finance"];
             const docs = typeof window.getApplicationDocuments === "function" ? window.getApplicationDocuments(app) : [];
             const docText = `${docs.filter(d => d.submitted).length}/${docs.length}`;
             return `

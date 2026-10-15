@@ -568,11 +568,41 @@ body {
     box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
 }
 
+/* Field messages float under the field as a small bubble, so the form layout never shifts */
+div:has(> .lead-error) {
+    position: relative;
+}
+
 .lead-error {
-    margin-top: 6px;
-    font-size: 12px;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 10px;
+    z-index: 30;
+    max-width: calc(100% - 20px);
+    margin: 0;
+    padding: 5px 9px;
+    font-size: 11.5px;
     font-weight: 700;
-    color: #dc2626;
+    line-height: 1.3;
+    color: #b91c1c;
+    background: #fff;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    box-shadow: 0 6px 16px rgba(28, 25, 23, 0.12);
+    pointer-events: none;
+}
+
+.lead-error::before {
+    content: "";
+    position: absolute;
+    top: -5px;
+    left: 14px;
+    width: 8px;
+    height: 8px;
+    background: #fff;
+    border-left: 1px solid #fecaca;
+    border-top: 1px solid #fecaca;
+    transform: rotate(45deg);
 }
 
 #leadForm .hs-dropdown-trigger {
