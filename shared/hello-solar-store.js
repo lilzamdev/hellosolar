@@ -13,17 +13,20 @@
   // (Solar Recommendation / Request Solar Proposal form and Contact Us → Customer)
   const CUSTOMER_INQUIRY_KEY = "HELLO_SOLAR_CUSTOMER_INQUIRIES";
   const PARTNER_TYPES = ["Financer", "Installer", "Merchant"];
-  // Hello Solar packages (same prices as the landing page). Installment: 60 months, ₱10,000 down payment.
-  const INSTALLMENT_TERM_MONTHS = 60;
+  // Hello Solar packages (same prices as the landing page). Installment: 72 months, ₱10,000 down payment.
+  const INSTALLMENT_TERM_MONTHS = 72;
   const INSTALLMENT_DOWN_PAYMENT = 10000;
   const PACKAGE_CATALOG = [
-    { id: "hs6-lite", name: "HS 6 LITE", price: 270000, monthly: 7650 },
-    { id: "hs6-pro", name: "HS 6 PRO", price: 320000, monthly: 9066.67 },
-    { id: "hs6-max", name: "HS 6 MAX", price: 385000, monthly: 10908.33 },
-    { id: "hs8-pro", name: "HS 8 PRO", price: 420000, monthly: 11900 },
-    { id: "hs8-max", name: "HS 8 MAX", price: 595000, monthly: 16859 },
-    { id: "hs10-pro", name: "HS 10 PRO", price: 535000, monthly: 15159 },
-    { id: "hs12-max", name: "HS 12 MAX", price: 760000, monthly: 21533.33 }
+    { id: "hs6-lite", name: "HS 6 LITE", price: 285000, monthly: 7284 },
+    { id: "hs6-pro", name: "HS 6 PRO", price: 340000, monthly: 8689 },
+    { id: "hs6-max", name: "HS 6 MAX", price: 390000, monthly: 9967 },
+    { id: "hs8-pro", name: "HS 8 PRO", price: 516000, monthly: 13187 },
+    { id: "hs8-max", name: "HS 8 MAX", price: 614000, monthly: 15692 },
+    { id: "hs12-pro", name: "HS 12 PRO", price: 572000, monthly: 15572 },
+    { id: "hs12-max", name: "HS 12 MAX", price: 720000, monthly: 19600 },
+    // HS 16 PRO MAX is listed before HS 16 PRO so findPackage() matches the longer name first
+    { id: "hs16-pro-max", name: "HS 16 PRO MAX", price: 975000, monthly: 26542 },
+    { id: "hs16-pro", name: "HS 16 PRO", price: 780000, monthly: 21234 }
   ];
   function findPackage(ref) {
     const key = String(ref || "").trim().toLowerCase();

@@ -115,6 +115,15 @@ body {
     }
 }
 
+/* Large screens (1536px+, e.g. 1920x1080): keep the house at the size and crop it has at 1536px.
+   The photo is portrait, so a wider box zooms in and cuts off the roof. Cap the box at its 1536px width
+   (72% of 1536 = 1106px); it stays anchored to the right edge. */
+@media (min-width: 1536px) {
+    .hero-photo-backdrop.hero-photo-backdrop {
+        max-width: 1106px;
+    }
+}
+
 .hero-bottom-cloud {
     position: absolute;
     inset: 76% -4% -5% 60%;

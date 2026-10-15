@@ -818,19 +818,19 @@ function renderWizard() {
         `;
     } else if (wizardState.step === 4) {
         let pkgName = 'HS 6 PRO';
-        let pkgDesc = '6.2kW Solar | 6kW Inverter | 9.6kWh Storage';
-        let pkgMonthly = '₱9,067';
+        let pkgDesc = '6kW Solar | 6kW Inverter | 10kWh Storage';
+        let pkgMonthly = '₱8,689';
         let pkgSavings = '₱5,500 – ₱8,400';
 
         if (wizardState.bill === '₱12,000+' || wizardState.bill === '₱8,000–₱12,000') {
             pkgName = 'HS 8 PRO';
-            pkgDesc = '8kW Solar | 8kW Inverter | 16kWh Storage';
-            pkgMonthly = '₱11,900';
+            pkgDesc = '9kW Solar | 8kW Inverter | 16kWh Storage';
+            pkgMonthly = '₱13,187';
             pkgSavings = '₱10,500 – ₱16,000';
         } else if (wizardState.bill === '₱3,000–₱5,000') {
             pkgName = 'HS 6 LITE';
-            pkgDesc = '4.96kW Solar | 6kW Inverter | 4.8kWh Storage';
-            pkgMonthly = '₱7,650';
+            pkgDesc = '5kW Solar | 6kW Inverter | 5kWh Storage';
+            pkgMonthly = '₱7,284';
             pkgSavings = '₱4,200 – ₱6,800';
         }
 

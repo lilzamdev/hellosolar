@@ -8,12 +8,12 @@ const PRODUCTS = {
         name: 'HS 6 LITE',
         tag: 'OUR RECOMMENDATION',
         tagline: 'Smart. Reliable. Built for Everyday Savings.',
-        panels: '4.96kW',
+        panels: '5kW',
         inverter: '6kW',
-        battery: '4.8kWh',
+        battery: '5kWh',
         idealBills: '₱5,000–₱8,000',
-        monthly: '₱7,650',
-        cashPrice: '₱270,000',
+        monthly: '₱7,284',
+        cashPrice: '₱285,000',
         estSavings: '₱4,200 – ₱6,800',
         features: [
             'Lower your electric bill every month',
@@ -28,12 +28,12 @@ const PRODUCTS = {
         tag: 'MOST POPULAR',
         tagline: 'More power, more backup for seamless family living.',
         badge: 'Most Popular',
-        panels: '6.2kW',
+        panels: '6kW',
         inverter: '6kW',
-        battery: '9.6kWh',
+        battery: '10kWh',
         idealBills: '₱5,000–₱8,000',
-        monthly: '₱9,066.67',
-        cashPrice: '₱320,000',
+        monthly: '₱8,689',
+        cashPrice: '₱340,000',
         estSavings: '₱5,500 – ₱8,400',
         features: [
             'Bigger savings every month',
@@ -48,12 +48,12 @@ const PRODUCTS = {
         name: 'HS 6 MAX',
         tagline: 'Maximum solar yield and multi-aircon whole home power.',
         badge: 'For bigger homes',
-        panels: '8.27kW',
-        inverter: '8kW',
-        battery: '9.6kWh',
-        idealBills: '₱8,000–₱12,000+',
-        monthly: '₱10,908.33',
-        cashPrice: '₱385,000',
+        panels: '6kW',
+        inverter: '6kW',
+        battery: '16kWh',
+        idealBills: '₱8,000–₱13,000',
+        monthly: '₱9,967',
+        cashPrice: '₱390,000',
         estSavings: '₱7,800 – ₱12,500',
         features: [
             'Ultimate system for long brownouts',
@@ -68,19 +68,19 @@ const PRODUCTS = {
         name: 'HS 8 PRO',
         tag: 'EXPANDED RESIDENTIAL / ESTATE',
         tagline: 'High-yield whole-day solar with expanded battery storage.',
-        panels: '8kW',
+        panels: '9kW',
         inverter: '8kW',
         battery: '16kWh',
-        idealBills: '₱8,000–₱13,000',
-        monthly: '₱11,900',
-        cashPrice: '₱420,000',
+        idealBills: '₱11,000–₱15,000',
+        monthly: '₱13,187',
+        cashPrice: '₱516,000',
         estSavings: '₱10,500 – ₱16,000',
         features: [
             'Bigger savings every month',
             'Reliable backup during brownouts for up to 28hrs (*Based on a 500W essential household load)',
             'Covers most family homes comfortably',
             'Best value for money',
-            'Ideal if your electric bill is around ₱8,000-₱13,000/month'
+            'Ideal if your electric bill is around ₱11,000-₱15,000/month'
         ]
     },
     'hs8-max': {
@@ -88,15 +88,15 @@ const PRODUCTS = {
         name: 'HS 8 MAX',
         tag: 'COMMERCIAL & VILLA',
         tagline: 'Built for multi-story villas, resorts, and commercial hubs.',
-        panels: '8kW',
-        inverter: '12kW',
+        panels: '9kW',
+        inverter: '8kW',
         battery: '32kWh',
         idealBills: '₱13,000–₱18,000',
-        monthly: '₱16,859',
-        cashPrice: '₱595,000',
+        monthly: '₱15,692',
+        cashPrice: '₱614,000',
         estSavings: '₱11,500 – ₱16,000',
         features: [
-            '8kw Panels, 12kw Inverter, 32kwh Battery Maximum Backup Power',
+            '9kw Panels, 8kw Inverter, 32kwh Battery Maximum Backup Power',
             'Ultimate system for long brownouts. Run essentials during outages for 56hrs (*Based on a 500W essential household load)',
             'Store more solar energy for nighttime use',
             'Best for future expansion',
@@ -104,57 +104,93 @@ const PRODUCTS = {
             'Ideal if your electric bill is around ₱13,000-₱18,000/month'
         ]
     },
-    'hs10-pro': {
-        id: 'hs10-pro',
-        name: 'HS 10 PRO',
+    'hs12-pro': {
+        id: 'hs12-pro',
+        name: 'HS 12 PRO',
         tag: 'ENTERPRISE / BUSINESS',
-        tagline: 'Maximum generation capacity for intensive daytime power.',
 
-        panels: '10kW',
+        panels: '12kW',
         inverter: '12kW',
         battery: '16kWh',
-        idealBills: '₱17,000-₱21,000',
-        monthly: '₱15,159',
-        cashPrice: '₱535,000',
+        idealBills: '₱15,000–₱19,000',
+        monthly: '₱15,572',
+        cashPrice: '₱572,000',
         estSavings: '₱21,000 – ₱30,000+',
         features: [
-            '10kw Panels, 12kw Inverter, 16kwh Battery Perfect Balance',
             'Bigger savings every month',
             'Reliable backup during brownouts for up to 28hrs (*Based on a 500W essential household load)',
             'Covers most family homes comfortably',
             'Best value for money',
-            'Ideal if your electric bill is around ₱17,000-₱21,000/month'
+            'Ideal if your electric bill is around ₱15,000-₱19,000/month'
         ]
     },
     'hs12-max': {
         id: 'hs12-max',
         name: 'HS 12 MAX',
         tag: 'COMMERCIAL & INDUSTRIAL / ESTATE',
-        tagline: 'Ultimate generation capacity and mega battery reserve for heavy loads.',
 
         panels: '12kW',
-        inverter: '16kW',
+        inverter: '12kW',
         battery: '32kWh',
-        idealBills: '₱18,000-₱25,000',
-        monthly: '₱21,533.33',
-        cashPrice: '₱760,000',
+        idealBills: '₱18,000–₱25,000',
+        monthly: '₱19,600',
+        cashPrice: '₱720,000',
         estSavings: '₱24,000 – ₱40,000+',
         features: [
-            '12kw Panels, 16kw Inverter, 32kwh Battery Maximum Backup Power',
             'Ultimate system for long brownouts',
             'Run essentials during outages for 56hrs (*Based on a 500W essential household load)',
             'Store more solar energy for nighttime use',
             'Best for future expansion',
             'Ideal if your electric bill is around ₱18,000-₱25,000/month'
         ]
+    },
+    'hs16-pro': {
+        id: 'hs16-pro',
+        name: 'HS 16 PRO',
+        tag: 'COMMERCIAL & INDUSTRIAL / ESTATE',
+
+        panels: '15kW',
+        inverter: '16kW',
+        battery: '16kWh',
+        idealBills: '₱22,000–₱28,000',
+        monthly: '₱21,234',
+        cashPrice: '₱780,000',
+        estSavings: '₱24,000 – ₱40,000+',
+        features: [
+            'Bigger savings every month',
+            'Reliable backup during brownouts for up to 28hrs (*Based on a 500W essential household load)',
+            'Covers most family homes comfortably',
+            'Best value for money',
+            'Ideal if your electric bill is around ₱22,000-₱28,000/month'
+        ]
+    },
+    'hs16-pro-max': {
+        id: 'hs16-pro-max',
+        name: 'HS 16 PRO MAX',
+        tag: 'COMMERCIAL & INDUSTRIAL / ESTATE',
+
+        panels: '19kW',
+        inverter: '24kW',
+        battery: '32kWh',
+        idealBills: '₱27,000–₱35,000',
+        monthly: '₱26,542',
+        cashPrice: '₱975,000',
+        estSavings: '₱24,000 – ₱40,000+',
+        features: [
+            'Ultimate system for long brownouts',
+            'Run essentials during outages for 56hrs (*Based on a 500W essential household load)',
+            'Store more solar energy for nighttime use',
+            'Best for future expansion',
+            'Ideal if your electric bill is around ₱27,000-₱35,000/month'
+        ]
     }
 };
 
 // PRICING / OPTION SELECTION & CIRCULAR CAROUSEL ENGINE
 let selectedOption = 'hs6-pro';
-const TOTAL_PACKAGES = 7;
+const TOTAL_PACKAGES = 9;
 const CLONE_COUNT = 3;
-let carouselCurrentPackage = 1; // 1 to 7
+let carouselCurrentPackage = 1; // 1 to 9
 let carouselTrackIndex = CLONE_COUNT; // starts at 3 (Card 1)
 let carouselIsTransitioning = false;
 let carouselTransitionTimeout = null;
@@ -707,7 +743,7 @@ function renderWizard() {
                         <div class="text-right">
                             <div class="text-[10px] font-black uppercase tracking-wider text-stone-500">Installment</div>
                             <div class="text-base sm:text-lg font-black text-amber-700">${rec.monthly} <span class="text-xs font-bold text-stone-500">/mo</span></div>
-                            <div class="text-[10px] font-bold text-stone-500">5 yrs · ₱10k DP</div>
+                            <div class="text-[10px] font-bold text-stone-500">6 yrs · ₱10k DP</div>
                         </div>
                     </div>
                     <div class="text-xs font-bold text-emerald-700">Est. bill savings: ${rec.estSavings}/mo</div>
@@ -797,7 +833,7 @@ function viewProductDetails(productId) {
                     ${product.tag || 'SPECIFICATIONS'}
                 </span>
                 <h3 class="text-2xl sm:text-3xl font-black text-[#1C1917] tracking-tight">${product.name}</h3>
-                <p class="text-xs sm:text-sm text-stone-500 font-semibold">${product.tagline}</p>
+                ${product.tagline ? `<p class="text-xs sm:text-sm text-stone-500 font-semibold">${product.tagline}</p>` : ''}
             </div>
 
             <!-- Specs Row -->
@@ -826,7 +862,7 @@ function viewProductDetails(productId) {
                 <div class="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-200/70 rounded-xl sm:rounded-2xl p-3 sm:p-4">
                     <div class="text-[10px] sm:text-[11px] font-black text-stone-500 uppercase tracking-wider">Installment</div>
                     <div class="text-lg sm:text-xl font-black text-amber-600 mt-0.5">${product.monthly}<span class="text-xs font-bold text-stone-500">/mo</span></div>
-                    <div class="text-[10px] sm:text-[11px] font-bold text-stone-500">5 yrs · ₱10k down payment</div>
+                    <div class="text-[10px] sm:text-[11px] font-bold text-stone-500">6 yrs · ₱10k down payment</div>
                 </div>
             </div>
             <div class="text-[11px] sm:text-xs font-bold text-emerald-700 -mt-1">Est. bill savings: ${product.estSavings}/mo</div>
@@ -891,13 +927,15 @@ function startInquiry(productId) {
 // CUSTOM DROPDOWN ENGINE
 // Maps trigger label text for package options
 const PKG_LABELS = {
-    'hs6-lite': 'HS 6 LITE \u2014 4.96kW | 6kW | 4.8kWh',
-    'hs6-pro': 'HS 6 PRO \u2014 6.2kW | 6kW | 9.6kWh',
-    'hs6-max': 'HS 6 MAX \u2014 8.27kW | 8kW | 9.6kWh',
-    'hs8-pro': 'HS 8 PRO \u2014 8kW | 8kW | 16kWh',
-    'hs8-max': 'HS 8 MAX \u2014 8kW | 12kW | 32kWh',
-    'hs10-pro': 'HS 10 PRO \u2014 10kW | 12kW | 16kWh',
-    'hs12-max': 'HS 12 MAX \u2014 12kW | 16kW | 32kWh'
+    'hs6-lite': 'HS 6 LITE \u2014 5kW | 6kW | 5kWh',
+    'hs6-pro': 'HS 6 PRO \u2014 6kW | 6kW | 10kWh',
+    'hs6-max': 'HS 6 MAX \u2014 6kW | 6kW | 16kWh',
+    'hs8-pro': 'HS 8 PRO \u2014 9kW | 8kW | 16kWh',
+    'hs8-max': 'HS 8 MAX \u2014 9kW | 8kW | 32kWh',
+    'hs12-pro': 'HS 12 PRO \u2014 12kW | 12kW | 16kWh',
+    'hs12-max': 'HS 12 MAX \u2014 12kW | 12kW | 32kWh',
+    'hs16-pro': 'HS 16 PRO \u2014 15kW | 16kW | 16kWh',
+    'hs16-pro-max': 'HS 16 PRO MAX \u2014 19kW | 24kW | 32kWh'
 };
 
 function setCustomDropdownValue(inputId, value) {
@@ -1256,8 +1294,8 @@ function initLeadValidation() {
 // Customer inquiry → Super Admin → Contact Inquiries (shared queue, imported once by id).
 // Backend-ready: POST the same record to an API later.
 const CUSTOMER_INQUIRY_KEY = 'HELLO_SOLAR_CUSTOMER_INQUIRIES';
-// Installment terms advertised on every package: 5 years, ₱10,000 down payment
-const INSTALLMENT_TERM_MONTHS = 60;
+// Installment terms advertised on every package: 6 years, ₱10,000 down payment
+const INSTALLMENT_TERM_MONTHS = 72;
 const INSTALLMENT_DOWN_PAYMENT = 10000;
 function parsePeso(text) {
     const n = parseFloat(String(text || '').replace(/[^0-9.]/g, ''));
@@ -1332,7 +1370,7 @@ function handleLeadSubmit(e) {
     const ts = new Date();
     const leadId = 'lead_' + ts.getTime();
     const nameParts = name.split(/\s+/);
-    const planText = payment === 'Installment' ? `Installment · ${pkg.monthly}/mo, 5 yrs` : `Full Payment · ${pkg.cashPrice}`;
+    const planText = payment === 'Installment' ? `Installment · ${pkg.monthly}/mo, 6 yrs` : `Full Payment · ${pkg.cashPrice}`;
 
     openPaymentModal({
         kind: 'purchase',
@@ -1361,7 +1399,7 @@ function handleLeadSubmit(e) {
             phone,
             location,
             cityCode,
-            category: (packageId === 'hs10-pro' || packageId === 'hs12-max') ? 'Commercial Solar' : 'Residential Solar',
+            category: ['hs12-pro', 'hs12-max', 'hs16-pro', 'hs16-pro-max'].includes(packageId) ? 'Commercial Solar' : 'Residential Solar',
             packageId,
             package: PKG_LABELS[packageId] || pkg.name || packageId,
             selectedSolarModel: PKG_LABELS[packageId] || pkg.name || packageId,
@@ -1430,7 +1468,7 @@ const TERMS = {
         badge: 'Installment',
         items: [
             'A <strong>₱10,000</strong> down payment is required to process your application.',
-            'The remaining balance is payable in <strong>60 monthly installments</strong> (5 years).',
+            'The remaining balance is payable in <strong>72 monthly installments</strong> (6 years).',
             'Installment plans are subject to approval by Hello Solar\'s financing partners. Supporting documents may be requested.',
             'Payment terms are governed by the financing agreement you sign upon approval.',
             'A site assessment is conducted before installation to confirm the final system design.',
@@ -1810,7 +1848,7 @@ function handleAssessmentSubmit(e) {
             location,
             address: { street, barangay, city: cityLabel, cityCode },
             preferredVisitDate: visitDate,
-            category: (packageId === 'hs10-pro' || packageId === 'hs12-max') ? 'Commercial Solar' : 'Residential Solar',
+            category: ['hs12-pro', 'hs12-max', 'hs16-pro', 'hs16-pro-max'].includes(packageId) ? 'Commercial Solar' : 'Residential Solar',
             packageId,
             package: PKG_LABELS[packageId] || pkg.name || packageId,
             selectedSolarModel: PKG_LABELS[packageId] || pkg.name || packageId,
