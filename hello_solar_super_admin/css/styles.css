@@ -3801,7 +3801,7 @@ select.input-field.input-error {
 }
 
 /* Direct Installation Engineer role: only Applications + Installations (Direct) */
-body.role-direct-engineer .nav-link:not([data-page="applications"]):not([data-page="installations"]):not([data-page="site-visits"]),
+body.role-direct-engineer .nav-link:not([data-page="applications"]):not([data-page="installations"]):not([data-page="site-visits"]):not([data-page="maintenance"]),
 body.role-direct-engineer .search-box,
 body.role-direct-engineer .icon-btn-wrap,
 body.role-direct-engineer #dropdownProfile,
@@ -4417,7 +4417,7 @@ td.num {
 
 /* ---- Create Account ---- */
 .role-selector-bar {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   margin-bottom: 16px;
 }
 

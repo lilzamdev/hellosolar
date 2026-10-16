@@ -233,7 +233,7 @@ test('customer document uploads are what Super Admin reviews, and the verdict fl
   const db = c.HELLO_SOLAR_DB; db.data = db.load();
   const docs = db.getAppDocuments('APP-1105');
   // Shared request list: 4 required documents; optional not-submitted documents are not listed
-  assert.equal(JSON.stringify(docs.map(d => d.status)), JSON.stringify(['Submitted', 'Missing', 'Missing', 'Missing']));
+  assert.equal(JSON.stringify(docs.map(d => d.status)), JSON.stringify(['Submitted', 'Missing', 'Missing', 'Missing', 'Missing', 'Missing']));
   assert.equal(docs[0].file, 'id.png');
   db.updateDocumentStatus('APP-1105', 'Valid Government ID — Front / Main Page', 'Verified');
   assert.equal(S.documentsFor('APP-1105').documents[0].status, 'ACCEPTED');
@@ -391,19 +391,19 @@ test('Super Admin document counts come from the shared document record, not app.
   const { c, S, store } = environment();
   const db = c.HELLO_SOLAR_DB; db.data = db.load();
   db.data.applications.find(a => a.id === 'APP-1105').docs = '5/5'; // stale stored value is ignored
-  assert.equal(db.getAppDocumentCounts('APP-1105').label, '0/4');
+  assert.equal(db.getAppDocumentCounts('APP-1105').label, '0/6');
   const raw = { 'APP-1105': S.documentRecordFor('APP-1105') };
   Object.assign(raw['APP-1105'].documents.find(d => d.id === 'proof_of_income'), { status: 'SUBMITTED', fileName: 'p.pdf' });
   store.set('hello_solar_shared_documents', JSON.stringify(raw));
   let n = db.getAppDocumentCounts('APP-1105');
-  assert.equal(n.label, '1/4');
+  assert.equal(n.label, '1/6');
   assert.equal(n.verified, 0);
   S.setDocumentStatus('APP-1105', 'proof_of_income', 'ACCEPTED');
   n = db.getAppDocumentCounts('APP-1105');
   assert.equal(n.verified, 1);
-  assert.equal(n.missing.length, 3);
+  assert.equal(n.missing.length, 5);
   // Overview alert text uses the same counts
   db.data.applications.find(a => a.id === 'APP-1105').stage = 'Missing Documents';
   const alert = db.getAttentionItems ? db.getAttentionItems().find(i => i.id === 'APP-1105') : null;
-  if (alert) assert.match(alert.context, /1\/4 uploaded/);
+  if (alert) assert.match(alert.context, /1\/6 uploaded/);
 });

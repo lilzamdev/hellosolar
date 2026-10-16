@@ -31,7 +31,9 @@
         proof_of_income: "Proof of Income",
         proof_of_billing: "Proof of Billing",
         bank_statement: "Bank Statement",
-        other_requested: "Other Document"
+        other_requested: "Other Document",
+        site_photos: "Site Photos (Roof & Neighborhood)",
+        site_map_link: "Google Maps Link of House / Site"
     };
     const displayName = doc => DISPLAY_NAME[doc.id] || doc.name;
     // The document request list, status rules and record creation live in the shared layer
@@ -171,7 +173,10 @@
             const meta = STATUS[doc.status];
             const canUpload = UPLOADABLE.includes(doc.status);
             const btnLabel = doc.status === "REUPLOAD_REQUIRED" ? "Re-upload" : "Upload";
-            const fileLine = doc.fileName
+            const isLink = doc.kind === "link";
+            const fileLine = isLink && doc.link
+                ? `<span class="req-doc-file"><a href="${escapeHtml(doc.link)}" target="_blank" rel="noopener">Open in Google Maps</a>${doc.uploadedAt ? ` · ${formatDate(doc.uploadedAt)}` : ""}</span>`
+                : doc.fileName
                 ? `<span class="req-doc-file">${doc.fileData
                     ? `<a href="#" data-view-doc="${escapeHtml(doc.id)}">${escapeHtml(doc.fileName)}</a>`
                     : escapeHtml(doc.fileName)}${doc.fileSize ? ` · ${formatSize(doc.fileSize)}` : ""}${doc.uploadedAt ? ` · ${formatDate(doc.uploadedAt)}` : ""}</span>`
@@ -185,7 +190,10 @@
                     </div>
                     <div class="req-doc-actions">
                         <span class="req-doc-badge req-doc-badge--${meta.cls}">${meta.label}</span>
-                        ${canUpload ? `<button type="button" class="req-doc-upload-btn" data-upload-doc="${escapeHtml(doc.id)}"
+                        ${canUpload && isLink ? `<input type="url" class="req-doc-link-input" data-link-input="${escapeHtml(doc.id)}"
+                            placeholder="Paste Google Maps link" aria-label="Google Maps link of the house or site">
+                            <button type="button" class="req-doc-upload-btn" data-save-link="${escapeHtml(doc.id)}">Save Link</button>` : ""}
+                        ${canUpload && !isLink ? `<button type="button" class="req-doc-upload-btn" data-upload-doc="${escapeHtml(doc.id)}"
                             aria-label="${btnLabel} ${escapeHtml(displayName(doc))}">${btnLabel}</button>` : ""}
                     </div>
                 </li>`;
@@ -203,6 +211,17 @@
     let pendingDocId = null;
 
     document.addEventListener("click", (e) => {
+        const saveLinkBtn = e.target.closest("[data-save-link]");
+        if (saveLinkBtn && currentPkg && window.HSShared?.saveDocumentLink) {
+            const docId = saveLinkBtn.dataset.saveLink;
+            const input = document.querySelector(`[data-link-input="${docId}"]`);
+            const res = window.HSShared.saveDocumentLink(currentPkg.appId, docId, input ? input.value : "");
+            if (!res.ok) { showMessage(res.error, "error"); return; }
+            notify(currentPkg.appId);
+            showMessage("Google Maps link saved. Awaiting review.", "success");
+            render(currentPkg);
+            return;
+        }
         const uploadBtn = e.target.closest("[data-upload-doc]");
         if (uploadBtn) {
             pendingDocId = uploadBtn.dataset.uploadDoc;

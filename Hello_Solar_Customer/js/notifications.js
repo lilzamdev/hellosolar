@@ -686,6 +686,11 @@
     function injectNotificationUI() {
         if (document.getElementById("notificationBellContainer")) return;
 
+        // Due-date reminders (7 days before, 1 day before, on the due date), sent once each
+        try {
+            if (window.HSShared && typeof window.HSShared.sendDueReminders === "function") window.HSShared.sendDueReminders();
+        } catch (e) { /* reminders are best effort */ }
+
         // Target topbar-right in any portal
         const topbarRight = document.querySelector(".topbar-right");
         if (!topbarRight) return;

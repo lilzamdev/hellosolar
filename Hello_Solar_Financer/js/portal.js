@@ -761,7 +761,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     const isPassed = !!doc.submitted;
                     // Same file and status the customer sees on the shared APP document record
                     const fileLine = doc.fileName
-                        ? (doc.hasFile ? `<a href="#" data-view-shared-doc="${escapeDocHtml(doc.id)}" data-appid="${escapeDocHtml(appId)}">${escapeDocHtml(doc.fileName)}</a>` : escapeDocHtml(doc.fileName))
+                        ? (doc.link ? `<a href="${escapeDocHtml(doc.link)}" target="_blank" rel="noopener">Open in Google Maps</a>` : doc.hasFile ? `<a href="#" data-view-shared-doc="${escapeDocHtml(doc.id)}" data-appid="${escapeDocHtml(appId)}">${escapeDocHtml(doc.fileName)}</a>` : escapeDocHtml(doc.fileName))
                             + (doc.uploadedAt ? ` · uploaded ${new Date(doc.uploadedAt).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })}` : "")
                         : "";
                     const note = [fileLine, doc.note ? escapeDocHtml(doc.note) : ""].filter(Boolean).join(" · ")
@@ -1209,6 +1209,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 statusLabel: DOC_STATUS_LABEL[d.status] || d.status,
                 fileName: d.fileName || "",
                 hasFile: !!d.fileData,
+                link: d.kind === "link" && /^https?:\/\//i.test(d.link || "") ? d.link : "",
                 uploadedAt: d.uploadedAt || null,
                 note: d.note || "",
                 submitted: d.submitted

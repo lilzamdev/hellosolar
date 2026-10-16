@@ -175,3 +175,15 @@
         justify-content: space-between;
     }
 }
+
+.req-doc-link-input {
+    min-width: 200px;
+    padding: 6px 10px;
+    border: 1px solid #d6d3d1;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 12.5px;
+}
+@media (max-width: 480px) {
+    .req-doc-link-input { min-width: 0; flex: 1; }
+}

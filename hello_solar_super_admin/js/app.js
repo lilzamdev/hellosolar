@@ -7,7 +7,9 @@
   const SESSION = (window.SuperAdminAuth && window.SuperAdminAuth.getSession && window.SuperAdminAuth.getSession()) || {};
   const IS_ENGINEER = SESSION.role === "direct-engineer";
   const ENGINEER = { name: SESSION.name || "Direct Installation Engineer", actorId: SESSION.accountId || SESSION.actorId || "ENG-DEMO" };
-  const ENGINEER_PAGES = ["applications", "installations", "site-visits"];
+  const ENGINEER_PAGES = ["applications", "installations", "site-visits", "maintenance"];
+  // Accounting accounts see only the Accounting page
+  const IS_ACCOUNTING = SESSION.role === "accounting";
   const $ = selector => document.querySelector(selector);
   const $$ = selector => [...document.querySelectorAll(selector)];
   const safeText = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -281,6 +283,9 @@
       pageId = "installations";
       subOption = "direct";
     }
+    if (IS_ACCOUNTING) pageId = "accounting";
+    // Leaving Support closes the record opened beside it, so it does not follow onto the next page
+    if (pageId !== "support" && document.body.classList.contains("support-split")) exitSupportSplit(true);
     state.currentPage = pageId;
 
     // Toggle pages
@@ -310,8 +315,8 @@
       }
       syncInstallTabs();
     } else if (pageId === "applications" && subOption) {
-      if (subOption === "under-review") {
-        state.appStageFilter = "Pending Finance";
+      if (subOption === "under-review" || subOption === "pending-financing") {
+        state.appStageFilter = "Pending Financing";
       }
       syncAppTabs();
     } else if (pageId === "accounts" && subOption) {
@@ -344,6 +349,9 @@
         break;
       case "site-visits":
         renderSiteVisits();
+        break;
+      case "maintenance":
+        renderMaintenance();
         break;
       case "accounts":
         renderAccounts();
@@ -413,7 +421,7 @@
       j.status !== "Completed" &&
       j.status !== "Cancelled"
     ).length;
-    if ($("#quickDirectCount")) $("#quickDirectCount").textContent = `${directCount} Direct Projects`;
+    if ($("#quickDirectCount")) $("#quickDirectCount").textContent = `${directCount} Hello Solar Projects`;
     if ($("#notifBadgeCount")) $("#notifBadgeCount").textContent = attention.length;
     if ($("#notifHeadCount")) $("#notifHeadCount").textContent = attention.length;
 
@@ -468,14 +476,19 @@
     if ($("#kpiNeedsAttention")) $("#kpiNeedsAttention").textContent = attention.length;
 
     // 2. Operations Overview
-    if ($("#opsCustomerTotal")) $("#opsCustomerTotal").textContent = customers.length;
-    if ($("#opsCustomerNew")) $("#opsCustomerNew").textContent = apps.filter(a => a.stage === "Submitted" || a.stage === "Payment Required" || a.stage === "Financing Review" || a.stage === "Missing Documents").length;
+    const appsInGroup = group => apps.filter(a => stageGroupOf(a.stage) === group);
+    if ($("#opsCustomerTotal")) $("#opsCustomerTotal").textContent = customers.filter(c => c.status === "Active").length;
+    if ($("#opsCustomerNew")) $("#opsCustomerNew").textContent = apps.filter(a => ["Cash Applications", "Missing Documents", "Pending Financing"].includes(stageGroupOf(a.stage))).length;
 
-    if ($("#opsFinancerReview")) $("#opsFinancerReview").textContent = apps.filter(a => a.stage === "Pending Finance" || a.stage === "Financing Review").length;
-    if ($("#opsFinancerPending")) $("#opsFinancerPending").textContent = apps.filter(a => ["Pending Finance", "Financing Review", "Submitted", "Missing Documents"].includes(a.stage)).length;
+    // Financing & Credit: installment accounts with approved financing vs. still waiting for a financing decision
+    const installmentApps = apps.filter(a => !db.isFullPaymentApp(a));
+    if ($("#opsFinancerReview")) $("#opsFinancerReview").textContent = installmentApps.filter(a => !["Missing Documents", "Pending Financing", "Declined"].includes(stageGroupOf(a.stage))).length;
+    if ($("#opsFinancerPending")) $("#opsFinancerPending").textContent = installmentApps.filter(a => stageGroupOf(a.stage) === "Pending Financing").length;
 
-    if ($("#opsInstallerActive")) $("#opsInstallerActive").textContent = activeInstalls;
-    if ($("#opsInstallerMaint")) $("#opsInstallerMaint").textContent = installs.filter(j => j.installerType === "Maintenance").length;
+    // Installation Works: started/scheduled jobs vs. accepted jobs not scheduled yet (maintenance is tracked inside each job)
+    const workJobs = installs.filter(j => j.installerType !== "Maintenance" && j.status !== "Cancelled");
+    if ($("#opsInstallerActive")) $("#opsInstallerActive").textContent = workJobs.filter(j => ["Scheduled", "In Progress", "Testing", "Delayed"].includes(j.status)).length;
+    if ($("#opsInstallerMaint")) $("#opsInstallerMaint").textContent = workJobs.filter(j => j.status === "Ready").length + appsInGroup("Pending Installation").filter(a => !installs.some(j => j.appId === a.id)).length;
 
     if ($("#opsMerchantActive")) $("#opsMerchantActive").textContent = merchants.filter(m => m.status === "Active").length;
     if ($("#opsMerchantPending")) $("#opsMerchantPending").textContent = merchants.filter(m => m.status === "Review").length;
@@ -649,6 +662,76 @@
     return isEligibleStage && hasNoInstaller(app) && !isDirectProject(app);
   }
 
+  // --- APPLICATION STATUS GROUPS (same names on the filter buttons, row badges and Summary counts) ---
+  const STAGE_GROUPS = {
+    "Cash Applications": ["Payment Required"],
+    "Missing Documents": ["Missing Documents"],
+    "Pending Financing": ["Submitted", "Financing Review", "Pending Finance", "Under Review"],
+    "Pending Installation": ["Approved", "Ready for Installation"],
+    "Declined": ["Declined"]
+  };
+  // Filter button → details tab opened by "Details"
+  const STAGE_GROUP_TAB = {
+    "Cash Applications": "overview",
+    "Missing Documents": "documents",
+    "Pending Financing": "financing",
+    "Pending Installation": "installation"
+  };
+  function stageGroupOf(stage) {
+    for (const [group, stages] of Object.entries(STAGE_GROUPS)) {
+      if (stages.includes(stage)) return group;
+    }
+    if (stage === "Installation" || stage === "In Progress") return "Ongoing Installation";
+    if (stage === "Completed" || stage === "Installation Completed") return "Completed";
+    return stage || "—";
+  }
+  function stageGroupClass(group) {
+    if (group === "Cash Applications" || group === "Pending Financing" || group === "Missing Documents" || group === "Pending Installation") return "warn";
+    if (group === "Declined") return "danger";
+    if (group === "Completed" || group === "Ongoing Installation") return "success";
+    return getStatusClass(group);
+  }
+
+  // --- PACKAGE & PAYMENT TYPE DISPLAY ---
+  // Package name of an application (the saved package, else the catalog package named in the system field)
+  function packageNameOf(rec) {
+    const app = rec && rec.appId ? (db.data.applications.find(a => a.id === rec.appId) || rec) : rec;
+    if (!app) return "";
+    const pkg = packageOf(app);
+    if (pkg) return pkg.name;
+    if (app.packageName) return app.packageName;
+    return parseFloat(systemSizeOf(app.system)) > 16 ? "Custom Package" : "";
+  }
+  // Catalog package of an application. Demo records saved before packages existed get the package matching
+  // their system size; above 16 kW there is no catalog package (custom).
+  function packageOf(app) {
+    const P = window.HELLO_SOLAR_PACKAGES;
+    if (!P || !app) return null;
+    const found = P.findPackage(app.packageId) || P.findPackage(app.packageName) || P.findPackage(app.system);
+    if (found) return found;
+    const kw = parseFloat(systemSizeOf(app.system));
+    if (!Number.isFinite(kw) || kw > 16) return null;
+    return P.findPackage(kw <= 5 ? "hs6-lite" : kw <= 6 ? "hs6-pro" : kw <= 8 ? "hs8-pro" : kw <= 12 ? "hs12-pro" : "hs16-pro");
+  }
+  // System size only (e.g. "8 kW"), without the package name
+  function systemSizeOf(system) {
+    const s = String(system || "");
+    const m = s.match(/(\d+(?:\.\d+)?)\s*kWp?\b(?!h)/i);
+    return m ? `${m[1]} kW` : s;
+  }
+  function packageWithSize(rec) {
+    const name = packageNameOf(rec);
+    const size = systemSizeOf(rec?.system);
+    return name ? `${name} · ${size}` : size;
+  }
+  function paymentTypeOf(app) {
+    return db.isFullPaymentApp(app) ? "Full Payment" : "Installment";
+  }
+  function paymentTypePill(type, extraClass = "") {
+    const cls = type === "Full Payment" ? "pay-full" : "pay-installment";
+    return `<span class="status-pill ${cls}${extraClass ? " " + extraClass : ""}">${safeText(type)}</span>`;
+  }
+
   // ==================== 2. APPLICATIONS PAGE ====================
   function syncAppTabs() {
     $$("#appFilterChips .chip-btn").forEach(btn => {
@@ -667,18 +750,17 @@
     const apps = IS_ENGINEER ? allApps.filter(isEngineerVisibleApp) : allApps;
 
     // Update counts on filter chips
+    const countGroup = group => apps.filter(a => stageGroupOf(a.stage) === group).length;
     if ($("#countAppAll")) $("#countAppAll").textContent = apps.length;
-    if ($("#countAppPaymentRequired")) $("#countAppPaymentRequired").textContent = apps.filter(a => a.stage === "Payment Required").length;
-    if ($("#countAppFinancingReview")) $("#countAppFinancingReview").textContent = apps.filter(a => a.stage === "Financing Review").length;
-    if ($("#countAppMissing")) $("#countAppMissing").textContent = apps.filter(a => a.stage === "Missing Documents").length;
-    if ($("#countAppReview")) $("#countAppReview").textContent = apps.filter(a => a.stage === "Pending Finance").length;
-    if ($("#countAppApproved")) $("#countAppApproved").textContent = apps.filter(a => a.stage === "Approved").length;
-    if ($("#countAppReady")) $("#countAppReady").textContent = apps.filter(a => a.stage === "Ready for Installation").length;
-    if ($("#countAppDeclined")) $("#countAppDeclined").textContent = apps.filter(a => a.stage === "Declined").length;
+    if ($("#countAppCash")) $("#countAppCash").textContent = countGroup("Cash Applications");
+    if ($("#countAppMissing")) $("#countAppMissing").textContent = countGroup("Missing Documents");
+    if ($("#countAppPendingFinancing")) $("#countAppPendingFinancing").textContent = countGroup("Pending Financing");
+    if ($("#countAppPendingInstallation")) $("#countAppPendingInstallation").textContent = countGroup("Pending Installation");
+    if ($("#countAppDeclined")) $("#countAppDeclined").textContent = countGroup("Declined");
 
     // Filter applications
     const filtered = apps.filter(app => {
-      const matchStage = state.appStageFilter === "All" || app.stage === state.appStageFilter;
+      const matchStage = state.appStageFilter === "All" || stageGroupOf(app.stage) === state.appStageFilter;
       const matchFinancer = state.appFinancerFilter === "All" ||
         (state.appFinancerFilter === "Not Required"
           ? (app.financer === "Not Required" || (app.paymentType || "").toLowerCase().includes("full"))
@@ -692,7 +774,8 @@
         (app.customer && app.customer.toLowerCase().includes(q)) ||
         (app.location && app.location.toLowerCase().includes(q)) ||
         (app.paymentType && app.paymentType.toLowerCase().includes(q)) ||
-        (app.stage && app.stage.toLowerCase().includes(q))
+        packageNameOf(app).toLowerCase().includes(q) ||
+        stageGroupOf(app.stage).toLowerCase().includes(q)
       );
 
       return matchStage && matchFinancer && matchSearch;
@@ -709,7 +792,8 @@
     tbody.innerHTML = filtered.map(app => {
       const isDirect = isDirectProject(app);
       const isEligible = isEligibleForDirect(app);
-      const paymentType = app.paymentType || ((app.paymentPreference || "").toLowerCase().includes("full") || app.financer === "Not Required" ? "Full Payment" : "Installment");
+      const paymentType = paymentTypeOf(app);
+      const stageGroup = stageGroupOf(app.stage);
 
       let actionContent = "";
       if (isDirect) {
@@ -728,13 +812,13 @@
           <td>${app.location}</td>
           <td>
             <strong>${app.customer}</strong>
-            <span class="sub-info">${app.system} • ${pesoCompact(app.amount)}</span>
+            <span class="sub-info">${safeText(packageWithSize(app))} • ${pesoCompact(app.amount)}</span>
           </td>
           <td>
-            <span class="status-pill neutral" style="font-size:11px; font-weight:600;">${paymentType}</span>
+            ${paymentTypePill(paymentType)}
           </td>
           <td>
-            <span class="status-pill ${getStatusClass(app.stage)}">${app.stage}</span>
+            <span class="status-pill ${stageGroupClass(stageGroup)}">${safeText(stageGroup)}</span>
           </td>
           <td>${app.financer ? app.financer.replace(" Financing", "").replace(" Program", "") : "Pending"}</td>
           <td>
@@ -804,10 +888,14 @@
     if ($("#drawerUpdated")) $("#drawerUpdated").textContent = `Last updated ${app.updated}`;
 
     // 2. Stepper Progression (Overview Tab)
-    // Same 9 steps for both plans. Full Payment has no financing, so the two finance steps show as done.
+    // Installment: Cj's 9 steps. Full Payment has no financing: its two finance steps are replaced by one
+    // "Full Payment Verified" step, reached only when Super Admin verifies the full payment receipt (8 steps).
     const isFullPayment = (app.paymentType || "").toLowerCase().includes("full") || app.financer === "Not Required";
-    const stages = ["Account Created", "Down Payment", "Pending Finance", "Approved Financing", "Pending Installer",
-      "Installer Accepted", "Pending Installation", "Ongoing Installation", "Completed"];
+    const stages = isFullPayment
+      ? ["Account Created", "Down Payment", "Full Payment Verified", "Pending Installer",
+        "Installer Accepted", "Pending Installation", "Ongoing Installation", "Completed"]
+      : ["Account Created", "Down Payment", "Pending Finance", "Approved Financing", "Pending Installer",
+        "Installer Accepted", "Pending Installation", "Ongoing Installation", "Completed"];
     const at = name => stages.indexOf(name);
     const dpState = db.downPaymentState(app);
     // Installation progress lives on the installation job / installationStatus, not only on app.stage
@@ -821,12 +909,16 @@
       app.dispatchStatus === "Accepted" || !!(installJob && installJob.engineerAcceptedAt);
 
     const readyForInstaller = ["Ready for Installation", "Installation"].includes(app.stage);
+    // Full Payment balance verified (same rule that clears the job for installers)
+    const fullPaymentVerified = isFullPayment && (["Verified / Paid", "Verified", "Paid", "Completed"].includes(app.paymentStatus) ||
+      app.receiptVerificationStatus === "Verified");
 
     let currentStageIndex;
     if (app.stage === "Completed" || installDone) currentStageIndex = at("Completed");
     else if (installing) currentStageIndex = at("Ongoing Installation");
     else if (installerAccepted) currentStageIndex = at("Pending Installation");
-    else if (readyForInstaller || isFullPayment) currentStageIndex = at("Pending Installer");
+    else if (isFullPayment) currentStageIndex = fullPaymentVerified || readyForInstaller ? at("Pending Installer") : at("Full Payment Verified");
+    else if (readyForInstaller) currentStageIndex = at("Pending Installer");
     else if (app.stage === "Approved") currentStageIndex = at("Approved Financing");
     else currentStageIndex = at("Pending Finance"); // Financing Review / Pending Finance / Missing Documents
     // The down payment must be verified before the project can move toward installation
@@ -835,9 +927,10 @@
     }
     // Completed is only ticked once the application itself is marked Completed
     const finished = app.stage === "Completed";
-    const financeSkipped = i => isFullPayment && (i === at("Pending Finance") || i === at("Approved Financing"));
-    // Header pill and Current Stage use the Lifecycle step name; a declined application keeps "Declined"
-    const lifecycleLabel = app.stage === "Declined" ? "Declined" : stages[currentStageIndex];
+    // Header pill and Current Stage use the Lifecycle step name; a declined application keeps "Declined".
+    // While the full payment is still unverified the pill reads "Pending Full Payment".
+    const lifecycleLabel = app.stage === "Declined" ? "Declined"
+      : (stages[currentStageIndex] === "Full Payment Verified" ? "Pending Full Payment" : stages[currentStageIndex]);
     if ($("#drawerStagePill")) {
       $("#drawerStagePill").textContent = lifecycleLabel;
       $("#drawerStagePill").className = `status-pill ${getStatusClass(lifecycleLabel)}`;
@@ -852,11 +945,11 @@
     if (stepperEl) {
       stepperEl.innerHTML = stages.map((stg, i) => {
         let cls = "";
-        const done = i < currentStageIndex || (finished && i === currentStageIndex) || financeSkipped(i);
+        const done = i < currentStageIndex || (finished && i === currentStageIndex);
         if (done) cls = "completed";
         else if (i === currentStageIndex) cls = "active";
         return `
-          <div class="step-item ${cls}"${financeSkipped(i) ? ' title="Not required for Full Payment"' : ""}>
+          <div class="step-item ${cls}">
             <div class="step-bubble">${done ? '✓' : i + 1}</div>
             <div class="step-label">${stg}</div>
           </div>
@@ -873,9 +966,9 @@
     // Overview Tab Details
     if ($("#drawerOverviewAppId")) $("#drawerOverviewAppId").textContent = app.id;
     if ($("#drawerOverviewCustomer")) $("#drawerOverviewCustomer").textContent = app.customer;
-    if ($("#drawerPaymentType")) $("#drawerPaymentType").textContent = app.paymentType || (isFullPayment ? "Full Payment" : "Installment");
+    if ($("#drawerPaymentType")) $("#drawerPaymentType").innerHTML = paymentTypePill(isFullPayment ? "Full Payment" : "Installment");
     if ($("#drawerLocation")) $("#drawerLocation").textContent = app.location;
-    if ($("#drawerSystem")) $("#drawerSystem").textContent = app.system;
+    if ($("#drawerSystem")) $("#drawerSystem").textContent = packageWithSize(app);
     if ($("#drawerAmount")) $("#drawerAmount").textContent = peso(app.amount);
     if ($("#drawerOverviewStage")) {
       $("#drawerOverviewStage").innerHTML = safeText(lifecycleLabel) +
@@ -896,6 +989,12 @@
     }
     if ($("#drawerPanels")) $("#drawerPanels").textContent = app.panels;
     if ($("#drawerInverter")) $("#drawerInverter").textContent = app.inverter;
+    if ($("#drawerBattery")) {
+      const rec = db.getInstallationProgress ? db.getInstallationProgress({ appId: app.id }) : null;
+      const b = rec && rec.battery ? [rec.battery.brand, rec.battery.model, rec.battery.capacityKwh ? `${rec.battery.capacityKwh} kWh` : ""].filter(Boolean).join(" ") : "";
+      const pkg = packageOf(app);
+      $("#drawerBattery").textContent = b || app.battery || (pkg && pkg.battery ? `${pkg.battery} (${pkg.name})` : "Pending Assessment");
+    }
     if ($("#drawerNotes")) $("#drawerNotes").textContent = app.notes || "No notes entered.";
 
     // 3. Documents Tab
@@ -939,13 +1038,13 @@
                 <h4>${doc.name}</h4>
                 <div class="doc-meta">
                   ${doc.date ? `Uploaded on ${doc.date} • ` : ''}
-                  ${doc.file ? `<code>${doc.file}</code>` : '<span style="color:var(--danger); font-weight:700;">Pending customer upload</span>'}
+                  ${doc.link ? `<a href="${safeText(doc.link)}" target="_blank" rel="noopener">Open in Google Maps ↗</a>` : doc.file ? `<code>${safeText(doc.file)}</code>` : '<span style="color:var(--danger); font-weight:700;">Pending customer upload</span>'}
                 </div>
               </div>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
               <span class="doc-badge ${doc.status.toLowerCase()}">${doc.status}</span>
-              ${doc.file ? `<button class="btn btn-secondary btn-sm" data-preview-doc="${app.id}:${doc.name}">View</button>` : ''}
+              ${doc.file && !doc.link ? `<button class="btn btn-secondary btn-sm" data-preview-doc="${app.id}:${doc.name}">View</button>` : ''}
             </div>
           </div>
         `;
@@ -991,11 +1090,11 @@
     }
 
     // 5. Installation Tab
-    if ($("#drawerInstallerType")) $("#drawerInstallerType").textContent = isDirect ? "Hello Solar Direct" : app.installerType;
+    if ($("#drawerInstallerType")) $("#drawerInstallerType").textContent = isDirect ? "Hello Solar" : installTypeLabel(app.installerType);
     if ($("#drawerInstaller")) $("#drawerInstaller").textContent = isDirect ? "Hello Solar Internal Team" : app.installer;
-    if ($("#drawerInstStatusVal")) $("#drawerInstStatusVal").textContent = linkedJob ? linkedJob.status : (isDirect ? "Scheduled" : "Pending Assignment");
+    if ($("#drawerInstStatusVal")) $("#drawerInstStatusVal").textContent = linkedJob ? installStatusLabel(linkedJob.status) : (isDirect ? "Scheduled" : "Pending Assignment");
     if ($("#drawerInstScheduleVal")) $("#drawerInstScheduleVal").textContent = linkedJob ? linkedJob.schedule : (isDirect ? "Within 3 days (Priority)" : "Not scheduled");
-    if ($("#drawerInstSystemVal")) $("#drawerInstSystemVal").textContent = `${app.system} (${app.panels})`;
+    if ($("#drawerInstSystemVal")) $("#drawerInstSystemVal").textContent = `${packageWithSize(app)} (${app.panels})`;
     if ($("#drawerInstLocationVal")) $("#drawerInstLocationVal").textContent = app.location;
 
     // Render Installation Tab dynamic management section
@@ -1071,7 +1170,7 @@
       } else {
         instMgmtEl.innerHTML = `
           <div style="background:var(--bg); border:1px solid var(--line); border-radius:var(--radius-md); padding:16px; text-align:center; color:var(--muted); font-size:12.5px;">
-            🔒 Installation assignment unlocks once the application reaches <strong>Approved</strong> stage. Current stage: <strong>${app.stage}</strong>.
+            🔒 Installation assignment unlocks once the application reaches <strong>Pending Installation</strong>. Current status: <strong>${safeText(stageGroupOf(app.stage))}</strong>.
           </div>
         `;
       }
@@ -1194,7 +1293,7 @@
     if ($("#dimCustomer")) $("#dimCustomer").textContent = app.customer;
     if ($("#dimLocation")) $("#dimLocation").textContent = app.location;
     if ($("#dimSystem")) $("#dimSystem").textContent = app.system;
-    if ($("#dimStatus")) $("#dimStatus").textContent = app.stage;
+    if ($("#dimStatus")) $("#dimStatus").textContent = stageGroupOf(app.stage);
     if ($("#dimFinancer")) $("#dimFinancer").textContent = `${app.financer} (${peso(app.amount)})`;
     if ($("#dimAssignedTeam")) $("#dimAssignedTeam").textContent = designatedTeam;
     if ($("#dimCapacityUsage")) $("#dimCapacityUsage").textContent = `${activeDirectCount} of ${limit} slots currently in use`;
@@ -1324,6 +1423,10 @@
   }
 
   // ==================== 3. INSTALLATIONS PAGE ====================
+  // Installation progress names (stored values stay the same: Ready = Accepted, Testing = Testing & Commissioning)
+  const INSTALL_STATUS_LABEL = { Ready: "Accepted", Testing: "Testing & Commissioning" };
+  const installStatusLabel = status => INSTALL_STATUS_LABEL[status] || status || "—";
+  const installTypeLabel = type => type === "Hello Solar Direct" ? "Hello Solar" : (type || "—");
   function syncInstallTabs() {
     $$("#installFilterTabs .chip-btn").forEach(btn => {
       btn.classList.toggle("active", btn.dataset.type === state.installTypeFilter);
@@ -1358,6 +1461,9 @@
       return matchType && matchStatus && matchSearch;
     });
 
+    // Completed projects always at the bottom of the list (stable order otherwise)
+    filtered.sort((a, b) => (a.status === "Completed") - (b.status === "Completed"));
+
     const tbody = $("#installTableBody");
     if (!tbody) return;
 
@@ -1369,7 +1475,8 @@
     tbody.innerHTML = filtered.map(job => {
       const isDirect = job.installerType === "Hello Solar Direct";
       const isMaintenance = job.installerType === "Maintenance";
-      const typeDisplay = isDirect ? "🏠 Hello Solar Direct" : (isMaintenance ? "🔧 Maintenance" : job.installerType);
+      const typeDisplay = isDirect ? "🏠 Hello Solar" : (isMaintenance ? "🔧 Maintenance" : job.installerType);
+      const maint = db.getMaintenance(job);
       const typePillClass = isDirect ? "direct" : (isMaintenance ? "warn" : "neutral");
 
       const isLeadAssigned = job.leadTech &&
@@ -1394,7 +1501,7 @@
             <span class="sub-info">${job.appId || 'Direct'}</span>
           </td>
           <td>${job.location}</td>
-          <td><strong>${job.system}</strong></td>
+          <td><strong>${safeText(packageWithSize(job))}</strong></td>
           <td>
             <strong>${job.installer}</strong>
             <span class="sub-info">Lead: ${leadDisplay}</span>
@@ -1405,7 +1512,8 @@
             </span>
           </td>
           <td>
-            <span class="status-pill ${getStatusClass(job.status)}">${job.status}</span>
+            <span class="status-pill ${getStatusClass(job.status === "Ready" ? "Approved" : job.status)}">${safeText(installStatusLabel(job.status))}</span>
+            ${maint && maint.status !== "Completed" ? `<span class="sub-info">Maintenance: ${safeText(maint.request ? `Waiting for ${maint.request.name}` : maint.status)}</span>` : ""}
           </td>
           <td>
             <span style="font-size:12px; font-weight:600;">${schedDisplay}</span>
@@ -1486,7 +1594,7 @@
       } else if (isMaintenance) {
         $("#imEyebrow").textContent = "OPERATIONS / MAINTENANCE";
       } else {
-        $("#imEyebrow").textContent = `OPERATIONS / ${job.installerType.toUpperCase()}`;
+        $("#imEyebrow").textContent = `OPERATIONS / ${installTypeLabel(job.installerType).toUpperCase()}`;
       }
     }
     if ($("#imTitle")) {
@@ -1502,15 +1610,15 @@
     if ($("#imOverviewAppId")) $("#imOverviewAppId").textContent = job.appId || "Direct Record";
     if ($("#imOverviewCustomer")) $("#imOverviewCustomer").textContent = job.customer;
     if ($("#imOverviewLocation")) $("#imOverviewLocation").textContent = job.location;
-    if ($("#imOverviewSystem")) $("#imOverviewSystem").textContent = job.system;
+    if ($("#imOverviewSystem")) $("#imOverviewSystem").textContent = packageWithSize(job);
     if ($("#imOverviewType")) {
-      $("#imOverviewType").textContent = isDirect ? "🏠 Hello Solar Direct" : (isMaintenance ? "🔧 Maintenance & Service" : job.installerType);
+      $("#imOverviewType").textContent = isDirect ? "🏠 Hello Solar" : (isMaintenance ? "🔧 Maintenance & Service" : job.installerType);
     }
     if ($("#imOverviewInstaller")) $("#imOverviewInstaller").textContent = job.installer;
     if ($("#imOverviewStatusPill")) {
       const pill = $("#imOverviewStatusPill");
-      pill.textContent = job.status;
-      pill.className = `status-pill ${getStatusClass(job.status)}`;
+      pill.textContent = installStatusLabel(job.status);
+      pill.className = `status-pill ${getStatusClass(job.status === "Ready" ? "Approved" : job.status)}`;
     }
     if ($("#imOverviewLeadTech")) $("#imOverviewLeadTech").textContent = leadDisplay;
     if ($("#imOverviewCompletionRow")) {
@@ -1665,9 +1773,205 @@
     }
 
     db.updateInstallationStatus(jobId, newStatus, newSchedule, notes, delayReason, leadTech);
+    // A new date notifies both the customer and the installer
+    if (rescheduleDate) db.notifyInstallationRescheduled(db.data.installations.find(j => j.id === jobId), newSchedule);
     $("#installModal")?.classList.remove("open");
-    showToast(`Installation ${jobId} updated to "${newStatus}"`, "success", "⚡");
+    showToast(`Installation ${jobId} updated to "${installStatusLabel(newStatus)}"${rescheduleDate ? " · customer and installer notified of the new schedule" : ""}`, "success", "⚡");
     renderCurrentPage();
+  }
+
+  // --- MAINTENANCE PAGE (Operations) ---
+  const MAINT_STATUS_CLASS = { Assigned: "neutral", Scheduled: "direct", "In Progress": "warn", Completed: "success" };
+
+  // Jobs shown on the Maintenance page (the engineer sees only the ones handled by or requested from them)
+  function maintenanceJobs() {
+    return db.data.installations.filter(j => {
+      const m = db.getMaintenance(j);
+      if (!m) return false;
+      if (!IS_ENGINEER) return true;
+      return (m.assignee && m.assignee.name === ENGINEER.name) || (m.request && m.request.name === ENGINEER.name);
+    });
+  }
+
+  function maintScheduleText(m) {
+    if (!m || !m.date) return "Not scheduled";
+    return /^\d{4}-\d{2}-\d{2}$/.test(m.date) ? `${svDate(m.date)}${m.time ? ` · ${m.time}` : ""}` : m.date;
+  }
+
+  function renderMaintenance() {
+    renderEngineerMaintenanceRequests();
+    const body = $("#maintTableBody");
+    if (!body) return;
+    const q = ($("#maintSearch")?.value || "").trim().toLowerCase();
+    const filter = state.maintFilter || "All";
+    $$("#maintFilterTabs .chip-btn").forEach(b => b.classList.toggle("active", b.dataset.status === filter));
+    const order = { "In Progress": 0, Scheduled: 1, Assigned: 2, Completed: 3 };
+    const rows = maintenanceJobs().map(j => ({ job: j, m: db.getMaintenance(j) }))
+      .filter(({ job, m }) => (filter === "All" || m.status === filter) &&
+        (!q || [job.id, job.appId, job.customer, job.location, m.assignee && m.assignee.name, m.request && m.request.name]
+          .some(x => String(x || "").toLowerCase().includes(q))))
+      .sort((a, b) => (order[a.m.status] ?? 9) - (order[b.m.status] ?? 9));
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--muted); padding:22px;">${IS_ENGINEER ? "No maintenance assigned to you." : "No maintenance matching the filters."}</td></tr>`;
+      return;
+    }
+    body.innerHTML = rows.map(({ job, m }) => `
+      <tr>
+        <td><strong>${safeText(job.id)}</strong><span class="sub-info">${safeText(job.customer || "—")}${job.appId ? ` · ${safeText(job.appId)}` : ""}</span></td>
+        <td><span style="font-size:12.5px;">${safeText(job.location || "—")}</span><span class="sub-info">${safeText(job.system || "")}</span></td>
+        <td>${m.assignee ? `${safeText(m.assignee.name)}<span class="sub-info">${safeText(m.assignee.company || "")}</span>` : `<span style="color:var(--muted);">Unassigned</span>`}
+          ${m.request ? `<span class="sub-info" style="color:#b45309;">Waiting for ${safeText(m.request.name)} to accept</span>` : ""}</td>
+        <td>${safeText(maintScheduleText(m))}</td>
+        <td><span class="status-pill ${MAINT_STATUS_CLASS[m.status] || "neutral"}">${safeText(m.status)}</span></td>
+        <td style="text-align:right; white-space:nowrap;"><button class="btn btn-secondary btn-sm" data-manage-maint="${safeText(job.id)}">Manage</button></td>
+      </tr>`).join("");
+  }
+
+  function openMaintenanceModal(jobId) {
+    if (!jobId) return;
+    fillMaintenanceModal(jobId);
+    $("#maintModal").classList.add("open");
+  }
+
+  // Saved maintenance dates can be ISO (2026-10-25) or older text (Sep 28, 2026): both fill the date box
+  function maintIsoDate(d) {
+    if (!d) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    const dt = new Date(d);
+    if (Number.isNaN(dt.getTime())) return "";
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  }
+
+  function switchMaintTab(key) {
+    $$("#mmTabs .modal-tab").forEach(t => t.classList.toggle("active", t.dataset.mmtab === key));
+    $("#mmTabDetails")?.classList.toggle("active", key === "details");
+    $("#mmTabHistory")?.classList.toggle("active", key === "history");
+  }
+
+  function setMaintStep(status) {
+    if ($("#mmMaintStatusSelect")) $("#mmMaintStatusSelect").value = status;
+    const order = ["Assigned", "Scheduled", "In Progress", "Completed"];
+    const idx = order.indexOf(status);
+    $$("#mmMaintStepper .step-item").forEach((item, i) => {
+      item.classList.remove("active", "completed");
+      if (i < idx || (status === "Completed" && i === idx)) item.classList.add("completed");
+      else if (i === idx) item.classList.add("active");
+      const bubble = item.querySelector(".step-bubble");
+      if (bubble) bubble.textContent = item.classList.contains("completed") ? "✓" : String(i + 1);
+    });
+  }
+
+  // History line "ADMIN (Limuel): schedule set to 2026-10-25 at 09:00 AM, assigned to …" → who + plain sentences
+  function maintHistoryItem(h) {
+    const text = String(h.text || "");
+    const cut = text.indexOf(": ");
+    const who = cut > 0 ? text.slice(0, cut) : "";
+    const body = cut > 0 ? text.slice(cut + 2) : text;
+    const parts = body.split(", ").map(t => t.replace(/\d{4}-\d{2}-\d{2}/g, d => svDate(d)))
+      .map(t => t.charAt(0).toUpperCase() + t.slice(1));
+    return `
+      <div class="mm-history-item">
+        <div class="mm-history-meta">${who ? `<strong>${safeText(who)}</strong> · ` : ""}${safeText(formatExactTimestamp(h.at))}</div>
+        ${parts.map(t => `<div class="mm-history-text">${safeText(t)}</div>`).join("")}
+      </div>`;
+  }
+
+  function fillMaintenanceModal(jobId) {
+    const job = db.data.installations.find(j => j.id === jobId);
+    if (!job) return;
+    switchMaintTab("details");
+    $("#mmJobId").value = job.id;
+    $("#mmJobLabel").textContent = job.appId ? `${job.id} · ${job.appId}` : job.id;
+    $("#mmCustomer").textContent = job.customer || "—";
+    $("#mmLocation").textContent = job.location || "—";
+    const m = db.getMaintenance(job);
+    $("#mmSumPerson").textContent = m && m.assignee ? m.assignee.name : "Not assigned yet";
+    $("#mmSumSchedule").textContent = maintScheduleText(m);
+    const pill = $("#mmStatusPill");
+    if (pill) {
+      pill.textContent = m ? m.status : "New";
+      pill.className = `status-pill ${m ? (MAINT_STATUS_CLASS[m.status] || "neutral") : "neutral"}`;
+    }
+    const people = db.getMaintenancePeople();
+    const sel = $("#mmMaintPersonSelect");
+    if (sel) {
+      sel.innerHTML = `<option value="">Choose a person…</option>` + people.map(p =>
+        `<option value="${safeText(p.key)}"${m && m.assignee && m.assignee.name === p.name ? " selected" : ""}>${safeText(p.name)} (${safeText(p.company)})</option>`).join("");
+      sel.dataset.current = m && m.assignee ? sel.value : "";
+    }
+    if ($("#mmPersonHint")) $("#mmPersonHint").style.display = "none";
+    const isoDate = maintIsoDate(m && m.date);
+    if ($("#mmMaintDate")) $("#mmMaintDate").value = isoDate;
+    if ($("#mmMaintTime")) $("#mmMaintTime").value = (m && m.time) || "09:00 AM";
+    // Remember what was filled in so an untouched schedule is not saved as a change
+    const modal = $("#maintModal");
+    if (modal) {
+      modal.dataset.prefillDate = isoDate;
+      modal.dataset.prefillTime = $("#mmMaintTime")?.value || "";
+    }
+    if ($("#mmMaintNotes")) $("#mmMaintNotes").value = (m && m.notes) || "";
+    setMaintStep((m && m.status) || "Assigned");
+    const banner = $("#mmMaintRequestBanner");
+    if (banner) {
+      banner.style.display = m && m.request ? "block" : "none";
+      banner.innerHTML = m && m.request
+        ? `<strong>Waiting for ${safeText(m.request.name)}</strong> to accept or decline. Until then, ${safeText(m.assignee ? m.assignee.name : "the current person")} stays assigned.`
+        : "";
+    }
+    const hist = $("#mmMaintHistory");
+    const items = (m && m.history) || [];
+    if ($("#mmHistCount")) $("#mmHistCount").textContent = items.length;
+    if (hist) {
+      hist.innerHTML = !items.length
+        ? `<div class="mm-history-empty">${m ? "No changes recorded yet." : "No maintenance yet. Choose a person and a date to schedule one."}</div>`
+        : items.map(maintHistoryItem).join("");
+    }
+  }
+
+  function saveMaintenanceModal() {
+    const jobId = $("#mmJobId")?.value;
+    if (!jobId) return;
+    const job = db.data.installations.find(j => j.id === jobId);
+    const m = db.getMaintenance(job);
+    const modal = $("#maintModal");
+    let date = $("#mmMaintDate")?.value || "";
+    let time = $("#mmMaintTime")?.value || "";
+    // Schedule left as it was: keep the saved values (older text dates and empty times stay unchanged)
+    if (m && modal && date === modal.dataset.prefillDate && time === modal.dataset.prefillTime) {
+      date = m.date || "";
+      time = m.time || "";
+    }
+    const res = db.saveMaintenance(jobId, {
+      personKey: $("#mmMaintPersonSelect")?.value || "",
+      date,
+      time,
+      status: $("#mmMaintStatusSelect")?.value || "",
+      notes: $("#mmMaintNotes")?.value ?? ""
+    });
+    if (!res.success) { showToast(res.message, "warn", "⚠"); return; }
+    showToast(res.requestSent ? "Request sent. Both people were notified; waiting for the new person to accept or decline." : `Maintenance saved for ${jobId}.`, "success", "🔧");
+    renderCurrentPage();
+    fillMaintenanceModal(jobId);
+  }
+
+  // Engineer view: maintenance requests waiting for this engineer's answer
+  function renderEngineerMaintenanceRequests() {
+    let box = $("#engineerMaintRequests");
+    if (!IS_ENGINEER) { if (box) box.remove(); return; }
+    const waiting = db.data.installations.filter(j => j.maintenance && j.maintenance.request && j.maintenance.request.name === ENGINEER.name);
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "engineerMaintRequests";
+      $("#page-maintenance .toolbar-wrap")?.insertAdjacentElement("beforebegin", box);
+    }
+    box.innerHTML = waiting.map(j => `
+      <div class="sa-callout" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div><strong>Maintenance request · ${safeText(j.id)}</strong> (${safeText(j.customer)}): moved to you from ${safeText(j.maintenance.assignee ? j.maintenance.assignee.name : "—")}.</div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-primary btn-sm" data-maint-respond="accept" data-job="${safeText(j.id)}">Accept</button>
+          <button class="btn btn-secondary btn-sm" data-maint-respond="decline" data-job="${safeText(j.id)}">Decline</button>
+        </div>
+      </div>`).join("");
   }
 
   // --- SCHEDULING WORKFLOW (+ Schedule Ready Project) ---
@@ -1808,6 +2112,8 @@
     if ($("#accountCountMerch")) $("#accountCountMerch").textContent = merchs.length;
     const engs = db.data.engineers || [];
     if ($("#accountCountEng")) $("#accountCountEng").textContent = engs.length;
+    const accts = db.data.accountants || [];
+    if ($("#accountCountAcc")) $("#accountCountAcc").textContent = accts.length;
 
     const thead = $("#accountsTableHead");
     const tbody = $("#accountsTableBody");
@@ -1816,7 +2122,37 @@
     const q = state.accountSearchQuery.toLowerCase().trim();
     const stat = state.accountStatusFilter;
 
-    if (state.accountCurrentTab === "engineers") {
+    if (state.accountCurrentTab === "accountants") {
+      thead.innerHTML = `
+        <tr>
+          <th>Accounting ID</th>
+          <th>Full Name</th>
+          <th>Role</th>
+          <th>Contact</th>
+          <th>Status</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      `;
+      const filtered = accts.filter(a => {
+        const matchStatus = stat === "All" || a.status === stat;
+        const matchSearch = !q || [a.id, a.name, a.email, a.phone].some(v => (v || "").toLowerCase().includes(q));
+        return matchStatus && matchSearch;
+      });
+      tbody.innerHTML = !filtered.length
+        ? `<tr><td colspan="6" style="text-align:center; padding:32px; color:var(--muted);">No Accounting accounts found.</td></tr>`
+        : filtered.map(a => `
+          <tr>
+            <td><span class="record-id">${safeText(a.id)}</span></td>
+            <td><strong>${safeText(a.name)}</strong><span class="sub-info">Joined ${safeText(a.joined || '—')}</span></td>
+            <td><span class="status-pill neutral">Accounting</span></td>
+            <td><span style="font-size:12px;">${safeText(a.email)}</span><span class="sub-info">${safeText(a.phone)}</span></td>
+            <td><span class="status-pill ${getStatusClass(a.status)}">${safeText(a.status)}</span></td>
+            <td style="text-align: right;">
+              <button class="btn btn-secondary btn-sm" data-view-account="accountants:${safeText(a.id)}">View Profile</button>
+            </td>
+          </tr>
+        `).join("");
+    } else if (state.accountCurrentTab === "engineers") {
       thead.innerHTML = `
         <tr>
           <th>Engineer ID</th>
@@ -1899,10 +2235,9 @@
         <tr>
           <th>Financer ID</th>
           <th>Institution Name</th>
-          <th>Contact Person</th>
           <th>Active Loans</th>
           <th>Total Funded Volume</th>
-          <th>Contract</th>
+          <th style="min-width:200px;">Contract</th>
           <th>Revenue Owner</th>
           <th>Status</th>
           <th style="text-align: right;">Action</th>
@@ -1925,7 +2260,7 @@
       });
 
       if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:32px; color:var(--muted);">No financer accounts found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:32px; color:var(--muted);">No financer accounts found.</td></tr>`;
       } else {
         tbody.innerHTML = filtered.map(f => {
           const contract = db.getFinancerContract(f);
@@ -1933,13 +2268,11 @@
           <tr>
             <td><span class="record-id">${f.id}</span></td>
             <td><strong>${f.name}</strong><span class="sub-info">${f.email}</span></td>
-            <td>${f.contact}<span class="sub-info">${f.phone}</span></td>
             <td><strong>${f.activeLoans}</strong> loans</td>
             <td><strong style="color:var(--ink);">${peso(f.totalFunded)}</strong></td>
             <td>
               <span class="status-pill ${getStatusClass(contract.status)}">${contract.status}</span>
-              <span class="sub-info">${contract.termMonths ? `${contract.termMonths} mo · ${formatContractRate(contract.annualRate)}` : "Not configured"}</span>
-              ${contract.startDate ? `<span class="sub-info">${formatReadableDate(contract.startDate)} → ${formatReadableDate(contract.endDate)}</span>` : ""}
+              <span class="sub-info" style="white-space:nowrap;">${contract.termMonths ? `${contract.termMonths} months · ${formatContractRate(contract.annualRate)}` : "Not configured"}</span>
             </td>
             <td>${contractOwnerPill(contract)}</td>
             <td><span class="status-pill ${getStatusClass(f.status)}">${f.status}</span></td>
@@ -2152,6 +2485,7 @@
     else if (typeKey === "installers") list = db.data.installers;
     else if (typeKey === "merchants") list = db.data.merchants;
     else if (typeKey === "engineers") list = db.data.engineers || [];
+    else if (typeKey === "accountants") list = db.data.accountants || [];
 
     const acc = list.find(a => a.id === id);
     if (!acc) return;
@@ -2164,7 +2498,8 @@
       financers: "FINANCER PROFILE",
       installers: "INSTALLER PROFILE",
       merchants: "MERCHANT PROFILE",
-      engineers: "DIRECT INSTALLATION ENGINEER PROFILE"
+      engineers: "DIRECT INSTALLATION ENGINEER PROFILE",
+      accountants: "ACCOUNTING PROFILE"
     };
 
     if ($("#acmId")) $("#acmId").value = id;
@@ -2272,6 +2607,17 @@
           <div class="detail-item"><span>Direct Jobs Led</span><strong>${assigned.length} (${assigned.filter(j => j.status !== "Completed").length} active)</strong></div>
           <div class="detail-item"><span>Member Since</span><strong>${safeText(acc.joined || '—')}</strong></div>
         `;
+      } else if (typeKey === "accountants") {
+        fields = `
+          <div class="detail-item"><span>Accounting ID</span><strong>${safeText(acc.id)}</strong></div>
+          <div class="detail-item"><span>Full Name</span><strong>${safeText(acc.name)}</strong></div>
+          <div class="detail-item"><span>Email</span><strong>${safeText(acc.email || '—')}</strong></div>
+          <div class="detail-item"><span>Mobile Number</span><strong>${safeText(acc.phone || '—')}</strong></div>
+          <div class="detail-item"><span>Role</span><div><span class="status-pill neutral">Accounting</span></div></div>
+          <div class="detail-item"><span>Account Status</span><div><span class="status-pill ${getStatusClass(acc.status)}">${safeText(acc.status)}</span></div></div>
+          <div class="detail-item"><span>Portal Access</span><strong>Accounting only</strong></div>
+          <div class="detail-item"><span>Member Since</span><strong>${safeText(acc.joined || '—')}</strong></div>
+        `;
       } else if (typeKey === "merchants") {
         fields = `
           <div class="detail-item"><span>Merchant ID</span><strong>${acc.id}</strong></div>
@@ -2347,7 +2693,7 @@
                 <button class="btn btn-secondary btn-sm" data-goto-app="${linkedApp.id}">Inspect Application &rarr;</button>
               </div>
               <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px; font-size:12px; margin-top:8px;">
-                <div><span style="color:var(--muted);">Current Stage:</span> <strong>${linkedApp.stage}</strong></div>
+                <div><span style="color:var(--muted);">Current Stage:</span> <strong>${safeText(stageGroupOf(linkedApp.stage))}</strong></div>
                 <div><span style="color:var(--muted);">Financer:</span> <strong>${linkedApp.financer}</strong></div>
                 <div><span style="color:var(--muted);">Installer:</span> <strong>${linkedApp.installer}</strong></div>
                 <div><span style="color:var(--muted);">Total Amount:</span> <strong>${peso(linkedApp.amount)}</strong></div>
@@ -2579,6 +2925,7 @@
     else if (typeKey === "installers") list = db.data.installers;
     else if (typeKey === "merchants") list = db.data.merchants;
     else if (typeKey === "engineers") list = db.data.engineers || [];
+    else if (typeKey === "accountants") list = db.data.accountants || [];
 
     const acc = list.find(a => a.id === id);
     if (!acc) return;
@@ -2736,13 +3083,20 @@
     }
     const kpis = db.getCurrentPaymentsKpis();
 
+    // Recomputed on every render from today's date (no stored snapshot), so the figures update daily.
     if ($("#payTotalPortfolioValue")) $("#payTotalPortfolioValue").textContent = peso(kpis.totalPortfolio);
-    if ($("#payHsFunded")) $("#payHsFunded").textContent = peso(kpis.hsFunded);
-    if ($("#payThirdPartyFunded")) $("#payThirdPartyFunded").textContent = peso(kpis.thirdPartyFunded);
+    if ($("#payPortfolioAsOf")) $("#payPortfolioAsOf").textContent = `as of ${kpis.asOfLabel}`;
+    if ($("#payHsFunded")) $("#payHsFunded").textContent = peso(kpis.portfolioHsFunded);
+    if ($("#payThirdPartyFunded")) $("#payThirdPartyFunded").textContent = peso(kpis.financerFunded);
 
-    if ($("#payExpectedRevenue")) $("#payExpectedRevenue").textContent = peso(kpis.totalExpectedRevenue);
-    if ($("#payHsRevenue")) $("#payHsRevenue").textContent = peso(kpis.hsRevenue);
-    if ($("#payThirdPartyRevenue")) $("#payThirdPartyRevenue").textContent = peso(kpis.thirdPartyRevenue);
+    if ($("#payExpectedRevenue")) $("#payExpectedRevenue").textContent = peso(kpis.financingRevenue);
+    if ($("#payRevenueSince")) {
+      $("#payRevenueSince").textContent = kpis.revenueSince
+        ? `Since ${formatReadableDate(kpis.revenueSince)} – ${formatReadableDate(kpis.revenueTo)}`
+        : "No payments collected yet";
+    }
+    if ($("#payHsRevenue")) $("#payHsRevenue").textContent = peso(kpis.financingHsRevenue);
+    if ($("#payThirdPartyRevenue")) $("#payThirdPartyRevenue").textContent = peso(kpis.financerRevenue);
 
     if ($("#payOverdueCount")) $("#payOverdueCount").textContent = kpis.overdueCount;
     if ($("#payOverdueActionStatus")) $("#payOverdueActionStatus").textContent = kpis.overdueActionStatus;
@@ -2837,7 +3191,7 @@
           <td><span class="record-id">${app.id}</span></td>
           <td><strong>${app.customer}</strong><span class="sub-info">${app.location}</span></td>
           <td>
-            <span class="status-pill neutral sa-pill-xs">${paymentType}</span>
+            ${paymentTypePill(paymentType, "sa-pill-xs")}
             ${renderPaymentFundingInfo(fundingOf(app))}
           </td>
           <td>${amountDisplay}</td>
@@ -3293,7 +3647,7 @@
     set("#accThirdPartyRevenue", peso(s.thirdPartyRevenue));
     const hsShare = s.expectedRevenue > 0 ? Math.round((s.hsRevenue / s.expectedRevenue) * 100) : 0;
     if ($("#accHsBar")) $("#accHsBar").style.width = `${hsShare}%`;
-    set("#accSplitLabel", s.expectedRevenue > 0 ? `HS ${hsShare}% · Third-Party ${100 - hsShare}% of ${periodLabel} expected revenue` : "No revenue expected this period");
+    set("#accSplitLabel", s.expectedRevenue > 0 ? `HS ${hsShare}% · Financer ${100 - hsShare}% of ${periodLabel} expected revenue` : "No revenue expected this period");
     set("#accOverdueAmount", peso(s.overdueAmount));
     set("#accOverdueAccounts", `${s.overdueAccounts} account${s.overdueAccounts === 1 ? "" : "s"}`);
     set("#accContractsActive", s.contracts.active);
@@ -3595,15 +3949,16 @@
     if ($("#pmAppId")) $("#pmAppId").value = app.id;
     if ($("#pmAppIdText")) $("#pmAppIdText").textContent = app.id;
     if ($("#pmCustomer")) $("#pmCustomer").textContent = app.customer;
-    if ($("#pmFinancer")) $("#pmFinancer").textContent = app.financer;
     if ($("#pmAmount")) $("#pmAmount").textContent = peso(app.amount);
-    // Funding ownership (from the financer contract); original financer above stays linked for history
+    // Funder = the original financer; when its contract has ended the account is now owned by Hello Solar
     if (typeof db.syncFinancerContracts === "function") db.syncFinancerContracts();
     const funding = typeof db.getApplicationFunding === "function" ? db.getApplicationFunding(app) : null;
+    const isFullPay = (app.paymentType || "").toLowerCase().includes("full") || app.financer === "Not Required";
+    if ($("#pmFinancer")) $("#pmFinancer").textContent = isFullPay ? "Hello Solar (Full Payment)" : (app.financer || "—");
     if ($("#pmFundingOwner")) {
-      $("#pmFundingOwner").innerHTML = funding && funding.ownerName
-        ? `<span class="status-pill ${funding.ownerType === "Financer" ? "success" : "direct"}">${safeText(funding.ownerName)}</span>`
-        : "—";
+      $("#pmFundingOwner").textContent = funding && funding.ownerName && funding.ownerName !== app.financer && !isFullPay
+        ? `Now owned by ${funding.ownerName}`
+        : "";
     }
     if ($("#pmContractStatus")) {
       $("#pmContractStatus").innerHTML = funding && funding.contractStatus
@@ -3611,14 +3966,17 @@
         : "—";
     }
     if ($("#pmContractEnd")) $("#pmContractEnd").textContent = funding && funding.contractEndDate ? formatReadableDate(funding.contractEndDate) : "—";
-    if ($("#pmMonthly")) $("#pmMonthly").textContent = `${peso(app.monthly)} / mo`;
     if ($("#pmStatus")) {
       $("#pmStatus").className = `status-pill ${getStatusClass(statusInfo.status)}`;
       $("#pmStatus").textContent = statusInfo.status;
     }
     if ($("#pmNextDue")) {
-      $("#pmNextDue").textContent = formatReadableDate(statusInfo.nextDue);
-      $("#pmNextDue").style.color = statusInfo.status === "Overdue" ? "var(--danger)" : "var(--ink)";
+      const nextUnpaid = (schedule?.installments || []).filter(i => i.status !== "Paid")
+        .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))[0];
+      $("#pmNextDue").textContent = statusInfo.status === "Completed" || !nextUnpaid
+        ? "Paid in full"
+        : `${statusInfo.status === "Overdue" ? "Missed due" : "Next due"}: ${formatReadableDate(statusInfo.nextDue)} · ${peso(nextUnpaid.amount || app.monthly)}`;
+      $("#pmNextDue").classList.toggle("is-overdue", statusInfo.status === "Overdue");
     }
     if ($("#pmRemainingBalance")) $("#pmRemainingBalance").textContent = peso(statusInfo.remainingBalance);
     if ($("#pmTotalPaid")) $("#pmTotalPaid").textContent = peso(statusInfo.totalPaid);
@@ -3678,49 +4036,33 @@
       }
     }
 
-    // 2. Schedule Tab
+    // 2. Payment Schedule Tab: each installment with the payment recorded against it (schedule + history in one)
     if (schedule && schedule.installments) {
+      const history = schedule.history || [];
       if ($("#pmScheduleCount")) $("#pmScheduleCount").textContent = schedule.installments.length;
-      if ($("#pmScheduleSummaryBadge")) $("#pmScheduleSummaryBadge").textContent = `${schedule.installments.length} Total Installments · ${peso(app.monthly)} / mo`;
+      if ($("#pmScheduleSummaryBadge")) $("#pmScheduleSummaryBadge").textContent = `${statusInfo.progressCount} of ${schedule.installments.length} paid · ${peso(app.monthly)} / mo`;
 
       const schedBody = $("#pmScheduleTableBody");
       if (schedBody) {
-        schedBody.innerHTML = schedule.installments.map(i => `
+        schedBody.innerHTML = schedule.installments.map(i => {
+          const rec = history.find(h => h.installmentNo === i.no) || history.find(h => i.reference && (h.ref === i.reference || h.id === i.reference));
+          const paid = i.status === "Paid";
+          return `
           <tr>
             <td><strong>#${i.no}</strong></td>
-            <td><span style="font-weight:600;">${formatReadableDate(i.dueDate)}</span></td>
+            <td><span style="font-weight:600; white-space:nowrap;">${formatReadableDate(i.dueDate)}</span></td>
             <td><strong>${peso(i.amount)}</strong></td>
             <td><span class="status-pill ${getStatusClass(i.status)}">${i.status}</span></td>
-            <td>${i.paidDate ? `<span style="color:var(--success); font-weight:600;">${formatReadableDate(i.paidDate)}</span>` : '—'}</td>
-            <td><code style="font-size:11px; background:var(--bg); padding:2px 6px; border-radius:3px;">${i.reference || '—'}</code></td>
-          </tr>
-        `).join("");
+            <td>${i.paidDate ? `<span style="color:var(--success); font-weight:600; white-space:nowrap;">${formatReadableDate(i.paidDate)}</span>` : '—'}</td>
+            <td>${paid ? peso(i.paidAmount || i.amount) : '—'}</td>
+            <td style="white-space:nowrap;">${paid ? safeText((rec && rec.method) || 'Auto-Debit') : '—'}</td>
+            <td>${paid || i.reference ? `<code style="font-size:11px; background:var(--bg); padding:2px 6px; border-radius:3px; white-space:nowrap;">${safeText((rec && rec.ref) || i.reference || '—')}</code>` : '—'}</td>
+          </tr>`;
+        }).join("");
       }
     }
 
-    // 3. History Tab
-    if (schedule && schedule.history) {
-      if ($("#pmHistoryCount")) $("#pmHistoryCount").textContent = schedule.history.length;
-      const histBody = $("#pmHistoryTableBody");
-      if (histBody) {
-        if (!schedule.history.length) {
-          histBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--muted);">No verified payments recorded yet.</td></tr>`;
-        } else {
-          histBody.innerHTML = schedule.history.map(h => `
-            <tr>
-              <td><span class="record-id">${h.ref || h.id}</span></td>
-              <td><strong>${formatReadableDate(h.date)}</strong></td>
-              <td><strong style="color:var(--ink);">${h.amount > 0 ? peso(h.amount) : '—'}</strong></td>
-              <td>${h.method || 'Auto-Debit'}</td>
-              <td><span class="status-pill ${h.status === 'Verified' ? 'success' : 'neutral'}">${h.status}</span></td>
-              <td><span class="sub-info" style="margin:0;">${h.recordedBy || 'System Mesh'}</span></td>
-            </tr>
-          `).join("");
-        }
-      }
-    }
-
-    // 4. Activity Tab
+    // 3. Activity Tab
     const activities = db.getPaymentActivity(app.id);
     if ($("#pmActivityCount")) $("#pmActivityCount").textContent = activities.length;
     const actTimeline = $("#pmActivityTimeline");
@@ -3846,11 +4188,65 @@
   }
 
   // ==================== 6. SUPPORT PAGE & RELATED RECORDS ====================
+  // Support: clicking a related ID splits the screen. Support stays on the left, the record opens on the right;
+  // closing the record brings the page back to normal.
+  let supportSplitObserver = null;
   function openRelatedRecord(recordId) {
+    const fromSupport = state.currentPage === "support";
+    if (fromSupport) $$(".split-pane.open").forEach(el => el.classList.remove("open"));
+    openRelatedRecordInner(recordId);
+    if (fromSupport && state.currentPage === "support") {
+      enterSupportSplit();
+      // Highlight the ticket row whose ID was clicked
+      $$("#supportTableBody tr.split-active").forEach(tr => tr.classList.remove("split-active"));
+      if (document.body.classList.contains("support-split")) {
+        const btn = $$("#supportTableBody [data-open-record]").find(b => b.dataset.openRecord === recordId);
+        btn?.closest("tr")?.classList.add("split-active");
+      }
+    }
+  }
+
+  function enterSupportSplit() {
+    const panes = $$(".modal-overlay.open, .drawer-overlay.open").filter(el => el.id !== "supportModal");
+    if (!panes.length) return;
+    document.body.classList.add("support-split");
+    panes.forEach(el => el.classList.add("split-pane"));
+    // Give both sides more room: fold the sidebar while the split is open (restored on close)
+    const sidebar = $("#sidebar");
+    if (sidebar && !sidebar.classList.contains("collapsed")) {
+      sidebar.classList.add("collapsed");
+      sidebar.dataset.splitCollapsed = "1";
+    }
+    if (!supportSplitObserver) {
+      supportSplitObserver = new MutationObserver(() => {
+        $$(".split-pane").filter(el => !el.classList.contains("open")).forEach(el => el.classList.remove("split-pane"));
+        if (!$$(".split-pane").length) exitSupportSplit();
+      });
+    }
+    panes.forEach(el => supportSplitObserver.observe(el, { attributes: true, attributeFilter: ["class"] }));
+  }
+
+  function exitSupportSplit(closePanes = false) {
+    if (supportSplitObserver) supportSplitObserver.disconnect();
+    $$(".split-pane").forEach(el => {
+      el.classList.remove("split-pane");
+      if (closePanes) el.classList.remove("open");
+    });
+    $$("#supportTableBody tr.split-active").forEach(tr => tr.classList.remove("split-active"));
+    const sidebar = $("#sidebar");
+    if (sidebar && sidebar.dataset.splitCollapsed) {
+      sidebar.classList.remove("collapsed");
+      delete sidebar.dataset.splitCollapsed;
+    }
+    document.body.classList.remove("support-split");
+  }
+
+  function openRelatedRecordInner(recordId) {
     if (!recordId || recordId === "-" || recordId === "None") return;
 
     // Check if called from the Activity Logs page to preserve navigation context
-    const fromActivity = state.currentPage === "activity";
+    // Support page: the record opens beside the Support list (split view), so stay on Support too
+    const fromActivity = state.currentPage === "activity" || state.currentPage === "support";
 
     // Close any open popovers or child modals
     $("#searchResultsPopover")?.classList.remove("open");
@@ -4037,7 +4433,7 @@
 
       return `
         <tr>
-          <td style="white-space: nowrap;"><span class="record-id">${t.id}</span></td>
+          <td style="white-space: nowrap;"><span class="record-id" data-manage-ticket="${t.id}" title="Open ticket ${t.id}">${t.id}</span></td>
           <td><span class="status-pill neutral">${t.accountType}</span></td>
           <td>
             <div style="display:inline-flex; flex-direction:column; align-items:flex-start; gap:2px;">
@@ -4045,7 +4441,7 @@
               <span class="sub-info">${t.accountName}</span>
             </div>
           </td>
-          <td><span style="font-weight:600;">${t.concern}</span></td>
+          <td><span style="font-weight:600;" title="${safeText(t.concern)}">${t.concern}</span></td>
           <td><span class="status-pill ${priorityClass}">${t.priority}</span></td>
           <td><span class="status-pill ${getStatusClass(t.status)}">${t.status}</span></td>
           <td><span class="sub-info" style="margin:0;">${t.created}</span></td>
@@ -5039,6 +5435,12 @@
         badge: "Direct Installation",
         desc: "",
         sectionTitle: "Engineer Details"
+      },
+      Accounting: {
+        title: "Create Accounting Account",
+        badge: "Accounting",
+        desc: "This account signs in to Super Admin and sees only the Accounting page.",
+        sectionTitle: "Accounting Access"
       }
     };
 
@@ -5197,6 +5599,13 @@
           <div class="form-error" id="errNewAccEngineerId">Engineer ID must follow the format ENG-001.</div>
         </div>
       `;
+    } else if (role === "Accounting") {
+      grid.innerHTML = `
+        <div class="form-group" style="margin-bottom:0; grid-column:1 / -1;">
+          <label class="form-label" for="newAccAccess">Portal Access</label>
+          <input type="text" class="input-field sa-readonly" id="newAccAccess" value="Accounting page only" readonly style="width:100%;" />
+        </div>
+      `;
     } else if (role === "Merchant") {
       grid.innerHTML = `
         <div class="form-group" style="margin-bottom:0;">
@@ -5277,7 +5686,7 @@
       $("#errNewAccEngineerId")?.classList.add("visible");
       hasError = true;
     }
-    if (role !== "Customer" && role !== "Engineer" && !company) {
+    if (role !== "Customer" && role !== "Engineer" && role !== "Accounting" && !company) {
       $("#newAccCompany")?.classList.add("input-error");
       $("#errNewAccCompany")?.classList.add("visible");
       hasError = true;
@@ -6005,7 +6414,7 @@
           type: "Application",
           id: a.id,
           title: `${a.id} • ${a.customer}`,
-          meta: `${a.location} · ${a.system} · ${a.stage}`,
+          meta: `${a.location} · ${packageWithSize(a)} · ${stageGroupOf(a.stage)}`,
           page: "applications",
           action: () => openAppDrawer(a.id)
         });
@@ -6402,6 +6811,8 @@
       const viewAppBtn = e.target.closest("[data-view-app]");
       if (viewAppBtn) {
         const appId = viewAppBtn.dataset.viewApp;
+        // From an Applications filter, Details opens on the tab related to that filter
+        state.appDrawerTab = (state.currentPage === "applications" && STAGE_GROUP_TAB[state.appStageFilter]) || "overview";
         openAppDrawer(appId);
       }
     });
@@ -6540,6 +6951,33 @@
     });
 
     $("#btnSaveInstallModal")?.addEventListener("click", saveInstallModal);
+    $("#btnSaveMaintenance")?.addEventListener("click", saveMaintenanceModal);
+    document.addEventListener("click", e => {
+      const step = e.target.closest("#mmMaintStepper [data-mm-step]");
+      if (step) { setMaintStep(step.dataset.mmStep); return; }
+      const tab = e.target.closest("#mmTabs [data-mmtab]");
+      if (tab) switchMaintTab(tab.dataset.mmtab);
+    });
+    $("#mmMaintPersonSelect")?.addEventListener("change", e => {
+      const cur = e.target.dataset.current || "";
+      if ($("#mmPersonHint")) $("#mmPersonHint").style.display = cur && e.target.value && e.target.value !== cur ? "block" : "none";
+    });
+    $$("#maintFilterTabs .chip-btn").forEach(btn => btn.addEventListener("click", () => {
+      state.maintFilter = btn.dataset.status;
+      renderMaintenance();
+    }));
+    $("#maintSearch")?.addEventListener("input", renderMaintenance);
+    document.addEventListener("click", e => {
+      const btn = e.target.closest("[data-manage-maint]");
+      if (btn) openMaintenanceModal(btn.dataset.manageMaint);
+    });
+    document.addEventListener("click", e => {
+      const btn = e.target.closest("[data-maint-respond]");
+      if (!btn || !IS_ENGINEER) return;
+      const res = db.respondMaintenance(btn.dataset.job, btn.dataset.maintRespond, ENGINEER.name);
+      showToast(res.success ? `Maintenance ${btn.dataset.maintRespond === "accept" ? "accepted" : "declined"} for ${btn.dataset.job}.` : res.message, res.success ? "success" : "warn", res.success ? "✓" : "⚠");
+      renderCurrentPage();
+    });
     $("#btnNewInstallModalOpen")?.addEventListener("click", openNewInstallModal);
     $("#btnSaveNewInstall")?.addEventListener("click", saveNewInstall);
 
@@ -6713,7 +7151,7 @@
       if (!appId) return;
       const res = db.verifyPaymentReceipt(appId, { adminUser: "ADMIN (Limuel)" });
       if (res && res.success) {
-        showToast(`Full payment verified for ${appId}. Stage is now Ready for Installation!`, "success", "✓");
+        showToast(`Full payment verified for ${appId}. Status is now Pending Installation.`, "success", "✓");
         $("#reviewReceiptModal")?.classList.remove("open");
         renderPayments();
         if (typeof renderApplications === "function") renderApplications();
@@ -7283,6 +7721,15 @@
     box.innerHTML = `<button class="btn btn-primary btn-sm" data-engineer-open-job="${safeText(job.id)}">${label}</button>`;
   }
   function applyRoleRestrictions() {
+    if (IS_ACCOUNTING) {
+      document.body.classList.add("role-accounting");
+      const name = SESSION.name || "Accounting";
+      $$(".user-avatar").forEach(el => { el.textContent = name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase() || "AC"; });
+      $$(".user-name, .user-dropdown-name").forEach(el => { el.textContent = name; });
+      $$(".user-role, .user-dropdown-role").forEach(el => { el.textContent = "Accounting"; });
+      $("#userProfileBtn")?.setAttribute("title", "Accounting Account");
+      return;
+    }
     if (!IS_ENGINEER) return;
     document.body.classList.add("role-direct-engineer");
     const initials = ENGINEER.name.replace(/^Engr\.\s*/i, "").split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
@@ -7483,8 +7930,17 @@
     if (hash && $(`#page-${hash}`)) {
       go(hash);
     } else {
-      go(IS_ENGINEER ? "installations" : "overview", IS_ENGINEER ? "direct" : null);
+      go(IS_ACCOUNTING ? "accounting" : IS_ENGINEER ? "installations" : "overview", IS_ENGINEER ? "direct" : null);
     }
+
+    // Daily due-date reminders to customers (7 days, 1 day and on the due date; each sent once)
+    try {
+      if (window.HSShared && typeof window.HSShared.sendDueReminders === "function") {
+        (db.data.applications || []).forEach(a => db.getPaymentSchedule(a.id));
+        db.save();
+        window.HSShared.sendDueReminders();
+      }
+    } catch (e) { /* reminders are best effort */ }
   }
 
   // Run on DOM ready

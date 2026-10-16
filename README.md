@@ -14,7 +14,7 @@ It is built with plain HTML, CSS and JavaScript. There is nothing to install and
 | **Financer** (`Hello_Solar_Financer/`) | Banks and lending partners | Review installment applications and approve or reject them |
 | **Installer** (`Hello_Solar_Installer/`) | Installation teams | Accept jobs, update installation progress, see payouts |
 | **Merchant** (`Hello_Solar_Merchant/`) | Equipment suppliers | See their projects, installers and payments |
-| **Super Admin** (`hello_solar_super_admin/`) | Hello Solar staff (and the Direct Engineer) | Manage inquiries, accounts, applications, installations, payments and accounting |
+| **Super Admin** (`hello_solar_super_admin/`) | Hello Solar staff (plus the Direct Engineer and Accounting) | Manage inquiries, accounts, applications, installations, maintenance, payments and accounting |
 
 ## Run it on your computer
 
@@ -39,6 +39,7 @@ These only work in demo mode (the default). The login page also shows a quick de
 | Merchant | `merchant@hellosolar.ph` | `password123` |
 | Super Admin | `admin@hellosolar.ph` | `admin123` |
 | Direct Engineer | `engineer@hellosolar.ph` | `engineer123` |
+| Accounting | `accounting@hellosolar.ph` | `accounting123` |
 
 ## How a customer buys a system
 
@@ -47,10 +48,12 @@ These only work in demo mode (the default). The login page also shows a quick de
 3. When the receipt is uploaded, their customer account is **created automatically** and an activation link is queued for their email.
 4. The customer opens the link, sets a password, and logs in to the Customer portal.
 5. **Accounting** (in Super Admin) checks the down payment. The ₱10,000 is taken off the remaining balance.
-6. For Installment, a **Financer** reviews and approves the financing. Full Payment skips this step.
+6. For Installment, a **Financer** reviews the customer's documents and approves the financing.
+   For Full Payment, the customer uploads the receipt for the remaining balance, and Super Admin verifies it on the
+   **Payments** page. An installer can only be assigned after this.
 7. An **Installer** is assigned, accepts the job, and installs the system.
 
-The customer can follow every step in **Lifecycle Progression** on their portal:
+Super Admin shows where each application is in **Lifecycle Progression** (Applications › Details). Installment has 9 steps:
 
 1. Account Created
 2. Down Payment
@@ -62,10 +65,28 @@ The customer can follow every step in **Lifecycle Progression** on their portal:
 8. Ongoing Installation
 9. Completed
 
-For Full Payment, the finance steps are ticked automatically.
+Full Payment has 8 steps. Steps 3 and 4 are replaced by one step, **Full Payment Verified**, which is ticked when
+Super Admin verifies the full payment. Until then the application shows **Pending Full Payment**.
+
+Installment customers upload 6 documents: valid ID, proof of income, proof of billing, bank statement, site photos
+(roof and neighborhood) and a Google Maps link of the house. Full Payment customers only need a valid ID.
 
 Customers can also send an inquiry or request a proposal instead of buying right away. Super Admin then follows up
 and creates their account.
+
+## Super Admin at a glance
+
+- **Summary**: the main dashboard.
+- **Applications**: filters are All, Cash Applications (Full Payment waiting for payment), Missing Documents,
+  Pending Financing, Pending Installation and Declined.
+- **Installations**: installation jobs. Inspect / Update has Overview, Schedule, Progress and Activity.
+- **Maintenance**: every maintenance job. **Manage** changes the person, schedule, progress (click a step) and notes,
+  and shows the history. If the person is changed, the new person must accept or decline first.
+- **Payments**: Total Revenue, Financer Funded, Financing Revenue and Financer Revenue. Customers get payment reminders
+  7 days before, 1 day before and on the due date.
+- **Accounting**: verify down payments, refunds and reimbursements. The **Accounting** login only sees this page.
+- **Support**: clicking a related ID opens the record beside the ticket list. Leaving Support closes it.
+- The **Direct Engineer** login sees Applications, Site Visits, Installations and Maintenance.
 
 ## What it can't do yet
 

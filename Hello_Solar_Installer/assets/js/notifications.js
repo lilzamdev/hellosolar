@@ -362,6 +362,10 @@
                             <span class="notif-item-time">${timeAgo}</span>
                         </div>
                         <p class="notif-item-msg">${escapeHtml(n.message)}</p>
+                        ${maintenanceRequestPending(n) ? `<div class="notif-item-actions" style="gap:8px; margin-bottom:6px;">
+                            <button type="button" class="btn btn-primary btn-sm" data-maint-accept="${escapeHtml(n.id)}">Accept</button>
+                            <button type="button" class="btn btn-secondary btn-sm" data-maint-decline="${escapeHtml(n.id)}">Decline</button>
+                        </div>` : ""}
                         <div class="notif-item-actions">
                             <span class="notif-action-link">${escapeHtml(n.actionLabel || "View Record")} →</span>
                             ${isUnread ? '<span class="unread-dot-inline" title="Unread">●</span>' : ""}
@@ -371,6 +375,20 @@
             `;
             })
             .join("");
+
+        // Maintenance request: the requested person accepts or declines (same record Super Admin reads)
+        listEl.querySelectorAll("[data-maint-accept], [data-maint-decline]").forEach((btn) => {
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const id = btn.dataset.maintAccept || btn.dataset.maintDecline;
+                const notif = all.find(x => x.id === id);
+                if (!notif) return;
+                respondMaintenance(notif, btn.dataset.maintAccept ? "accept" : "decline");
+                NotificationService.markAsRead([id]);
+                updateBadge();
+                renderNotificationList();
+            });
+        });
 
         // Bind click routing
         listEl.querySelectorAll(".notification-item").forEach((el) => {
@@ -488,6 +506,26 @@
                 dismissToast();
             }
         }, 4200);
+    }
+
+    function maintenanceRequestPending(n) {
+        if (n.eventType !== "maintenance_request" || !n.maintenance || !window.HSShared) return false;
+        const data = window.HSShared.read();
+        const job = data && (data.installations || []).find(j => j.id === n.maintenance.jobId);
+        return !!(job && job.maintenance && job.maintenance.request && job.maintenance.request.name === n.maintenance.personName);
+    }
+
+    function respondMaintenance(n, decision) {
+        if (!window.HSShared || !window.HelloSolarStore) return;
+        const res = window.HSShared.update(data => {
+            const job = (data.installations || []).find(j => j.id === n.maintenance.jobId);
+            const r = window.HelloSolarStore.applyMaintenanceResponse(job, decision, n.maintenance.personName);
+            if (!r.success) return { ok: false, error: r.message };
+            window.HSShared.logActivity(data, { role: "Installer", user: n.maintenance.personName,
+                action: `${n.maintenance.personName} ${decision === "accept" ? "accepted" : "declined"} the maintenance request for ${job.id}`, record: job.id });
+            return { ok: true };
+        }, { name: "maintenance.respond", payload: { jobId: n.maintenance.jobId, decision, person: n.maintenance.personName } });
+        if (res && res.ok === false && res.error) alert(res.error);
     }
 
     function escapeHtml(str) {

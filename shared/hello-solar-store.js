@@ -17,16 +17,16 @@
   const INSTALLMENT_TERM_MONTHS = 72;
   const INSTALLMENT_DOWN_PAYMENT = 10000;
   const PACKAGE_CATALOG = [
-    { id: "hs6-lite", name: "HS 6 LITE", price: 285000, monthly: 7284 },
-    { id: "hs6-pro", name: "HS 6 PRO", price: 340000, monthly: 8689 },
-    { id: "hs6-max", name: "HS 6 MAX", price: 390000, monthly: 9967 },
-    { id: "hs8-pro", name: "HS 8 PRO", price: 516000, monthly: 13187 },
-    { id: "hs8-max", name: "HS 8 MAX", price: 614000, monthly: 15692 },
-    { id: "hs12-pro", name: "HS 12 PRO", price: 572000, monthly: 15572 },
-    { id: "hs12-max", name: "HS 12 MAX", price: 720000, monthly: 19600 },
+    { id: "hs6-lite", name: "HS 6 LITE", price: 285000, monthly: 7284, battery: "5kWh" },
+    { id: "hs6-pro", name: "HS 6 PRO", price: 340000, monthly: 8689, battery: "10kWh" },
+    { id: "hs6-max", name: "HS 6 MAX", price: 390000, monthly: 9967, battery: "16kWh" },
+    { id: "hs8-pro", name: "HS 8 PRO", price: 516000, monthly: 13187, battery: "16kWh" },
+    { id: "hs8-max", name: "HS 8 MAX", price: 614000, monthly: 15692, battery: "32kWh" },
+    { id: "hs12-pro", name: "HS 12 PRO", price: 572000, monthly: 15572, battery: "16kWh" },
+    { id: "hs12-max", name: "HS 12 MAX", price: 720000, monthly: 19600, battery: "32kWh" },
     // HS 16 PRO MAX is listed before HS 16 PRO so findPackage() matches the longer name first
-    { id: "hs16-pro-max", name: "HS 16 PRO MAX", price: 975000, monthly: 26542 },
-    { id: "hs16-pro", name: "HS 16 PRO", price: 780000, monthly: 21234 }
+    { id: "hs16-pro-max", name: "HS 16 PRO MAX", price: 975000, monthly: 26542, battery: "32kWh" },
+    { id: "hs16-pro", name: "HS 16 PRO", price: 780000, monthly: 21234, battery: "16kWh" }
   ];
   function findPackage(ref) {
     const key = String(ref || "").trim().toLowerCase();
@@ -2372,7 +2372,8 @@
             name: d.name,
             status: LABEL[String(d.status).toUpperCase()] || "Missing",
             date: d.uploadedAt ? String(d.uploadedAt).slice(0, 10) : null,
-            file: d.fileName || null
+            file: d.fileName || null,
+            link: d.kind === "link" && /^https?:\/\//i.test(d.link || "") ? d.link : null
           }));
       }
 
@@ -2382,11 +2383,15 @@
         "Latest 3-Month Electric Utility Statement",
         "Proof of Income / Certificate of Employment",
         "Roof & Property Ownership Authorization",
-        "Pre-Installation Solar Site Assessment"
+        "Pre-Installation Solar Site Assessment",
+        "Site Photos — Roof & Neighborhood",
+        "Google Maps Link of House / Site"
       ];
       const match = String(app.docs || "").match(/^(\d+)\s*\/\s*(\d+)$/);
       const verified = match ? Math.min(parseInt(match[1], 10), names.length) : 0;
-      return names.map((name, i) => ({ name, status: i < verified ? "Verified" : "Missing", date: null, file: null }));
+      // Full Payment needs no financing documents: only the number recorded for it (e.g. 1/1 = the valid ID)
+      const required = this.isFullPaymentApp(app) && match ? Math.max(1, Math.min(parseInt(match[2], 10), names.length)) : names.length;
+      return names.slice(0, required).map((name, i) => ({ name, status: i < verified ? "Verified" : "Missing", date: null, file: null }));
     }
 
     // Document counts from the same list getAppDocuments returns (the shared APP record for installment
@@ -2432,7 +2437,7 @@
         }
         this.writeSharedDocumentStatus(appId, docName, newStatus);
         const activeCount = app.documents.filter(d => d.status === "Verified" || d.status === "Submitted").length;
-        app.docs = `${activeCount}/5`;
+        app.docs = `${activeCount}/${app.documents.length}`;
         this.logActivity("Admin", "ADMIN (Limuel)", `ADMIN updated document "${docName}" to ${newStatus} for ${appId}`, appId, {
           actorId: "ADMIN-01",
           recordType: "Application",
@@ -2609,7 +2614,9 @@
         }
         const app = this.data.applications.find(a => a.id === job.appId);
         if (app) {
-          app.stage = "Approved";
+          // Installation finished → the application is Completed (same as the Direct Engineer completion)
+          app.stage = "Completed";
+          app.installationStatus = "COMPLETED";
           app.updated = "Just now";
         }
       }
@@ -2635,6 +2642,153 @@
       );
       this.save();
       return true;
+    }
+
+    // --- RESCHEDULE NOTICE (customer + installer) ---
+    notifyInstallationRescheduled(job, schedule) {
+      const S = typeof window !== "undefined" ? window.HSShared : null;
+      if (!S || !job) return;
+      const app = this.data.applications.find(a => a.id === job.appId);
+      const message = `${job.id}${job.appId ? ` (${job.appId})` : ""} installation was rescheduled to ${schedule}.`;
+      if (app && app.customerId) {
+        S.notify({ recipientRole: "customer", recipientId: app.customerId, eventType: "INSTALLATION_RESCHEDULED", recordId: job.appId,
+          title: "Installation rescheduled", message, targetUrl: "install-status.html", actionLabel: "View Installation" });
+      }
+      const installerId = job.installerId || (job.installerType === "Hello Solar Direct" ? "INS-001" : null);
+      if (installerId) {
+        S.notify({ recipientRole: "installer", recipientId: installerId, eventType: "job_rescheduled", recordId: job.appId || job.id,
+          title: "Installation rescheduled", message, targetUrl: `myjob.html?job=${job.appId || job.id}`, actionLabel: "View Job" });
+      }
+    }
+
+    // --- MAINTENANCE (inside each installation's Inspect / Update) ---
+    // job.maintenance = { status: Assigned | Scheduled | In Progress | Completed, assignee: person, date, time, notes,
+    //   request: person waiting to accept or decline (null when none), history: [{ at, text }] }
+    // person = { key, name, company, installerId }
+    getMaintenancePeople() {
+      const people = [];
+      const add = (name, company, installerId) => {
+        if (!name || people.some(p => p.name === name)) return;
+        people.push({ key: name, name, company, installerId });
+      };
+      const internal = (this.data.installers || []).find(i => i.id === "INS-001");
+      if (internal) add(internal.contact, "Hello Solar", "INS-001");
+      add("Engr. Mark Dizon", "Hello Solar", "INS-001");
+      (this.data.engineers || []).filter(e => e.status === "Active").forEach(e => add(e.name, "Hello Solar", "INS-001"));
+      (this.data.installers || []).filter(i => i.id !== "INS-001" && i.status === "Active")
+        .forEach(i => add(i.contact, i.name, i.id));
+      return people;
+    }
+
+    getMaintenance(job) {
+      if (!job) return null;
+      if (job.maintenance) return job.maintenance;
+      if (job.installerType !== "Maintenance") return null;
+      // Maintenance jobs saved before maintenance moved into Inspect / Update
+      const person = this.getMaintenancePeople().find(p => p.name === job.leadTech);
+      const status = job.status === "Completed" ? "Completed" : (job.status === "In Progress" || job.status === "Testing") ? "In Progress"
+        : (job.schedule && job.schedule !== "Pending Schedule") ? "Scheduled" : "Assigned";
+      return { status, assignee: person || null, date: job.schedule || "", time: "", notes: job.notes || "", request: null, history: [] };
+    }
+
+    _notifyMaintenancePerson(person, job, title, message) {
+      const S = typeof window !== "undefined" ? window.HSShared : null;
+      if (!S || !person || !person.installerId) return;
+      S.notify({ recipientRole: "installer", recipientId: person.installerId, eventType: "maintenance_request", recordId: job.id,
+        title, message, targetUrl: `myjob.html?job=${job.appId || job.id}`, actionLabel: "View Job",
+        maintenance: { jobId: job.id, personName: person.name } });
+    }
+
+    // Saves the Maintenance tab. Choosing a different person while someone is already assigned sends a request:
+    // both are notified and the new person must accept or decline before the change takes effect.
+    saveMaintenance(jobId, input = {}, options = {}) {
+      const job = this.data.installations.find(j => j.id === jobId);
+      if (!job) return { success: false, message: "Installation not found." };
+      const admin = options.adminUser || "ADMIN (Limuel)";
+      const m = { history: [], ...(this.getMaintenance(job) || { status: "Assigned", assignee: null, date: "", time: "", notes: "", request: null }) };
+      const now = new Date().toISOString();
+      const people = this.getMaintenancePeople();
+      const chosen = people.find(p => p.key === input.personKey) || null;
+      if (!chosen && !m.assignee) return { success: false, message: "Choose the person who will handle the maintenance." };
+      const when = [input.date, input.time].filter(Boolean).join(" at ");
+      const changes = [];
+
+      if (input.date && (input.date !== m.date || (input.time || "") !== (m.time || ""))) {
+        m.date = input.date; m.time = input.time || "";
+        changes.push(`schedule set to ${when}`);
+      }
+      if (input.notes !== undefined) m.notes = input.notes;
+      if (input.status && input.status !== m.status) {
+        changes.push(`progress changed from ${m.status} to ${input.status}`);
+        m.status = input.status;
+      } else if (changes.length && m.status === "Assigned") {
+        m.status = "Scheduled";
+      }
+
+      let requestSent = false;
+      if (chosen && (!m.assignee || chosen.name !== m.assignee.name) && (!m.request || m.request.name !== chosen.name)) {
+        if (!m.assignee) {
+          m.assignee = chosen;
+          changes.push(`assigned to ${chosen.name}`);
+          this._notifyMaintenancePerson(chosen, job, "Maintenance assigned", `${job.id} (${job.customer}) maintenance was assigned to you${m.date ? ` · ${m.date}${m.time ? " at " + m.time : ""}` : ""}.`);
+        } else {
+          m.request = { ...chosen, requestedAt: now, requestedBy: admin };
+          requestSent = true;
+          changes.push(`reassignment requested from ${m.assignee.name} to ${chosen.name}`);
+          this._notifyMaintenancePerson(chosen, job, "Maintenance request: please accept or decline",
+            `${job.id} (${job.customer}) maintenance is being moved to you from ${m.assignee.name}. Please accept or decline.`);
+          this._notifyMaintenancePerson(m.assignee, job, "Maintenance being reassigned",
+            `${job.id} (${job.customer}) maintenance is being moved from you to ${chosen.name}, waiting for their answer.`);
+        }
+      } else if (changes.length && m.assignee) {
+        this._notifyMaintenancePerson(m.assignee, job, "Maintenance updated", `${job.id} (${job.customer}) maintenance: ${changes.join(", ")}.`);
+      }
+
+      if (!changes.length) return { success: false, message: "Nothing changed." };
+      m.history = [{ at: now, text: `${admin}: ${changes.join(", ")}` }, ...(m.history || [])];
+      m.updatedAt = now;
+      job.maintenance = m;
+      this.logActivity("Admin", admin, `ADMIN updated maintenance for ${jobId}: ${changes.join(", ")}`, jobId, {
+        actorId: "ADMIN-01", recordType: "Installation", details: { maintenance: m.status, assignee: m.assignee?.name, request: m.request?.name || null }
+      });
+      this.save();
+      return { success: true, maintenance: m, requestSent };
+    }
+
+    // The requested person accepts or declines (Installer portal notification or Engineer view)
+    respondMaintenance(jobId, decision, personName) {
+      const job = this.data.installations.find(j => j.id === jobId);
+      const res = HelloSolarStore.applyMaintenanceResponse(job, decision, personName);
+      if (!res.success) return res;
+      this.logActivity("Installer", personName, `${personName} ${decision === "accept" ? "accepted" : "declined"} the maintenance request for ${jobId}`, jobId, {
+        recordType: "Installation", details: { decision }
+      });
+      this.save();
+      return res;
+    }
+
+    // Shared by the Super Admin store and the Installer portal (HSShared record): applies an accept / decline
+    static applyMaintenanceResponse(job, decision, personName) {
+      const m = job && job.maintenance;
+      if (!m || !m.request || m.request.name !== personName) return { success: false, message: "There is no maintenance request waiting for you." };
+      const now = new Date().toISOString();
+      const S = typeof window !== "undefined" ? window.HSShared : null;
+      const previous = m.assignee;
+      const req = m.request;
+      if (decision === "accept") {
+        m.assignee = { key: req.key, name: req.name, company: req.company, installerId: req.installerId };
+        m.history = [{ at: now, text: `${req.name} accepted the maintenance (replacing ${previous ? previous.name : "—"})` }, ...(m.history || [])];
+      } else {
+        m.history = [{ at: now, text: `${req.name} declined the maintenance; it stays with ${previous ? previous.name : "—"}` }, ...(m.history || [])];
+      }
+      m.request = null;
+      m.updatedAt = now;
+      if (S && previous && previous.installerId) {
+        S.notify({ recipientRole: "installer", recipientId: previous.installerId, eventType: "maintenance_request", recordId: job.id,
+          title: `Maintenance ${decision === "accept" ? "reassigned" : "stays with you"}`,
+          message: `${req.name} ${decision === "accept" ? "accepted" : "declined"} ${job.id} maintenance.`, targetUrl: `myjob.html?job=${job.appId || job.id}`, actionLabel: "View Job" });
+      }
+      return { success: true, maintenance: m };
     }
 
     // --- DIRECT INSTALLATION ENGINEER WORKFLOW ---
@@ -3359,6 +3513,13 @@
       const overdueCount = apps.filter(a => a.paymentStatus === "Overdue").length;
       const overdueActionStatus = overdueCount === 1 ? "1 account flagged" : `${overdueCount} accounts flagged`;
 
+      // Payments cards: Financer Funded (active financer contracts) and Financing Revenue (collected to date).
+      const financerFunded = apps.filter(a => this.getApplicationFunding(a, options.asOf).ownerType === "Financer")
+        .reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
+      const financing = this.getFinancingRevenue(apps, options.asOf);
+      const today = HelloSolarStore.todayISO(options.asOf);
+      const asOfLabel = new Date(today + "T12:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
       return {
         totalPortfolio,
         hsFunded,
@@ -3368,8 +3529,45 @@
         thirdPartyRevenue,
         revenuePeriod: period,
         overdueCount,
-        overdueActionStatus
+        overdueActionStatus,
+        asOfLabel,
+        financerFunded,
+        portfolioHsFunded: Math.max(0, totalPortfolio - financerFunded),
+        financingRevenue: financing.total,
+        financingHsRevenue: financing.hsRevenue,
+        financerRevenue: financing.financerRevenue,
+        revenueSince: financing.since,
+        revenueTo: today
       };
+    }
+
+    // Financing Revenue = every payment customers have made from the first payment until today.
+    // Financer Revenue = the financer's share of each payment collected while its contract was active
+    // (payment × the financer's contract rate, e.g. 8.5%). Payments after the contract ends are Hello Solar's;
+    // what the financer already earned stays with the financer. HS Revenue = the rest.
+    getFinancingRevenue(apps, asOf) {
+      const today = HelloSolarStore.todayISO(asOf);
+      let total = 0;
+      let financerRevenue = 0;
+      let since = null;
+      (apps || []).forEach(app => {
+        const funding = this.getApplicationFunding(app, asOf);
+        const isHsSource = !funding.isFinanced || (app.financer || "").toLowerCase().includes("hello solar");
+        const financer = !isHsSource ? (this.data.financers || []).find(f => f.id === funding.financerId) : null;
+        (this.getPaymentSchedule(app.id)?.installments || []).forEach(inst => {
+          const paidOn = String(inst.paidDate || "").slice(0, 10);
+          if (inst.status !== "Paid" || !paidOn || paidOn > today) return;
+          const amount = Number(inst.paidAmount || inst.amount) || 0;
+          total += amount;
+          if (!since || paidOn < since) since = paidOn;
+          if (!financer) return;
+          const owner = this.getFinancerOwnerOn(financer, paidOn);
+          if (owner.ownerType === "Financer") financerRevenue += Math.round(amount * (Number(owner.annualRate) || 0)) / 100;
+        });
+      });
+      financerRevenue = Math.round(financerRevenue * 100) / 100;
+      total = Math.round(total * 100) / 100;
+      return { total, financerRevenue, hsRevenue: Math.round((total - financerRevenue) * 100) / 100, since };
     }
 
     // Current-period revenue from payment schedules (installments, or the single full-payment invoice) whose
@@ -4445,6 +4643,7 @@
       else if (type === "installers") list = this.data.installers;
       else if (type === "merchants") list = this.data.merchants;
       else if (type === "engineers") list = this.data.engineers || [];
+      else if (type === "accountants") list = this.data.accountants || [];
 
       const acc = list.find(a => a.id === id);
       if (!acc) return false;
@@ -4482,6 +4681,7 @@
       else if (type === "installers") list = this.data.installers;
       else if (type === "merchants") list = this.data.merchants;
       else if (type === "engineers") list = this.data.engineers || [];
+      else if (type === "accountants") list = this.data.accountants || [];
 
       const acc = list.find(a => a.id === id);
       if (!acc) return false;
@@ -4743,6 +4943,32 @@
           notes
         };
         this.data.engineers.unshift(newRecord);
+
+      } else if (role === "Accounting") {
+        // Accounting account — internal; signs in to Super Admin and sees only the Accounting page
+        tabKey = "accountants";
+        if (!Array.isArray(this.data.accountants)) this.data.accountants = [];
+        if (this.data.accountants.some(a => (a.email || "").toLowerCase() === email.toLowerCase())) {
+          return fail('An accounting account with this email already exists.');
+        }
+        let maxNum = 0;
+        this.data.accountants.forEach(a => {
+          const match = a.id && a.id.match(/^ACC-(\d+)$/);
+          if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10));
+        });
+        id = `ACC-${String(maxNum + 1).padStart(3, "0")}`;
+        newRecord = {
+          id,
+          name: fullName,
+          email,
+          phone,
+          role: "Accounting",
+          status,
+          joined: today,
+          password,
+          notes
+        };
+        this.data.accountants.unshift(newRecord);
 
       } else if (role === "Merchant") {
         tabKey = "merchants";

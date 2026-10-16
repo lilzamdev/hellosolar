@@ -608,6 +608,8 @@
         { id: "proof_of_income", name: "Proof of Income" },
         { id: "proof_of_billing", name: "Proof of Billing / Utility Bill" },
         { id: "bank_statement", name: "Bank Statement" },
+        { id: "site_photos", name: "Site Photos — Roof & Neighborhood" },
+        { id: "site_map_link", name: "Google Maps Link of House / Site", kind: "link" },
         { id: "other_requested", name: "Other Requested Document", optional: true }
     ];
     // Earlier document ids carried over to the current list
@@ -642,15 +644,16 @@
         const docs = DOCUMENT_REQUESTS.map(def => {
             const prev = byId[def.id];
             delete byId[def.id];
-            return prev ? Object.assign({}, prev, { name: def.name, optional: !!def.optional })
-                : { id: def.id, name: def.name, optional: !!def.optional, status: "NOT_SUBMITTED", submitted: false, note: "" };
+            const kind = def.kind ? { kind: def.kind } : {};
+            return prev ? Object.assign({}, prev, { name: def.name, optional: !!def.optional }, kind)
+                : Object.assign({ id: def.id, name: def.name, optional: !!def.optional, status: "NOT_SUBMITTED", submitted: false, note: "" }, kind);
         });
         // Keep any extra document that already has a file or a review decision
         Object.values(byId).forEach(d => {
             if (d.fileName || normalizeDocumentStatus(d.status) !== "NOT_SUBMITTED") docs.push(d);
         });
-        const changed = JSON.stringify(docs.map(d => [d.id, d.name, !!d.optional])) !==
-            JSON.stringify((rec.documents || []).map(d => [d.id, d.name, !!d.optional]));
+        const changed = JSON.stringify(docs.map(d => [d.id, d.name, !!d.optional, d.kind || ""])) !==
+            JSON.stringify((rec.documents || []).map(d => [d.id, d.name, !!d.optional, d.kind || ""]));
         rec.documents = docs;
         return changed;
     }
@@ -679,7 +682,7 @@
                 updatedAt: nowISO(),
                 documents: DOCUMENT_REQUESTS.map(d => {
                     const status = done && !d.optional ? "ACCEPTED" : "NOT_SUBMITTED";
-                    return { id: d.id, name: d.name, optional: !!d.optional, status, submitted: status === "ACCEPTED", note: "" };
+                    return Object.assign({ id: d.id, name: d.name, optional: !!d.optional, status, submitted: status === "ACCEPTED", note: "" }, d.kind ? { kind: d.kind } : {});
                 })
             };
             changed = true;
@@ -738,6 +741,23 @@
             form.append("docId", docId);
             API.command("document.upload", { appId, docId }, { formData: form });
         }
+        return { ok: true, document: Object.assign({}, doc) };
+    }
+
+    // Customer link answer for a "link" document (Google Maps link of the house / site)
+    function saveDocumentLink(appId, docId, url) {
+        const link = String(url || "").trim();
+        if (!/^https?:\/\/\S+$/i.test(link)) return { ok: false, error: "Please paste a valid link (starting with https://)." };
+        documentRecordFor(appId);
+        const store = readDocumentStore();
+        const rec = store[appId];
+        const doc = rec && Array.isArray(rec.documents) ? rec.documents.find(d => d.id === docId) : null;
+        if (!doc) return { ok: false, error: "Document request not found." };
+        const now = nowISO();
+        Object.assign(doc, { link, fileName: link, fileType: "link", fileSize: 0, fileData: null, uploadedAt: now, status: "SUBMITTED", submitted: true, note: "" });
+        rec.updatedAt = now;
+        storage.set(DOCUMENTS_KEY, JSON.stringify(store));
+        sendCommand({ name: "document.link", payload: { appId, docId, link } });
         return { ok: true, document: Object.assign({}, doc) };
     }
 
@@ -813,6 +833,53 @@
         sendCommand(cmd);
     }
 
+    // Due-date reminders to customers (installment accounts): 7 days before, 1 day before and on the due date
+    // of the next unpaid installment. Each reminder has a fixed id, so it is sent once even though every portal
+    // load checks again (this is how the frontend simulates the daily reminder job).
+    function sendDueReminders(asOf) {
+        if (IS_API) return 0; // api mode: the backend sends reminders
+        const data = read();
+        if (!data) return 0;
+        const d = asOf ? new Date(asOf) : new Date();
+        const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        const sentIds = new Set((readNotifications() || []).map(n => n.id));
+        const peso = n => "₱" + Math.round(Number(n) || 0).toLocaleString("en-PH");
+        const longDate = iso => new Date(iso + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+        let sent = 0;
+        (data.applications || []).forEach(app => {
+            if (!app || !app.customerId || isFullPayment(app)) return;
+            const schedule = (data.paymentSchedules && data.paymentSchedules[app.id]) || paymentScheduleFor(app.id);
+            const next = ((schedule && schedule.installments) || [])
+                .filter(i => i.status !== "Paid" && String(i.dueDate || "") >= today)
+                .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))[0];
+            if (!next) return;
+            const days = Math.round((new Date(next.dueDate + "T00:00:00") - new Date(today + "T00:00:00")) / 86400000);
+            const kind = days === 0 ? "due" : days === 1 ? "1d" : days <= 7 ? "7d" : null;
+            if (!kind) return;
+            const id = `due-reminder-${app.id}-${next.dueDate}-${kind}`;
+            if (sentIds.has(id)) return;
+            const title = kind === "due" ? "Payment Due Today" : kind === "1d" ? "Payment Due Tomorrow" : "Upcoming Payment Due";
+            const when = kind === "due" ? "today" : kind === "1d" ? "tomorrow" : `in ${days} days`;
+            notify({
+                id,
+                sourceEventId: id,
+                recipientRole: "customer",
+                recipientId: app.customerId,
+                eventType: "payment_due_reminder",
+                recordId: app.id,
+                appId: app.id,
+                packageId: app.id,
+                title,
+                message: `Your installment #${next.no} of ${peso(next.amount)} for ${app.id} is due ${when} (${longDate(next.dueDate)}).`,
+                targetUrl: "payments.html",
+                actionLabel: "View Payment"
+            });
+            sentIds.add(id);
+            sent += 1;
+        });
+        return sent;
+    }
+
     window.HSShared = {
         CONFIG,
         IS_API,
@@ -850,6 +917,7 @@
         documentRecordFor,
         setDocumentStatus,
         uploadDocument,
+        saveDocumentLink,
         writeDocumentStore,
         readDocumentStore,
         installationProgressFor,
@@ -866,6 +934,7 @@
         completeSiteVisit,
         downPaymentFor,
         reimbursementsFor,
-        requestReimbursement
+        requestReimbursement,
+        sendDueReminders
     };
 })(typeof window !== "undefined" ? window : this);

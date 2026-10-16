@@ -4,13 +4,15 @@
   const DATA_KEY = 'HELLO_SOLAR_SUPER_ADMIN_DATA_V2';
   const SESSION_DURATION = 8 * 60 * 60 * 1000;
   const ENGINEER_TITLE = 'Direct Installation Engineer';
+  const ACCOUNTING_TITLE = 'Accounting';
   // Prototype / demo fallback accounts. Real Direct Installation Engineer accounts are
   // created by Super Admin (Accounts → Create Account) and stored in data.engineers.
   const DEMO_ACCOUNTS = [
     { ids: ['admin@hellosolar.ph', 'admin'], password: 'admin123', role: 'super-admin', name: 'Limuel Brasona', title: 'Super Admin' },
-    { ids: ['engineer@hellosolar.ph', 'engineer'], password: 'engineer123', role: 'direct-engineer', name: 'Engr. Mark Dizon', title: ENGINEER_TITLE, actorId: 'ENG-DEMO' }
+    { ids: ['engineer@hellosolar.ph', 'engineer'], password: 'engineer123', role: 'direct-engineer', name: 'Engr. Mark Dizon', title: ENGINEER_TITLE, actorId: 'ENG-DEMO' },
+    { ids: ['accounting@hellosolar.ph', 'accounting'], password: 'accounting123', role: 'accounting', name: 'Accounting Officer', title: ACCOUNTING_TITLE, actorId: 'ACC-DEMO' }
   ];
-  const ROLES = ['super-admin', 'direct-engineer'];
+  const ROLES = ['super-admin', 'direct-engineer', 'accounting'];
   // Runtime mode (shared/hello-solar-config.js). api mode: the backend checks credentials and issues a token;
   // demo accounts and client-side password checks are local-mode only.
   const CONFIG = window.HS_CONFIG || { isApi: false, demoData: true };
@@ -25,6 +27,13 @@
       return Array.isArray(data?.engineers) ? data.engineers : [];
     } catch { return []; }
   }
+  // Accounting accounts created by Super Admin (Create Account → Accounting), stored in data.accountants
+  function storedAccountants() {
+    try {
+      const data = JSON.parse((window.HSStore || localStorage).getItem(DATA_KEY) || 'null');
+      return Array.isArray(data?.accountants) ? data.accountants : [];
+    } catch { return []; }
+  }
 
   function getSession() {
     try {
@@ -35,6 +44,10 @@
       // Created engineer accounts lose access as soon as they are no longer Active
       if (session.role === 'direct-engineer' && session.accountId) {
         const account = storedEngineers().find(e => e.id === session.accountId);
+        if (!account || account.status !== 'Active') return null;
+      }
+      if (session.role === 'accounting' && session.accountId) {
+        const account = storedAccountants().find(a => a.id === session.accountId);
         if (!account || account.status !== 'Active') return null;
       }
       return session;
@@ -79,6 +92,19 @@
       return true;
     }
 
+    // 1b. Super Admin–created Accounting accounts (by email or Accounting ID)
+    const accountant = storedAccountants().find(a =>
+      (a.email || '').toLowerCase() === id || (a.id || '').toLowerCase() === id);
+    if (accountant) {
+      if (accountant.password !== password) return false;
+      if (accountant.status !== 'Active') {
+        lastError = 'Your accounting account is not active. Please contact your Super Admin.';
+        return false;
+      }
+      startSession({ role: 'accounting', name: accountant.name, title: ACCOUNTING_TITLE, actorId: accountant.id, accountId: accountant.id });
+      return true;
+    }
+
     // 2. Prototype / demo fallback accounts (local demo mode only)
     const account = DEMO && DEMO_ACCOUNTS.find(a => a.ids.includes(id) && a.password === password);
     if (!account) return false;
@@ -92,8 +118,9 @@
     if (!IS_API || !account || !ROLES.includes(account.role) || !data.token) return false;
     API.tokens.set('admin', data.token);
     startSession({
-      role: account.role, name: account.name, title: account.title || (account.role === 'direct-engineer' ? ENGINEER_TITLE : 'Super Admin'),
-      actorId: account.id, accountId: account.role === 'direct-engineer' ? account.id : undefined
+      role: account.role, name: account.name,
+      title: account.title || (account.role === 'direct-engineer' ? ENGINEER_TITLE : account.role === 'accounting' ? ACCOUNTING_TITLE : 'Super Admin'),
+      actorId: account.id, accountId: account.role === 'direct-engineer' || account.role === 'accounting' ? account.id : undefined
     });
     return true;
   }

@@ -6,7 +6,7 @@
  *   Financer  (FIN-###)  → Hello_Solar_Financer/dashboard.html
  *   Installer (INS-###)  → Hello_Solar_Installer/myjob.html
  *   Merchant  (MER-###)  → Hello_Solar_Merchant/dashboard.html
- *   Super Admin / Direct Engineer (ENG-###) → hello_solar_super_admin/index.html
+ *   Super Admin / Direct Engineer (ENG-###) / Accounting (ACC-###) → hello_solar_super_admin/index.html
  *
  * Sessions stay per role (HSShared.session / SuperAdminAuth), with the same payload each portal's own
  * auth.js used to write, so the dashboards need no changes.
@@ -21,7 +21,7 @@
     "use strict";
 
     const PORTAL_ROLES = ["customer", "financer", "installer", "merchant"];
-    const ADMIN_ROLES = ["super-admin", "direct-engineer"];
+    const ADMIN_ROLES = ["super-admin", "direct-engineer", "accounting"];
 
     const DESTINATIONS = {
         customer: { label: "Customer Portal", url: "Hello_Solar_Customer/mysystem.html" },
@@ -29,11 +29,12 @@
         installer: { label: "Installer Portal", url: "Hello_Solar_Installer/myjob.html" },
         merchant: { label: "Merchant Portal", url: "Hello_Solar_Merchant/dashboard.html" },
         "super-admin": { label: "Super Admin", url: "hello_solar_super_admin/index.html" },
-        "direct-engineer": { label: "Hello Solar Direct", url: "hello_solar_super_admin/index.html" }
+        "direct-engineer": { label: "Hello Solar Direct", url: "hello_solar_super_admin/index.html" },
+        accounting: { label: "Accounting", url: "hello_solar_super_admin/index.html#accounting" }
     };
 
     // ?portal= values accepted from the old per-portal login pages
-    const PORTAL_HINTS = { customer: "customer", financer: "financer", installer: "installer", merchant: "merchant", admin: "super-admin", "super-admin": "super-admin", engineer: "direct-engineer" };
+    const PORTAL_HINTS = { customer: "customer", financer: "financer", installer: "installer", merchant: "merchant", admin: "super-admin", "super-admin": "super-admin", engineer: "direct-engineer", accounting: "accounting" };
 
     const GENERIC_ERROR = "Invalid email/account ID or password. Please try again.";
 
@@ -167,6 +168,7 @@
         }
         list.push({ role: "super-admin", label: "Super Admin", identifier: "admin@hellosolar.ph", password: "admin123" });
         list.push({ role: "direct-engineer", label: "Engineer", identifier: "engineer@hellosolar.ph", password: "engineer123" });
+        list.push({ role: "accounting", label: "Accounting", identifier: "accounting@hellosolar.ph", password: "accounting123" });
         return list;
     }
 

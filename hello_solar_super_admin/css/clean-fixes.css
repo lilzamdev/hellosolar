@@ -81,3 +81,112 @@ table td .record-id { white-space: nowrap; }
 .receipt-preview { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md, 10px); padding: 12px; text-align: center; }
 .receipt-preview img { max-width: 100%; max-height: 70vh; object-fit: contain; display: block; margin: 0 auto; }
 .receipt-preview iframe { width: 100%; height: 70vh; border: 0; }
+
+/* Payment type colors (Full Payment = green, Installment = blue) */
+.status-pill.pay-full        { background: #DCFCE7 !important; color: #166534 !important; font-weight: 700; }
+.status-pill.pay-installment { background: #DBEAFE !important; color: #1E40AF !important; font-weight: 700; }
+
+/* Payments KPI (i) info icons + small subtexts */
+.ops-subtext { font-size: 11px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+.kpi-info { position: relative; margin-left: auto; align-self: flex-start; width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%; border: 1px solid var(--border); background: var(--white); color: var(--muted); font-family: inherit; text-align: center; padding: 0; cursor: help; }
+.kpi-info::before { content: "i"; display: block; font: italic 700 11px/16px Georgia, serif; }
+.kpi-info:hover, .kpi-info:focus { color: var(--solar-orange); border-color: var(--solar-orange); outline: none; }
+.kpi-info:hover::after, .kpi-info:focus::after { content: attr(data-tip); position: absolute; right: 0; top: 24px; z-index: 50; width: 270px; padding: 10px 12px; border-radius: 8px; background: #111827; color: #fff; font-size: 11.5px; font-weight: 500; line-height: 1.5; font-style: normal; text-align: left; text-transform: none; letter-spacing: 0; white-space: pre-line; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.kpi-info-inline { display: inline-block; margin-left: 4px; vertical-align: -3px; }
+.kpi-info-inline:hover::after, .kpi-info-inline:focus::after { left: -120px; right: auto; width: 300px; }
+.table-container:has(.kpi-info-inline:focus), .table-container:has(.kpi-info-inline:hover) { overflow: visible; }
+
+/* View Payment › Summary: two columns + next due line */
+#paymentModal.modal-overlay .modal-card.sa-modal #pmSummaryGrid.pm-summary-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; padding: 4px 4px 0; margin-bottom: 6px; }
+.pm-summary-col .detail-item { padding: 8px 0; border-bottom: 1px solid var(--border-subtle, #f1f1f1); display: flex; flex-direction: column; gap: 3px; }
+.pm-summary-col .detail-item > span { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.pm-next-due { text-align: right; font-size: 12.5px; font-weight: 700; color: var(--ink); margin: 4px 0 12px; }
+.pm-next-due.is-overdue { color: var(--danger); }
+@media (max-width: 640px) { #paymentModal.modal-overlay .modal-card.sa-modal #pmSummaryGrid.pm-summary-cols { grid-template-columns: 1fr; } }
+
+@media (max-width: 650px) { .role-selector-bar { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
+
+/* Accounting account: Accounting page only */
+body.role-accounting .nav-link:not([data-page="accounting"]),
+body.role-accounting .nav-section-title,
+body.role-accounting .search-box,
+body.role-accounting .icon-btn-wrap,
+body.role-accounting #dropdownProfile,
+body.role-accounting #dropdownActivity { display: none !important; }
+
+/* Support split view: Support list on the left (compact), the clicked record on the right */
+body.support-split .main-wrapper { margin-right: 54vw; width: auto !important; max-width: none !important; }
+body.support-split .content { padding: 20px 20px 60px; }
+body.support-split .search-box,
+body.support-split #quickDirectBtn { display: none !important; }
+body.support-split .split-pane { left: 46%; padding: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; border-left: 1px solid var(--border); box-shadow: -8px 0 24px rgba(0,0,0,.08); }
+body.support-split .modal-overlay.split-pane { align-items: stretch; justify-content: stretch; }
+body.support-split .split-pane .modal-card { max-width: none; width: 100%; height: 100%; border-radius: 0; border: 0; display: flex; flex-direction: column; animation: none; }
+body.support-split .split-pane .modal-body { flex: 1 1 auto; max-height: none; }
+body.support-split .split-pane .drawer-panel { max-width: none; animation: none; }
+body.support-split #supportModal.open { right: 54%; }
+/* Compact Support list: Ticket, Account / Project ID, Concern, Status, Action */
+body.support-split #page-support .page-head { margin-bottom: 12px; }
+body.support-split #page-support h1 { font-size: 24px; }
+body.support-split #page-support th:nth-child(2), body.support-split #page-support td:nth-child(2),
+body.support-split #page-support th:nth-child(5), body.support-split #page-support td:nth-child(5),
+body.support-split #page-support th:nth-child(7), body.support-split #page-support td:nth-child(7),
+body.support-split #page-support th:nth-child(8), body.support-split #page-support td:nth-child(8) { display: none; }
+/* Action column is hidden in the split, so the Ticket ID opens the ticket */
+body.support-split #supportTableBody td:first-child .record-id { color: var(--text-orange, #B45309); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+body.support-split #page-support th, body.support-split #page-support td { padding: 10px 10px; vertical-align: middle; }
+body.support-split #page-support .table-container { overflow-x: hidden; }
+body.support-split #page-support .table-container table { table-layout: fixed; width: 100%; min-width: 0; }
+body.support-split #page-support th:nth-child(1) { width: 92px; }
+body.support-split #page-support th:nth-child(3) { width: 34%; }
+body.support-split #page-support th:nth-child(6) { width: 112px; }
+body.support-split #page-support td { white-space: normal !important; overflow-wrap: anywhere; }
+body.support-split #page-support td:first-child { white-space: nowrap !important; }
+body.support-split #page-support td:nth-child(4) > span { display: block; font-size: 13px; line-height: 1.45; }
+body.support-split #supportTableBody tr.split-active td { background: #FFF7ED; }
+body.support-split #supportTableBody tr.split-active td:first-child { box-shadow: inset 3px 0 0 var(--solar-orange); }
+@media (max-width: 900px) {
+  body.support-split .main-wrapper { margin-right: 0; padding-bottom: 58vh; }
+  body.support-split .split-pane { left: 0; top: 42%; border-left: 0; border-top: 1px solid var(--border); }
+  body.support-split #supportModal.open { right: 0; bottom: 58%; }
+}
+.th-with-info { white-space: nowrap; }
+.th-with-info .kpi-info-inline { float: right; margin: 0 0 0 6px; }
+body.role-direct-engineer .nav-section-title { display: none !important; }
+
+#maintModal .modal-body { max-height: 70vh; overflow-y: auto; }
+
+/* Manage Maintenance popup: summary card, Details / History tabs, clickable progress steps */
+#maintModal .modal-body { max-height: 72vh; overflow-y: auto; }
+#maintModal .mm-summary {
+  border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-subtle);
+  padding: 14px 16px; margin-bottom: 14px;
+}
+#maintModal .mm-summary-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+#maintModal .mm-summary-head strong { display: block; font-size: 15px; color: var(--ink); }
+#maintModal .mm-summary-head span:not(.status-pill) { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+#maintModal .mm-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+#maintModal .mm-summary-grid span { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); }
+#maintModal .mm-summary-grid strong { display: block; font-size: 13px; color: var(--ink); margin-top: 2px; overflow-wrap: anywhere; }
+#maintModal .mm-tabs { display: flex; gap: 12px; border-bottom: 1px solid var(--border-subtle); margin: 0 0 16px; }
+#maintModal .mm-tabs .modal-tab { padding: 10px 4px; }
+#maintModal .mm-label-hint { font-weight: 500; font-size: 11.5px; color: var(--muted); margin-left: 6px; }
+#maintModal .mm-stepper { margin: 6px 0 4px; }
+#maintModal .mm-stepper .step-item {
+  background: transparent; border: 0; padding: 4px 0; cursor: pointer; font: inherit; border-radius: 8px;
+}
+#maintModal .mm-stepper .step-item:hover .step-bubble { border-color: var(--orange); }
+#maintModal .mm-stepper .step-item:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+#maintModal .mm-hint { font-size: 12px; color: #b45309; margin-top: 6px; }
+#maintModal .mm-schedule { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+#maintModal .mm-schedule label > span { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 4px; }
+#maintModal .mm-schedule .input-field { width: 100%; }
+#maintModal .mm-history { display: flex; flex-direction: column; gap: 10px; }
+#maintModal .mm-history-item { border: 1px solid var(--border); border-left: 3px solid var(--orange); border-radius: 8px; padding: 10px 12px; background: var(--white, #fff); }
+#maintModal .mm-history-meta { font-size: 11.5px; color: var(--muted); margin-bottom: 4px; }
+#maintModal .mm-history-meta strong { color: var(--ink); }
+#maintModal .mm-history-text { font-size: 13px; color: var(--ink); line-height: 1.45; }
+#maintModal .mm-history-empty { color: var(--muted); font-size: 12.5px; padding: 12px 0; }
+@media (max-width: 560px) {
+  #maintModal .mm-summary-grid, #maintModal .mm-schedule { grid-template-columns: 1fr; }
+}

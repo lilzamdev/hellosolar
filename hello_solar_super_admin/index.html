@@ -17,8 +17,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=20261006-qafix" />
-  <link rel="stylesheet" href="css/clean-fixes.css?v=20261014c" />
+  <link rel="stylesheet" href="css/styles.css?v=20261016a" />
+  <link rel="stylesheet" href="css/clean-fixes.css?v=20261016e" />
 </head>
 
 <body>
@@ -39,8 +39,8 @@
       </div>
 
       <div class="nav-container">
-        <div class="nav-section-title">Overview</div>
-        <button class="nav-link active" data-page="overview" title="Overview">
+        <div class="nav-section-title">Summary</div>
+        <button class="nav-link active" data-page="overview" title="Summary">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
               stroke-linejoin="round">
@@ -50,7 +50,7 @@
               <rect x="3" y="16" width="7" height="5" rx="1.5"></rect>
             </svg>
           </span>
-          <span class="nav-text">Overview</span>
+          <span class="nav-text">Summary</span>
         </button>
 
         <div class="nav-section-title">Operations</div>
@@ -84,6 +84,17 @@
           </span>
           <span class="nav-text">Installations</span>
           <span class="nav-badge" id="navBadgeInstalls">7</span>
+        </button>
+        <button class="nav-link" data-page="maintenance" title="Maintenance">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path
+                d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z">
+              </path>
+            </svg>
+          </span>
+          <span class="nav-text">Maintenance</span>
         </button>
         <button class="nav-link" data-page="payments" title="Payments">
           <span class="nav-icon">
@@ -228,13 +239,13 @@
 
         <div class="topbar-right">
           <!-- Quick Direct Install Shortcut -->
-          <div class="direct-quick-badge" id="quickDirectBtn" title="View Hello Solar Direct installations">
+          <div class="direct-quick-badge" id="quickDirectBtn" title="View Hello Solar installations">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round">
               <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
               <polyline points="9 22 9 12 15 12 15 22"></polyline>
             </svg>
-            <span id="quickDirectCount">3 Direct Projects</span>
+            <span id="quickDirectCount">3 Hello Solar Projects</span>
           </div>
 
           <!-- Notification Bell -->
@@ -317,13 +328,26 @@
           <div class="page-head">
             <div>
               <div class="eyebrow">COMMAND CENTER</div>
-              <h1>Overview</h1>
+              <h1>Summary</h1>
 
             </div>
           </div>
 
           <!-- Main 5 KPI Cards -->
           <section class="kpi-grid">
+
+            <article class="kpi-card" data-go="site-visits">
+              <div class="kpi-top">
+                <span>Site Visit Requests</span>
+                <div class="kpi-icon-box">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                </div>
+              </div>
+              <div class="kpi-value" id="kpiSiteVisits">0</div>
+              <div class="kpi-foot">
+                <span class="sub-info" id="kpiSiteVisitsSub" style="font-size:11.5px;">0 to assign</span>
+              </div>
+            </article>
             <article class="kpi-card" data-go="applications">
               <div class="kpi-top">
                 <span>Total Applications</span>
@@ -338,25 +362,6 @@
                 </div>
               </div>
               <div class="kpi-value" id="kpiTotalApps">12</div>
-              <div class="kpi-foot">
-                <span class="kpi-action-link">View</span>
-              </div>
-            </article>
-
-            <article class="kpi-card" data-go="installations" data-sub="active">
-              <div class="kpi-top">
-                <span>Active Installations</span>
-                <div class="kpi-icon-box">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                  </svg>
-                </div>
-              </div>
-              <div class="kpi-value" id="kpiActiveInstalls">4</div>
-              <div class="kpi-foot">
-                <span class="kpi-action-link">View</span>
-              </div>
             </article>
 
             <article class="kpi-card" data-go="installations" data-sub="completed">
@@ -370,9 +375,6 @@
                 </div>
               </div>
               <div class="kpi-value" id="kpiCompletedInstalls">2</div>
-              <div class="kpi-foot">
-                <span class="kpi-action-link">View</span>
-              </div>
             </article>
 
             <article class="kpi-card" data-go="payments">
@@ -388,23 +390,6 @@
                 </div>
               </div>
               <div class="kpi-value" id="kpiTotalFunded">₱4.82M</div>
-              <div class="kpi-foot">
-                <span class="kpi-action-link">View</span>
-              </div>
-            </article>
-
-            <article class="kpi-card" data-go="site-visits">
-              <div class="kpi-top">
-                <span>Site Visits</span>
-                <div class="kpi-icon-box">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                </div>
-              </div>
-              <div class="kpi-value" id="kpiSiteVisits">0</div>
-              <div class="kpi-foot">
-                <span class="sub-info" id="kpiSiteVisitsSub" style="font-size:11.5px;">0 to assign</span>
-                <span class="kpi-action-link">View</span>
-              </div>
             </article>
 
             <article class="kpi-card attention-card" id="kpiAttentionCard">
@@ -420,9 +405,6 @@
                 </div>
               </div>
               <div class="kpi-value" id="kpiNeedsAttention">5</div>
-              <div class="kpi-foot">
-                <span class="kpi-action-link attention-link">Inspect</span>
-              </div>
             </article>
           </section>
 
@@ -446,24 +428,20 @@
                       <circle cx="12" cy="7" r="4"></circle>
                     </svg>
                   </div>
-                  <div class="ops-title">Customers Application</div>
+                  <div class="ops-title">Customers</div>
                 </div>
                 <div class="ops-metric">
-                  <span>Total Accounts</span>
+                  <span>Active Accounts</span>
                   <strong id="opsCustomerTotal">8</strong>
                 </div>
                 <div class="ops-metric">
-                  <span>New Applications</span>
+                  <span>Pending Applications</span>
                   <strong id="opsCustomerNew">3</strong>
-                </div>
-                <div class="ops-link">
-                  <span>View Customers</span>
-
                 </div>
               </div>
 
               <!-- Financers Summary -->
-              <div class="ops-card" data-go="applications" data-sub="under-review">
+              <div class="ops-card" data-go="applications" data-sub="pending-financing">
                 <div class="ops-head">
                   <div class="ops-icon">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -478,19 +456,15 @@
                       <line x1="16" y1="14" x2="16" y2="17"></line>
                     </svg>
                   </div>
-                  <div class="ops-title">Financers</div>
+                  <div class="ops-title">Financing &amp; Credit</div>
                 </div>
                 <div class="ops-metric">
-                  <span>Pending Finance</span>
+                  <span>Active Accounts</span>
                   <strong id="opsFinancerReview">2</strong>
                 </div>
                 <div class="ops-metric">
-                  <span>Awaiting Decisions</span>
+                  <span>Pending Accounts</span>
                   <strong id="opsFinancerPending">3</strong>
-                </div>
-                <div class="ops-link">
-                  <span>View Financer Activity</span>
-
                 </div>
               </div>
 
@@ -505,19 +479,15 @@
                       </path>
                     </svg>
                   </div>
-                  <div class="ops-title">Installers</div>
+                  <div class="ops-title">Installation Works</div>
                 </div>
                 <div class="ops-metric">
                   <span>Active Jobs</span>
                   <strong id="opsInstallerActive">4</strong>
                 </div>
                 <div class="ops-metric">
-                  <span>Maintenance Jobs</span>
+                  <span>Pending Jobs</span>
                   <strong id="opsInstallerMaint">1</strong>
-                </div>
-                <div class="ops-link">
-                  <span>View Installer Jobs</span>
-
                 </div>
               </div>
 
@@ -541,10 +511,6 @@
                 <div class="ops-metric">
                   <span>Pending Requests</span>
                   <strong id="opsMerchantPending">1</strong>
-                </div>
-                <div class="ops-link">
-                  <span>View Merchants</span>
-
                 </div>
               </div>
             </div>
@@ -671,19 +637,16 @@
           <!-- Lifecycle Filters -->
           <div class="toolbar-wrap">
             <div class="filter-tabs" id="appFilterChips">
-              <button class="chip-btn active" data-stage="All">All (<span id="countAppAll">12</span>)</button>
-              <button class="chip-btn" data-stage="Payment Required">Payment Required (<span
-                  id="countAppPaymentRequired">1</span>)</button>
-              <button class="chip-btn" data-stage="Financing Review">Financing Review (<span
-                  id="countAppFinancingReview">1</span>)</button>
+              <button class="chip-btn active" data-stage="All">All (<span id="countAppAll">0</span>)</button>
+              <button class="chip-btn" data-stage="Cash Applications">Cash Applications (<span
+                  id="countAppCash">0</span>)</button>
               <button class="chip-btn" data-stage="Missing Documents">Missing Documents (<span
-                  id="countAppMissing">1</span>)</button>
-              <button class="chip-btn" data-stage="Pending Finance">Pending Finance (<span
-                  id="countAppReview">1</span>)</button>
-              <button class="chip-btn" data-stage="Approved">Approved (<span id="countAppApproved">4</span>)</button>
-              <button class="chip-btn" data-stage="Ready for Installation">Ready for Installation (<span
-                  id="countAppReady">4</span>)</button>
-              <button class="chip-btn" data-stage="Declined">Declined (<span id="countAppDeclined">1</span>)</button>
+                  id="countAppMissing">0</span>)</button>
+              <button class="chip-btn" data-stage="Pending Financing">Pending Financing (<span
+                  id="countAppPendingFinancing">0</span>)</button>
+              <button class="chip-btn" data-stage="Pending Installation">Pending Installation (<span
+                  id="countAppPendingInstallation">0</span>)</button>
+              <button class="chip-btn" data-stage="Declined">Declined (<span id="countAppDeclined">0</span>)</button>
             </div>
 
             <div class="filter-group">
@@ -769,11 +732,6 @@
               <h1>Installations</h1>
 
             </div>
-            <div class="page-actions">
-              <button class="btn btn-primary" id="btnNewInstallModalOpen">
-                <span>+</span> Schedule Ready Project
-              </button>
-            </div>
           </div>
 
           <!-- Installations Tabs & Filters -->
@@ -787,9 +745,8 @@
                   style="display:inline-block; vertical-align:-2px; margin-right:4px;">
                   <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                   <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                </svg>Hello Solar Direct
+                </svg>Hello Solar
               </button>
-              <button class="chip-btn" data-type="Maintenance">Maintenance</button>
               <button class="chip-btn" data-type="Completed">Completed</button>
             </div>
 
@@ -798,9 +755,10 @@
                 placeholder="Search project, applicant, installer..." />
               <select class="input-field" id="installStatusSelect">
                 <option value="All">All Statuses</option>
+                <option value="Ready">Accepted</option>
                 <option value="Scheduled">Scheduled</option>
                 <option value="In Progress">In Progress</option>
-                <option value="Testing">Testing</option>
+                <option value="Testing">Testing &amp; Commissioning</option>
                 <option value="Delayed">Delayed</option>
                 <option value="Completed">Completed</option>
               </select>
@@ -823,6 +781,45 @@
                 </tr>
               </thead>
               <tbody id="installTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- MAINTENANCE PAGE (Operations): every maintenance job, its person, schedule and progress -->
+        <section class="page" id="page-maintenance">
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">OPERATIONS / AFTER-SALES SERVICE</div>
+              <h1>Maintenance</h1>
+            </div>
+          </div>
+
+          <div class="toolbar-wrap">
+            <div class="filter-tabs" id="maintFilterTabs">
+              <button class="chip-btn active" data-status="All">All</button>
+              <button class="chip-btn" data-status="Assigned">Assigned</button>
+              <button class="chip-btn" data-status="Scheduled">Scheduled</button>
+              <button class="chip-btn" data-status="In Progress">In Progress</button>
+              <button class="chip-btn" data-status="Completed">Completed</button>
+            </div>
+            <div class="filter-group">
+              <input type="search" class="input-field" id="maintSearch" placeholder="Search job or customer..." />
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Job ID / Customer</th>
+                  <th>Location</th>
+                  <th>Person Handling</th>
+                  <th>Schedule</th>
+                  <th>Progress</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="maintTableBody"></tbody>
             </table>
           </div>
         </section>
@@ -855,6 +852,7 @@
             <button class="subtab" data-tab="merchants">Merchants (<span id="accountCountMerch">4</span>)</button>
             <button class="subtab" data-tab="financers">Financers (<span id="accountCountFin">4</span>)</button>
             <button class="subtab" data-tab="engineers">Engineers (<span id="accountCountEng">0</span>)</button>
+            <button class="subtab" data-tab="accountants">Accounting (<span id="accountCountAcc">0</span>)</button>
           </div>
 
           <!-- Toolbar -->
@@ -955,6 +953,20 @@
                   </svg>
                   <span>Direct Install Engineer</span>
                 </button>
+                <button type="button" class="role-selector-btn" data-role="Accounting">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="2" width="16" height="20" rx="2"></rect>
+                    <line x1="8" y1="6" x2="16" y2="6"></line>
+                    <line x1="8" y1="11" x2="8.01" y2="11"></line>
+                    <line x1="12" y1="11" x2="12.01" y2="11"></line>
+                    <line x1="16" y1="11" x2="16.01" y2="11"></line>
+                    <line x1="8" y1="15" x2="8.01" y2="15"></line>
+                    <line x1="12" y1="15" x2="12.01" y2="15"></line>
+                    <line x1="16" y1="15" x2="16" y2="18"></line>
+                  </svg>
+                  <span>Accounting</span>
+                </button>
               </div>
             </div>
 
@@ -985,6 +997,7 @@
                       <option value="Financer">Financer (Lending &amp; Credit Portal)</option>
                       <option value="Merchant">Merchant (Supplier &amp; Hardware Portal)</option>
                       <option value="Engineer">Direct Installation Engineer</option>
+                      <option value="Accounting">Accounting</option>
                     </select>
                   </div>
                   <div class="form-group" style="margin-bottom: 0;">
@@ -1191,10 +1204,10 @@
 
             <div class="ops-card">
               <div class="ops-head">
-                <div class="ops-title">HS vs Third-Party Revenue</div>
+                <div class="ops-title">HS vs Financer Revenue</div>
               </div>
               <div class="ops-metric"><span>HS Revenue</span><strong id="accHsRevenue">—</strong></div>
-              <div class="ops-metric"><span>Third-Party Revenue</span><strong id="accThirdPartyRevenue">—</strong></div>
+              <div class="ops-metric"><span>Financer Revenue</span><strong id="accThirdPartyRevenue">—</strong></div>
               <div class="acc-split-bar" aria-hidden="true"><span id="accHsBar"></span></div>
               <div class="ops-metric" style="border-top:none; padding-top:4px;"><span id="accSplitLabel"
                   style="font-size:11.5px;">—</span></div>
@@ -1358,7 +1371,12 @@
                     <path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>
                   </svg>
                 </div>
-                <div class="ops-title">Total Portfolio Value</div>
+                <div>
+                  <div class="ops-title">Total Portfolio Value</div>
+                  <div class="ops-subtext" id="payPortfolioAsOf">as of —</div>
+                </div>
+                <button type="button" class="kpi-info" aria-label="About Total Portfolio Value"
+                  data-tip="Total amount of all applications. HS Funded is what Hello Solar carries (full payments and accounts with no active financer contract). Financer Funded is the loan amount of accounts funded by a financer with an active contract."></button>
               </div>
               <div class="ops-metric">
                 <span>Total Portfolio</span>
@@ -1369,7 +1387,7 @@
                 <strong id="payHsFunded">—</strong>
               </div>
               <div class="ops-metric">
-                <span>Third-Party Funded</span>
+                <span>Financer Funded</span>
                 <strong id="payThirdPartyFunded">—</strong>
               </div>
             </div>
@@ -1384,10 +1402,15 @@
                     <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
                   </svg>
                 </div>
-                <div class="ops-title">Expected Revenue</div>
+                <div>
+                  <div class="ops-title">Financing Revenue</div>
+                  <div class="ops-subtext" id="payRevenueSince">Since —</div>
+                </div>
+                <button type="button" class="kpi-info" aria-label="About Financing Revenue"
+                  data-tip="All payments customers have made from the first payment until today. Financer Revenue is the financer's share of each payment made while its contract is active (payment × the financer's contract rate). After a contract ends, new payments go to Hello Solar. HS Revenue is the rest."></button>
               </div>
               <div class="ops-metric">
-                <span>Total Expected</span>
+                <span>Total Revenue</span>
                 <strong id="payExpectedRevenue" style="color:var(--brand);">—</strong>
               </div>
               <div class="ops-metric">
@@ -1395,7 +1418,7 @@
                 <strong id="payHsRevenue">—</strong>
               </div>
               <div class="ops-metric">
-                <span>Third-Party Revenue</span>
+                <span>Financer Revenue</span>
                 <strong id="payThirdPartyRevenue">—</strong>
               </div>
             </div>
@@ -1412,6 +1435,8 @@
                   </svg>
                 </div>
                 <div class="ops-title">Overdue Accounts</div>
+                <button type="button" class="kpi-info" aria-label="About Overdue Accounts"
+                  data-tip="Installment accounts with a payment that is past its due date by the grace period set in Settings."></button>
               </div>
               <div class="ops-metric">
                 <span>Accounts Overdue</span>
@@ -1450,7 +1475,8 @@
                   <th>Customer</th>
                   <th>Payment Type</th>
                   <th>Amount</th>
-                  <th>Payment Status</th>
+                  <th class="th-with-info"><button type="button" class="kpi-info kpi-info-inline" aria-label="About Payment Status"
+                      data-tip="Payment Required: a Full Payment (cash) customer has not uploaded their payment receipt yet.&#10;Verification Required: a receipt was uploaded and is waiting for Super Admin to verify it.&#10;On Time: installments are up to date.&#10;Due Soon: the next installment is due within 7 days.&#10;Overdue: an installment is past its due date.&#10;Completed: fully paid."></button>Payment Status</th>
                   <th>Due / Uploaded Date</th>
                   <th style="text-align: right;">Action</th>
                 </tr>
@@ -2126,6 +2152,91 @@
     </div>
   </div>
 
+  <!-- MAINTENANCE MODAL (Maintenance page: schedule / manage one job's maintenance) -->
+  <div class="modal-overlay" id="maintModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow">OPERATIONS / MAINTENANCE</div>
+          <h2 id="mmTitle">Manage Maintenance</h2>
+        </div>
+        <button class="modal-close-btn" data-close-modal="maintModal">×</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="mmJobId" />
+
+        <!-- Summary: where this job stands at a glance -->
+        <div class="mm-summary" id="mmJobDetails">
+          <div class="mm-summary-head">
+            <div>
+              <strong id="mmJobLabel">—</strong>
+              <span id="mmCustomer">—</span>
+            </div>
+            <span class="status-pill neutral" id="mmStatusPill">—</span>
+          </div>
+          <div class="mm-summary-grid">
+            <div><span>Location</span><strong id="mmLocation">—</strong></div>
+            <div><span>Handled by</span><strong id="mmSumPerson">—</strong></div>
+            <div><span>Schedule</span><strong id="mmSumSchedule">—</strong></div>
+          </div>
+        </div>
+
+        <div class="mm-tabs" id="mmTabs">
+          <button type="button" class="modal-tab active" data-mmtab="details">Details</button>
+          <button type="button" class="modal-tab" data-mmtab="history">History (<span id="mmHistCount">0</span>)</button>
+        </div>
+
+        <div class="modal-tab-content active" id="mmTabDetails">
+          <div class="form-group">
+            <label class="form-label">Progress <span class="mm-label-hint">Click a step to update it</span></label>
+            <div class="stepper mm-stepper" id="mmMaintStepper">
+              <button type="button" class="step-item" data-mm-step="Assigned"><span class="step-bubble">1</span><span class="step-label">Assigned</span></button>
+              <button type="button" class="step-item" data-mm-step="Scheduled"><span class="step-bubble">2</span><span class="step-label">Scheduled</span></button>
+              <button type="button" class="step-item" data-mm-step="In Progress"><span class="step-bubble">3</span><span class="step-label">In Progress</span></button>
+              <button type="button" class="step-item" data-mm-step="Completed"><span class="step-bubble">4</span><span class="step-label">Completed</span></button>
+            </div>
+            <input type="hidden" id="mmMaintStatusSelect" value="Assigned" />
+          </div>
+          <div id="mmMaintRequestBanner" class="sa-callout" style="display:none; margin-bottom:14px;"></div>
+          <div class="form-group">
+            <label class="form-label" for="mmMaintPersonSelect">Person handling it</label>
+            <select class="input-field" id="mmMaintPersonSelect" style="width:100%;"></select>
+            <div class="mm-hint" id="mmPersonHint" style="display:none;">Changing the person sends them a request to accept or decline.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Schedule</label>
+            <div class="mm-schedule">
+              <label><span>Date</span><input class="input-field" type="date" id="mmMaintDate" aria-label="Maintenance date" /></label>
+              <label><span>Time</span>
+                <select class="input-field" id="mmMaintTime" aria-label="Maintenance time">
+                  <option value="08:30 AM">08:30 AM</option>
+                  <option value="09:00 AM">09:00 AM</option>
+                  <option value="10:30 AM">10:30 AM</option>
+                  <option value="01:30 PM">01:30 PM</option>
+                  <option value="02:00 PM">02:00 PM</option>
+                  <option value="03:30 PM">03:30 PM</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" for="mmMaintNotes">Notes</label>
+            <textarea class="input-field" id="mmMaintNotes" style="width:100%; min-height:60px; resize:vertical;"
+              placeholder="e.g. Inverter firmware upgrade, string balance check..."></textarea>
+          </div>
+        </div>
+
+        <div class="modal-tab-content" id="mmTabHistory">
+          <div class="mm-history" id="mmMaintHistory"></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" data-close-modal="maintModal">Cancel</button>
+        <button class="btn btn-primary" id="btnSaveMaintenance">Save Maintenance</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ACCOUNTING: REFUND / REIMBURSEMENT MODAL -->
   <div class="modal-overlay" id="accRefundModal">
     <div class="modal-card">
@@ -2284,6 +2395,10 @@
               <div class="detail-item">
                 <span>Inverter Model</span>
                 <strong id="drawerInverter">Huawei SUN2000-5KTL</strong>
+              </div>
+              <div class="detail-item">
+                <span>Battery</span>
+                <strong id="drawerBattery">—</strong>
               </div>
             </div>
           </div>
@@ -2748,11 +2863,11 @@
 
         <!-- 3. Progress Tab -->
         <div class="modal-tab-content" id="imTabContentProgress">
-          <!-- Stepper: Ready → Scheduled → In Progress → Testing/Commissioning → Completed -->
+          <!-- Stepper: Accepted → Scheduled → In Progress → Testing & Commissioning → Completed -->
           <div class="stepper" id="imProgressStepper" style="margin: 10px 0 20px;">
             <div class="step-item" data-step="Ready">
               <div class="step-bubble">1</div>
-              <div class="step-label">Ready</div>
+              <div class="step-label">Accepted</div>
             </div>
             <div class="step-item" data-step="Scheduled">
               <div class="step-bubble">2</div>
@@ -2764,7 +2879,7 @@
             </div>
             <div class="step-item" data-step="Testing">
               <div class="step-bubble">4</div>
-              <div class="step-label">Testing / Comm.</div>
+              <div class="step-label">Testing &amp; Commissioning</div>
             </div>
             <div class="step-item" data-step="Completed">
               <div class="step-bubble">5</div>
@@ -2791,10 +2906,10 @@
           <div class="form-group">
             <label class="form-label">Project Status Progression</label>
             <select class="input-field" id="imStatusSelect" style="width:100%;">
-              <option value="Ready">Ready</option>
+              <option value="Ready">Accepted</option>
               <option value="Scheduled">Scheduled</option>
               <option value="In Progress">In Progress</option>
-              <option value="Testing">Testing / Commissioning</option>
+              <option value="Testing">Testing &amp; Commissioning</option>
               <option value="Completed">Completed</option>
               <option value="Delayed">Delayed</option>
             </select>
@@ -2824,7 +2939,7 @@
           </div>
         </div>
 
-        <!-- 4. Activity Tab -->
+        <!-- 3. Activity Tab -->
         <div class="modal-tab-content" id="imTabContentActivity">
           <div class="drawer-timeline" id="imActivityTimeline" style="padding-top:6px;">
             <!-- Rendered by JS: only selected project's installation history and status changes -->
@@ -3093,8 +3208,7 @@
 
       <div class="modal-tabs-bar" id="pmModalTabs">
         <button class="modal-tab active" data-pmtab="summary">Summary</button>
-        <button class="modal-tab" data-pmtab="schedule">Schedule (<span id="pmScheduleCount">0</span>)</button>
-        <button class="modal-tab" data-pmtab="history">History (<span id="pmHistoryCount">0</span>)</button>
+        <button class="modal-tab" data-pmtab="schedule">Payment Schedule (<span id="pmScheduleCount">0</span>)</button>
         <button class="modal-tab" data-pmtab="activity">Activity (<span id="pmActivityCount">0</span>)</button>
       </div>
 
@@ -3123,60 +3237,54 @@
             </div>
           </div>
 
-          <div class="detail-grid" id="pmSummaryGrid" style="margin-bottom:12px;">
-            <div class="detail-item">
-              <span>Application ID</span>
-              <strong id="pmAppIdText">APP-1024</strong>
+          <div class="pm-summary-cols" id="pmSummaryGrid">
+            <div class="pm-summary-col">
+              <div class="detail-item">
+                <span>Application ID</span>
+                <strong id="pmAppIdText">—</strong>
+              </div>
+              <div class="detail-item">
+                <span>Customer</span>
+                <strong id="pmCustomer">—</strong>
+              </div>
+              <div class="detail-item">
+                <span>Contract End Date</span>
+                <strong id="pmContractEnd">—</strong>
+              </div>
+              <div class="detail-item">
+                <span>Contract Status</span>
+                <div id="pmContractStatus">—</div>
+              </div>
+              <div class="detail-item">
+                <span>Payment Status</span>
+                <div id="pmStatusContainer"><span id="pmStatus" class="status-pill success">—</span></div>
+              </div>
             </div>
-            <div class="detail-item">
-              <span>Customer</span>
-              <strong id="pmCustomer">Maria Elena Cruz</strong>
-            </div>
-            <div class="detail-item">
-              <span>Financer</span>
-              <strong id="pmFinancer">SunFund Philippines</strong>
-            </div>
-            <div class="detail-item">
-              <span>Funding Owner</span>
-              <div id="pmFundingOwner">—</div>
-            </div>
-            <div class="detail-item">
-              <span>Funded Amount</span>
-              <strong id="pmAmount">₱315,000</strong>
-            </div>
-            <div class="detail-item">
-              <span>Contract Status</span>
-              <div id="pmContractStatus">—</div>
-            </div>
-            <div class="detail-item">
-              <span>Contract End Date</span>
-              <strong id="pmContractEnd">—</strong>
-            </div>
-            <div class="detail-item">
-              <span>Monthly Payment</span>
-              <strong id="pmMonthly">₱7,200 / mo</strong>
-            </div>
-            <div class="detail-item">
-              <span>Payment Status</span>
-              <div id="pmStatusContainer"><span id="pmStatus" class="status-pill success">On Time</span></div>
-            </div>
-            <div class="detail-item">
-              <span>Next / Missed Due Date</span>
-              <strong id="pmNextDue" style="color:var(--ink);">October 15, 2026</strong>
-            </div>
-            <div class="detail-item">
-              <span>Remaining Balance</span>
-              <strong id="pmRemainingBalance" style="color:var(--brand);">₱286,200</strong>
-            </div>
-            <div class="detail-item">
-              <span>Total Paid to Date</span>
-              <strong id="pmTotalPaid" style="color:var(--success);">₱28,800</strong>
-            </div>
-            <div class="detail-item">
-              <span>Repayment Progress</span>
-              <strong id="pmProgressText">4 installments completed</strong>
+            <div class="pm-summary-col">
+              <div class="detail-item">
+                <span>Funder</span>
+                <strong id="pmFinancer">—</strong>
+                <div id="pmFundingOwner" class="sub-info"></div>
+              </div>
+              <div class="detail-item">
+                <span>Funded Amount</span>
+                <strong id="pmAmount">—</strong>
+              </div>
+              <div class="detail-item">
+                <span>Total Paid</span>
+                <strong id="pmTotalPaid" style="color:var(--success);">—</strong>
+              </div>
+              <div class="detail-item">
+                <span>Remaining Balance</span>
+                <strong id="pmRemainingBalance" style="color:var(--brand);">—</strong>
+              </div>
+              <div class="detail-item">
+                <span>Repayment Progress</span>
+                <strong id="pmProgressText">—</strong>
+              </div>
             </div>
           </div>
+          <div class="pm-next-due" id="pmNextDue">Next due: —</div>
 
           <!-- Administrative Payment Action Panel -->
           <div class="panel" id="pmAdminActionPanel"
@@ -3210,21 +3318,23 @@
           </div>
         </div>
 
-        <!-- 2. Schedule Tab -->
+        <!-- 2. Payment Schedule Tab (installments and the payments recorded against them) -->
         <div class="modal-tab-content" id="pmTabContentSchedule">
-          <div style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
-            <div style="font-size:12px; color:var(--muted);">Amortization schedule from the financing agreement</div>
+          <div style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
             <span id="pmScheduleSummaryBadge" class="status-pill neutral">Schedule</span>
+            <button class="btn btn-secondary btn-sm" id="btnHistoryAddPayment"><span>+</span> Record Payment</button>
           </div>
           <div class="table-container" style="max-height: 380px; overflow-y: auto;">
             <table>
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Installment Due Date</th>
+                  <th>Due Date</th>
                   <th>Amount Due</th>
                   <th>Status</th>
-                  <th>Payment Date</th>
+                  <th>Paid Date</th>
+                  <th>Amount Paid</th>
+                  <th>Method</th>
                   <th>Reference</th>
                 </tr>
               </thead>
@@ -3233,30 +3343,7 @@
           </div>
         </div>
 
-        <!-- 3. History Tab -->
-        <div class="modal-tab-content" id="pmTabContentHistory">
-          <div style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
-            <div style="font-size:12px; color:var(--muted);">Verified payments received</div>
-            <button class="btn btn-secondary btn-sm" id="btnHistoryAddPayment"><span>+</span> Record Payment</button>
-          </div>
-          <div class="table-container" style="max-height: 380px; overflow-y: auto;">
-            <table>
-              <thead>
-                <tr>
-                  <th>Receipt / Ref #</th>
-                  <th>Payment Date</th>
-                  <th>Amount Paid</th>
-                  <th>Channel / Method</th>
-                  <th>Status</th>
-                  <th>Recorded By</th>
-                </tr>
-              </thead>
-              <tbody id="pmHistoryTableBody"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- 4. Activity Tab -->
+        <!-- 3. Activity Tab -->
         <div class="modal-tab-content" id="pmTabContentActivity">
           <div style="margin-bottom:10px; font-size:12px; color:var(--muted);">
             Payment status changes and admin actions
@@ -4136,9 +4223,9 @@
     </div>
   </div>
 
-  <script src="../shared/hello-solar-store.js?v=20261014c"></script>
+  <script src="../shared/hello-solar-store.js?v=20261016b"></script>
   <script src="../shared/hello-solar-shared.js"></script>
-  <script src="js/app.js?v=20261014c"></script>
+  <script src="js/app.js?v=20261016g"></script>
 </body>
 
 </html>
