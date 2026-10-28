@@ -16,7 +16,8 @@ function makeFinancerContext(sharedStorage = {}, financerId = 'FIN-005') {
             setItem: (k, v) => { storage[k] = String(v); },
             removeItem: (k) => { delete storage[k]; }
         },
-        addEventListener() {}
+        addEventListener() {},
+        HS_TODAY: '2026-09-25' // sample data date (tests)
     };
     context.window = context;
     vm.createContext(context);

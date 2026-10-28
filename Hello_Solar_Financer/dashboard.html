@@ -262,12 +262,12 @@
                         <div class="panel-header-title">
                             <div class="panel-title-wrap">
                                 <h2 class="panel-title">Portfolio Analytics</h2>
-                                <span class="records-count-badge">₱48.9M Total</span>
+                                <span class="records-count-badge" id="pfTotal">—</span>
                             </div>
-                            <div class="panel-subtitle">Asset allocation across 218 active financing accounts</div>
+                            <div class="panel-subtitle" id="pfSubtitle">Approved loans by system type</div>
                         </div>
                         <span class="badge badge-approved" style="font-size: 11.5px; font-weight: 700;">
-                            <span class="dot"></span> 99.2% Performing
+                            <span class="dot"></span> <span id="pfPerforming">—</span>
                         </span>
                     </div>
 
@@ -275,12 +275,9 @@
                     <div class="portfolio-distribution-wrapper">
                         <div class="portfolio-distribution-bar" role="progressbar"
                             aria-label="Portfolio asset distribution">
-                            <div class="portfolio-segment seg-residential" style="width: 64%;"
-                                title="Residential: 64% (₱31.3M)"></div>
-                            <div class="portfolio-segment seg-commercial" style="width: 26%;"
-                                title="Commercial &amp; SME: 26% (₱12.7M)"></div>
-                            <div class="portfolio-segment seg-battery" style="width: 10%;"
-                                title="Battery Storage: 10% (₱4.9M)"></div>
+                            <div class="portfolio-segment seg-residential" id="pfBarResidential" style="width: 0%;"></div>
+                            <div class="portfolio-segment seg-commercial" id="pfBarCommercial" style="width: 0%;"></div>
+                            <div class="portfolio-segment seg-battery" id="pfBarBattery" style="width: 0%;"></div>
                         </div>
                     </div>
 
@@ -290,11 +287,11 @@
                             <div class="portfolio-compact-label-wrap">
                                 <span class="portfolio-indicator-dot dot-residential"></span>
                                 <span class="portfolio-compact-label">Residential</span>
-                                <span class="portfolio-loan-count">148 loans</span>
+                                <span class="portfolio-loan-count" id="pfCountResidential">—</span>
                             </div>
                             <div class="portfolio-compact-value-wrap">
-                                <span class="portfolio-amount">₱31.3M</span>
-                                <span class="portfolio-share-pill pill-residential">64%</span>
+                                <span class="portfolio-amount" id="pfAmountResidential">—</span>
+                                <span class="portfolio-share-pill pill-residential" id="pfShareResidential">—</span>
                             </div>
                         </div>
 
@@ -302,11 +299,11 @@
                             <div class="portfolio-compact-label-wrap">
                                 <span class="portfolio-indicator-dot dot-commercial"></span>
                                 <span class="portfolio-compact-label">Commercial &amp; SME</span>
-                                <span class="portfolio-loan-count">46 loans</span>
+                                <span class="portfolio-loan-count" id="pfCountCommercial">—</span>
                             </div>
                             <div class="portfolio-compact-value-wrap">
-                                <span class="portfolio-amount">₱12.7M</span>
-                                <span class="portfolio-share-pill pill-commercial">26%</span>
+                                <span class="portfolio-amount" id="pfAmountCommercial">—</span>
+                                <span class="portfolio-share-pill pill-commercial" id="pfShareCommercial">—</span>
                             </div>
                         </div>
 
@@ -314,11 +311,11 @@
                             <div class="portfolio-compact-label-wrap">
                                 <span class="portfolio-indicator-dot dot-battery"></span>
                                 <span class="portfolio-compact-label">Battery Storage</span>
-                                <span class="portfolio-loan-count">24 loans</span>
+                                <span class="portfolio-loan-count" id="pfCountBattery">—</span>
                             </div>
                             <div class="portfolio-compact-value-wrap">
-                                <span class="portfolio-amount">₱4.9M</span>
-                                <span class="portfolio-share-pill pill-battery">10%</span>
+                                <span class="portfolio-amount" id="pfAmountBattery">—</span>
+                                <span class="portfolio-share-pill pill-battery" id="pfShareBattery">—</span>
                             </div>
                         </div>
                     </div>
@@ -601,8 +598,8 @@
     </div>
 
     <script src="../shared/hello-solar-config.js"></script>
-    <script src="../shared/hello-solar-store.js"></script>
-    <script src="../shared/hello-solar-shared.js"></script>
+    <script src="../shared/hello-solar-store.js?v=20261028d"></script>
+    <script src="../shared/hello-solar-shared.js?v=20261028d"></script>
     <script src="js/portal_data.js"></script>
     <script src="js/portal.js"></script>
     <script src="js/dashboard.js"></script>

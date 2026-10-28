@@ -1245,6 +1245,22 @@
                 pkg.payments.totalInstallments = schedule.installments.length;
                 if (pkg.paymentPlan && typeof pkg.paymentPlan === "object") pkg.paymentPlan.totalInstallments = schedule.installments.length;
             }
+            // Installment term: the one the customer picked (6 months · 3 years · 6 years), else the schedule length
+            const termMonths = Number(app.termMonths) > 0 ? Number(app.termMonths)
+                : (schedule && Array.isArray(schedule.installments) ? schedule.installments.length : 0);
+            if (termMonths) {
+                const label = termMonths >= 12 && termMonths % 12 === 0
+                    ? `${termMonths / 12} Year${termMonths === 12 ? "" : "s"}` : `${termMonths} Months`;
+                if (pkg.paymentPlan && typeof pkg.paymentPlan === "object") pkg.paymentPlan.term = label;
+                else pkg.paymentPlan = label;
+                if (pkg.payments.paymentPlan && typeof pkg.payments.paymentPlan === "object") pkg.payments.paymentPlan.term = label;
+                pkg.payments.term = label;
+                pkg.payments.planTerm = label;
+                pkg.payments.termBadge = `${label.replace(/s$/, "")} Term`;
+                pkg.termMonths = termMonths;
+                if (!pkg.totalInstallments) pkg.totalInstallments = termMonths;
+                if (!pkg.payments.totalInstallments) pkg.payments.totalInstallments = termMonths;
+            }
             applySharedBillResults(pkg, app);
         }
         if (Array.isArray(app.receiptForBills)) pkg.receiptForBills = app.receiptForBills;
@@ -1253,14 +1269,30 @@
         if (!app.assignedInstallerId || app.installer === "Unassigned") {
             pkg.assignedInstaller = null;
             if (pkg.install) pkg.install.assignedTeam = null;
-        } else if (!pkg.assignedInstaller) {
+        } else {
+            // Always the installer on record (same as Super Admin and the Installer portal); the installation job
+            // may name the lead technician
             const isDirect = S.isDirect(app);
             const partner = isDirect ? null : S.getAccount("installer", app.assignedInstallerId);
+            const shared = S.read ? S.read() : null;
+            const job = shared && Array.isArray(shared.installations)
+                ? shared.installations.find(j => j.appId === app.id && j.status !== "Cancelled" && !/maintenance/i.test(String(j.type || j.jobType || ""))) : null;
+            const lead = job && job.leadTech && !/^(unassigned|pending)/i.test(job.leadTech) ? job.leadTech : "";
+            const company = isDirect ? "Hello Solar Installation" : ((partner && partner.name) || app.installer || "Partner Installer");
+            const name = isDirect ? (app.assignedEngineer || lead || "Hello Solar Internal Team")
+                : (lead && !/team$/i.test(lead) ? lead : ((partner && partner.contact) || company));
+            const phone = (partner && partner.phone) || "+63 2 8888 0100";
+            const initials = name.replace(/^(Engr\.|Engr|Dr\.|Atty\.)\s+/i, "").split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "HS";
             pkg.assignedInstaller = {
-                name: isDirect ? (app.assignedEngineer || app.installer || "Hello Solar Internal Team") : (app.installer || (partner && partner.name) || ""),
-                role: isDirect ? "Hello Solar Direct Installation" : "Partner Installer",
-                phone: (partner && partner.phone) || ""
+                name,
+                initials,
+                role: isDirect ? "Hello Solar Installation Engineer" : `${company} · Partner Installer`,
+                phone,
+                note: isDirect
+                    ? "Hello Solar's own installation team handles your system. Call or message them for scheduling."
+                    : `${company} is your installer. Call or message them for scheduling; Hello Solar dispatch can help too.`
             };
+            if (pkg.install) pkg.install.assignedTeam = { ...pkg.assignedInstaller };
         }
         // Installation progress is owned by the installer / Direct Engineer — read-only here
         const progressPct = active ? 100 : (Number.isFinite(Number(app.progress)) ? Number(app.progress) : 0);
@@ -1343,15 +1375,19 @@
         };
         const rows = [];
         let nextAdded = false;
+        // Same rule as Super Admin: a bill is overdue once its due date is this many days past (grace period)
+        const shared = window.HSShared.read ? window.HSShared.read() : null;
+        const graceDays = Number(shared && shared.settings && shared.settings.overdueThresholdDays) || 5;
+        const daysPast = iso => Math.round((Date.parse(today + "T00:00:00Z") - Date.parse(String(iso).slice(0, 10) + "T00:00:00Z")) / 86400000);
         installments.forEach(i => {
             // Past due = after the due date; a bill due today is still "Due", not overdue
             const past = String(i.dueDate) < today;
+            const overdue = past && daysPast(i.dueDate) >= graceDays;
             if (!(i.status === "Paid" || past || !nextAdded)) return;
             if (!past && i.status !== "Paid") nextAdded = true;
             const status = i.status === "Paid" ? "Paid"
-                : (i.status === "Overdue" ? "Overdue"
-                    : (i.status === "Re-upload Required" ? "Re-upload Required"
-                        : (past ? "Unpaid" : (String(i.dueDate) === today ? "Due" : "Upcoming"))));
+                : (i.status === "Re-upload Required" ? "Re-upload Required"
+                    : (overdue ? "Unpaid" : (past || String(i.dueDate) === today ? "Due" : "Upcoming")));
             const l = label(i.dueDate);
             rows.push({
                 id: `${app.id}-I${i.no}`,
@@ -1471,6 +1507,26 @@
         if (pkg.projectStatus) return pkg.projectStatus;
         if (isSystemActive(pkg)) return "Active";
         return pkg.paymentType === "full_payment" ? "Payment Required" : "Installation In Progress";
+    }
+
+    // Customer-facing health of a linked system, shown as a blinking dot:
+    //   active   (green)  → system is live
+    //   inactive (red)    → system/account is deactivated, suspended, offline or cancelled
+    //   required (orange) → something is still required (payment, documents, installation...)
+    function getSystemHealth(pkg) {
+        if (!pkg) return { tone: "required", label: "Required", detail: "" };
+        const statusText = [pkg.accountStatus, pkg.systemStatus, pkg.projectStatus, pkg.applicationStatus]
+            .filter(Boolean).join(" ").toLowerCase();
+        if (/inactive|deactivat|suspend|offline|disconnect|cancel|declin|reject|terminat/.test(statusText)) {
+            return { tone: "inactive", label: "Inactive", detail: pkg.projectStatus || "Inactive" };
+        }
+        if (isSystemActive(pkg)) return { tone: "active", label: "Active", detail: "Active" };
+        return { tone: "required", label: "Required", detail: getProjectStatus(pkg) };
+    }
+
+    function systemDotHtml(pkg, extraClass = "") {
+        const h = getSystemHealth(pkg);
+        return `<span class="hs-status-dot is-${h.tone} ${extraClass}" role="img" aria-label="${h.label}: ${h.detail}" title="${h.label} · ${h.detail}"></span>`;
     }
 
     function getFlowMilestones(pkg) {
@@ -1661,7 +1717,10 @@
                     </span>
                     <span class="package-btn-content">
                         <span class="package-btn-label">System</span>
-                        <span class="package-btn-name" id="selectedPackageName"></span>
+                        <span class="package-btn-current">
+                            <span class="package-btn-dot" id="selectedPackageDot"></span>
+                            <span class="package-btn-name" id="selectedPackageName"></span>
+                        </span>
                     </span>
                     <svg class="package-dropdown-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="m6 9 6 6 6-6"/>
@@ -1670,8 +1729,14 @@
                 <div class="package-dropdown-menu" id="packageDropdownMenu" role="listbox" aria-label="Available solar packages" tabindex="-1">
                     <div class="package-dropdown-header">
                         <span>Linked Solar Systems</span>
+                        <span class="package-dropdown-count" id="packageDropdownCount"></span>
                     </div>
                     <div class="package-items-list" id="packageItemsList" role="presentation">
+                    </div>
+                    <div class="package-status-legend" aria-hidden="true">
+                        <span><span class="hs-status-dot is-active"></span>Active</span>
+                        <span><span class="hs-status-dot is-inactive"></span>Inactive</span>
+                        <span><span class="hs-status-dot is-required"></span>Required</span>
                     </div>
                     <div class="package-dropdown-footer">
                         <button type="button" class="package-add-account-btn" id="openAddAccountBtn" aria-label="Link Existing System">
@@ -1690,8 +1755,15 @@
         const menu = container.querySelector("#packageDropdownMenu");
         const list = container.querySelector("#packageItemsList");
         const addBtn = container.querySelector("#openAddAccountBtn");
-        container.querySelector("#selectedPackageName").textContent = currentPkg
-            ? (currentPkg.shortLabel || currentPkg.name) : "Select system";
+        function paintCurrent(pkg) {
+            const nameEl = container.querySelector("#selectedPackageName");
+            const dotEl = container.querySelector("#selectedPackageDot");
+            if (nameEl) nameEl.textContent = pkg ? `${pkg.name} · ${pkg.capacity || ""}`.replace(/ · $/, "") : "Select system";
+            if (dotEl) dotEl.innerHTML = pkg ? systemDotHtml(pkg) : "";
+            const countEl = container.querySelector("#packageDropdownCount");
+            if (countEl) countEl.textContent = `${packages.length}`;
+        }
+        paintCurrent(currentPkg);
 
         function renderItems() {
             if (!list) return;
@@ -1707,18 +1779,24 @@
                 item.setAttribute("tabindex", "0");
                 item.setAttribute("data-package-id", pkg.id);
 
+                const health = getSystemHealth(pkg);
+                const isFull = pkg.paymentType === "full_payment";
                 item.innerHTML = `
+                    <span class="package-item-dot">${systemDotHtml(pkg)}</span>
                     <div class="package-item-main">
                         <div class="package-item-top">
                             <span class="package-item-title">${pkg.name}</span>
-                            <span class="package-item-capacity">${pkg.capacity}</span>
+                            <span class="package-item-capacity">${pkg.capacity || ""}</span>
                         </div>
-                        <div class="package-item-meta" style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px;">
-                            <span class="package-item-location" style="font-weight: 600;">${pkg.appId || 'APP'} · ${pkg.accountNo || 'HS-ID'}</span>
-                            <span style="font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: ${pkg.paymentType === 'full_payment' ? '#f0fdf4; color: #166534; border: 1px solid #bbf7d0;' : '#eff6ff; color: #1e40af; border: 1px solid #bfdbfe;'}">${pkg.paymentType === 'full_payment' ? 'Full Payment' : 'Installment'}</span>
-                            <span style="font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: ${pkg.projectStatus === 'Active' ? '#ecfdf5; color: #047857; border: 1px solid #a7f3d0;' : '#fff7ed; color: #c2410c; border: 1px solid #fed7aa;'}">${pkg.projectStatus || 'In Progress'}</span>
+                        <div class="package-item-meta">
+                            <span>${pkg.appId || "APP"}</span>
+                            <span class="package-item-sep">·</span>
+                            <span>${pkg.hsId || pkg.accountNo || "HS-ID"}</span>
+                            <span class="package-item-sep">·</span>
+                            <span>${isFull ? "Full Payment" : "Installment"}</span>
                         </div>
                     </div>
+                    <span class="package-item-state is-${health.tone}" title="${health.detail}">${health.label}</span>
                     <div class="package-item-check" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="20 6 9 17 4 12"/>
@@ -1729,12 +1807,11 @@
                 function selectThis() {
                     requestPackageSwitch(pkg.id, (switchedPkg) => {
                         close();
-                        const labelEl = container.querySelector("#selectedPackageName");
-                        if (labelEl) labelEl.textContent = switchedPkg.shortLabel || switchedPkg.name;
+                        paintCurrent(switchedPkg);
                         renderItems();
 
                         showToast(
-                            "Package Switched",
+                            "System Switched",
                             `Viewing ${switchedPkg.name} (${switchedPkg.capacity}) · ${switchedPkg.location.split('·')[0].trim()}`
                         );
 
@@ -1839,6 +1916,71 @@
         window.location.href = "mysystem.html?action=link";
     }
 
+    // Sidebar "My System" entry. On the My System page only, every linked system is listed under it by name
+    // (with its status dot); clicking a name switches to that system. A "Link Existing System" button follows.
+    // On the other pages the entry is just "My System" (they keep the System dropdown at the top).
+    function isMySystemPage() {
+        return /mysystem\.html$/i.test(window.location.pathname) || !!document.getElementById("systemDetailView");
+    }
+
+    function renderSidebarSystemNav() {
+        const link = document.querySelector('.sidebar .nav a.nav-link[href="mysystem.html"]');
+        if (!link) return;
+        let group = link.closest(".nav-system-group");
+        if (!group) {
+            group = document.createElement("div");
+            group.className = "nav-system-group";
+            link.parentNode.insertBefore(group, link);
+            group.appendChild(link);
+            const list = document.createElement("div");
+            list.className = "nav-system-list";
+            list.id = "sidebarSystemList";
+            list.setAttribute("role", "listbox");
+            list.setAttribute("aria-label", "Your solar systems");
+            group.appendChild(list);
+
+            const linkBtn = document.createElement("button");
+            linkBtn.type = "button";
+            linkBtn.className = "nav-system-link-btn";
+            linkBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span>Link Existing System</span>`;
+            linkBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                openAddAccountModal();
+            });
+            group.appendChild(linkBtn);
+
+            list.addEventListener("click", (e) => {
+                const item = e.target.closest("[data-sidebar-system]");
+                if (!item) return;
+                const id = item.getAttribute("data-sidebar-system");
+                if (id === getActivePackageId()) return;
+                requestPackageSwitch(id, (pkg) => {
+                    showToast("System Switched", `Viewing ${pkg.name} (${pkg.capacity || ""})`);
+                });
+            });
+        }
+        const onMySystem = isMySystemPage();
+        group.classList.toggle("is-expanded", onMySystem);
+        const list = group.querySelector("#sidebarSystemList");
+        const linkBtn = group.querySelector(".nav-system-link-btn");
+        if (linkBtn) linkBtn.hidden = !onMySystem;
+        if (!list) return;
+        list.hidden = !onMySystem;
+        if (!onMySystem) { list.innerHTML = ""; return; }
+        const activeId = getActivePackageId();
+        const pkgs = getLinkedPackages();
+        list.innerHTML = pkgs.length ? pkgs.map(p => {
+            const h = getSystemHealth(p);
+            const sel = p.id === activeId;
+            return `<button type="button" class="nav-system-item${sel ? " is-selected" : ""}" role="option" aria-selected="${sel}" data-sidebar-system="${p.id}" title="${p.name} · ${p.capacity || ""} · ${h.detail}">
+                    ${systemDotHtml(p)}<span class="nav-system-item-name">${p.name}</span>
+                </button>`;
+        }).join("") : `<span class="nav-system-empty">No system linked yet</span>`;
+    }
+
+    window.addEventListener("helloSolarPackageChanged", () => renderSidebarSystemNav());
+    window.addEventListener("helloSolarDataLoaded", () => setTimeout(renderSidebarSystemNav, 0));
+
     // --------------------------------------------------------------------------
     // 8. EXPOSE GLOBAL PORTAL API
     // --------------------------------------------------------------------------
@@ -1869,6 +2011,9 @@
         setActivePackageId,
         getActivePackage,
         initPackageSelector: renderPackageSelectorComponent,
+        getSystemHealth,
+        systemDotHtml,
+        renderSidebarSystemNav,
         requestPackageSwitch,
         registerDirtyCheck,
         unregisterDirtyCheck,
@@ -1901,6 +2046,8 @@
 
         // Load authoritative JSON dataset
         await loadCustomerDatasetAsync();
+
+        renderSidebarSystemNav();
 
         // Auto-mount package selector into any dedicated slot
         const selectorSlots = document.querySelectorAll(".package-selector-slot, #pagePackageSelector");

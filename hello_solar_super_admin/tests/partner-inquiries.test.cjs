@@ -26,6 +26,7 @@ function landingRecord(partnerType, extra = {}) {
 function environment(queue = []) {
   const local = new Map([[QUEUE_KEY, JSON.stringify(queue)]]);
   const context = {
+    HS_TODAY: '2026-09-25', /* tests run on the sample data date */
     console,
     localStorage: { getItem: k => (local.has(k) ? local.get(k) : null), setItem: (k, v) => local.set(k, String(v)), removeItem: k => local.delete(k) }
   };

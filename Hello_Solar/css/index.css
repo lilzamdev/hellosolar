@@ -177,6 +177,9 @@ body {
 /* Carousel Track & Slide Transitions */
 .options-carousel-viewport {
     overflow: hidden;
+    /* clip: tapping or focusing a card can't scroll the strip out of line (hidden still allows that) */
+    overflow-x: clip;
+    overflow-y: visible;
     width: 100%;
     padding-top: 1.25rem;
     padding-bottom: 1.25rem;
@@ -704,6 +707,11 @@ div:has(> .lead-error) {
     line-height: 1.35;
 }
 
+.pay-option-sub strong {
+    font-weight: 800;
+    color: #1C1917;
+}
+
 .lead-submit {
     display: flex;
     align-items: center;
@@ -1192,4 +1200,80 @@ div:has(> .lead-error) {
     #recommendationModal > div, #inquiryModal > div { padding-top: 20px; padding-bottom: 20px; max-height: 96vh; }
     .rec-result { gap: 10px; }
     #leadForm > * + * { margin-top: 10px; }
+}
+
+/* ── Installment term switch (Explore other options) ── */
+.term-switch-wrap {
+    display: flex;
+    justify-content: center;
+    padding-top: 12px;
+}
+
+.term-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background: #fff;
+    border: 1px solid #F1E3C8;
+    border-radius: 9999px;
+    box-shadow: 0 4px 14px rgba(217, 119, 6, 0.08);
+    max-width: 100%;
+}
+
+.term-switch-label {
+    padding: 0 8px 0 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #8A817A;
+    white-space: nowrap;
+}
+
+.term-switch button {
+    padding: 8px 16px;
+    border: 0;
+    border-radius: 9999px;
+    background: transparent;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    color: #57534E;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 200ms, color 200ms;
+}
+
+.term-switch button:hover {
+    color: #B45309;
+}
+
+.term-switch button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.3);
+}
+
+.term-switch button.is-active {
+    background: linear-gradient(135deg, #F59E0B, #D97706);
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(217, 119, 6, 0.25);
+}
+
+@media (max-width: 420px) {
+    .term-switch-label { display: none; }
+    .term-switch button { padding: 8px 13px; font-size: 12.5px; }
+}
+
+/* Installment term options in Buy Now: price on the right */
+.hs-dropdown-option .hs-dd-term-price {
+    margin-left: auto;
+    padding-left: 12px;
+    font-size: 13px;
+    font-weight: 800;
+    color: #b45309;
+    white-space: nowrap;
+}
+
+.hs-dropdown-option .hs-dd-term-price small {
+    font-weight: 600;
+    color: #78716c;
 }

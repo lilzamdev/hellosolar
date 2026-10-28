@@ -726,9 +726,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const applicantName = appRecord?.applicant?.name || row?.dataset?.borrower || "Applicant";
             const docs = getApplicationDocuments(appRecord || { id: appId });
-            const passedCount = docs.filter(d => d.submitted).length;
-            const acceptedCount = docs.filter(d => d.status === "ACCEPTED").length;
-            const totalCount = docs.length;
+            const countedDocs = docs.filter(d => d.counted !== false);
+            const passedCount = countedDocs.filter(d => d.submitted).length;
+            const acceptedCount = countedDocs.filter(d => d.status === "ACCEPTED").length;
+            const totalCount = countedDocs.length;
 
             const nameEl = document.getElementById("docModalApplicantName");
             const appIdEl = document.getElementById("docModalAppId");
@@ -758,7 +759,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (itemsContainer) {
                 itemsContainer.innerHTML = docs.map(doc => {
-                    const isPassed = !!doc.submitted;
+                    const isPassed = !!doc.submitted || doc.notRequired;
                     // Same file and status the customer sees on the shared APP document record
                     const fileLine = doc.fileName
                         ? (doc.link ? `<a href="${escapeDocHtml(doc.link)}" target="_blank" rel="noopener">Open in Google Maps</a>` : doc.hasFile ? `<a href="#" data-view-shared-doc="${escapeDocHtml(doc.id)}" data-appid="${escapeDocHtml(appId)}">${escapeDocHtml(doc.fileName)}</a>` : escapeDocHtml(doc.fileName))
@@ -781,7 +782,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                 </div>
                             </div>
                             <div class="doc-item-right">
-                                <span class="doc-badge passed">${doc.status === "ACCEPTED" ? "✓ " : ""}${doc.statusLabel}</span>
+                                <span class="doc-badge passed"${doc.notRequired ? ' style="opacity:.7"' : ""}>${doc.status === "ACCEPTED" ? "✓ " : ""}${doc.statusLabel}</span>
                             </div>
                         </div>`;
                     } else {
@@ -866,9 +867,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 monthlyPayment = calculateEstimatedMonthly(amount, term);
             }
 
-            const income = applicant.income || underwriteBtn.dataset.income || "₱95,000/mo";
-            const dti = applicant.dti || underwriteBtn.dataset.dti || "21%";
-            const creditScore = applicant.creditScore || underwriteBtn.dataset.score || 748;
+            // Real applications have no assessed income / DTI / credit score yet: show "—" (see the payslips)
+            const income = applicant.income || underwriteBtn.dataset.income || "See payslips";
+            const dti = applicant.dti || underwriteBtn.dataset.dti || "—";
+            const creditScore = applicant.creditScore || underwriteBtn.dataset.score || "—";
             const nextStep = loan.nextStep || underwriteBtn.dataset.nextstep || "Verify 3-mo electric bill & proof of income";
 
             const sysTitle = system.title || system.systemSize || underwriteBtn.dataset.system || "5.4 kWp Hybrid System";
@@ -932,14 +934,14 @@ document.addEventListener("DOMContentLoaded", () => {
             if (dtiEl) {
                 const cleanDti = String(dti).replace(/\s*\([^)]*\)/g, "").trim();
                 dtiEl.textContent = cleanDti;
-                const dtiVal = parseInt(cleanDti.replace(/[^0-9]/g, ""), 10) || 21;
-                dtiEl.className = "fin-metric-val " + (dtiVal <= 30 ? "val-green" : (dtiVal <= 40 ? "val-amber" : "val-red"));
+                const dtiVal = parseInt(cleanDti.replace(/[^0-9]/g, ""), 10);
+                dtiEl.className = "fin-metric-val" + (Number.isFinite(dtiVal) ? " " + (dtiVal <= 30 ? "val-green" : (dtiVal <= 40 ? "val-amber" : "val-red")) : "");
             }
 
             if (scoreEl) {
-                const s = parseInt(String(creditScore), 10) || 748;
-                scoreEl.textContent = s;
-                scoreEl.className = "fin-metric-val " + (s >= 720 ? "val-green" : (s >= 650 ? "val-amber" : "val-red"));
+                const s = parseInt(String(creditScore), 10);
+                scoreEl.textContent = Number.isFinite(s) ? s : "—";
+                scoreEl.className = "fin-metric-val" + (Number.isFinite(s) ? " " + (s >= 720 ? "val-green" : (s >= 650 ? "val-amber" : "val-red")) : "");
             }
 
             // Solar Project
@@ -955,8 +957,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             // Documents List & Ratio
             const docs = getApplicationDocuments(appRecord);
-            const passedCount = docs.filter(d => d.submitted).length;
-            const totalCount = docs.length;
+            const countedDocs = docs.filter(d => d.counted !== false);
+            const passedCount = countedDocs.filter(d => d.submitted).length;
+            const totalCount = countedDocs.length;
 
             const docRatioBadge = document.getElementById("modalDocRatioBadge");
             if (docRatioBadge) docRatioBadge.textContent = `${passedCount}/${totalCount}`;
@@ -964,8 +967,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const docListEl = document.getElementById("modalDocList");
             if (docListEl) {
                 docListEl.innerHTML = docs.map(doc => {
-                    const isPassed = !!doc.submitted;
-                    const icon = isPassed ? "✓" : "⚠";
+                    const isPassed = !!doc.submitted || doc.notRequired;
+                    const icon = doc.notRequired ? "–" : (isPassed ? "✓" : "⚠");
                     const cls = isPassed ? "passed" : "warning";
                     return `<div class="doc-item-row ${cls}">
                         <span class="doc-icon ${cls}">${icon}</span>
@@ -1112,7 +1115,8 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             : null;
         if (!approved) {
-            triggerToast(`${currentAppId} could not be approved. Refresh and try again.`);
+            const why = window.HelloSolarStore && window.HelloSolarStore.lastDecisionError;
+            triggerToast(why ? `${currentAppId}: ${why}` : `${currentAppId} could not be approved. Refresh and try again.`);
             return;
         }
 
@@ -1196,25 +1200,36 @@ document.addEventListener("DOMContentLoaded", () => {
     function escapeDocHtml(value) {
         return String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
     }
+    // Same list and count as Super Admin and the Customer portal (HSShared.documentProgress): the signed agreement
+    // first, then each document. "Not required" documents are listed with the reason and are not counted.
     function getApplicationDocuments(app) {
-        const rec = app?.id && window.HSShared ? window.HSShared.documentRecordFor(app.id) : null;
-        if (!rec) return [];
-        return rec.documents
-            .filter(d => !(d.optional && d.status === "NOT_SUBMITTED"))
-            .map(d => ({
-                id: d.id,
-                name: d.name,
-                optional: !!d.optional,
-                status: d.status,
-                statusLabel: DOC_STATUS_LABEL[d.status] || d.status,
-                fileName: d.fileName || "",
-                hasFile: !!d.fileData,
-                link: d.kind === "link" && /^https?:\/\//i.test(d.link || "") ? d.link : "",
-                uploadedAt: d.uploadedAt || null,
-                note: d.note || "",
-                submitted: d.submitted
-            }));
+        const S = window.HSShared;
+        if (!app?.id || !S) return [];
+        if (typeof S.documentProgress !== "function") return [];
+        const agreementFile = S.agreementFileFor ? S.agreementFileFor(app.id) : null;
+        return S.documentProgress(app.id).items.map(d => ({
+            id: d.id,
+            name: d.name,
+            optional: !!d.optional && !d.notRequired,
+            notRequired: !!d.notRequired,
+            counted: !!d.required,
+            isAgreement: !!d.isAgreement,
+            status: d.status,
+            statusLabel: d.notRequired ? "Not required" : (DOC_STATUS_LABEL[d.status] || d.status),
+            fileName: d.fileName || "",
+            hasFile: d.isAgreement ? !!(agreementFile && agreementFile.fileData) : !!d.fileData,
+            link: d.kind === "link" && /^https?:\/\//i.test(d.link || "") ? d.link : "",
+            uploadedAt: d.uploadedAt || null,
+            note: d.note || "",
+            submitted: !!d.submitted
+        }));
     }
+    // "3/8" — submitted / required (agreement included, Not required documents left out)
+    function documentCountText(docs) {
+        const counted = docs.filter(d => d.counted !== false);
+        return `${counted.filter(d => d.submitted).length}/${counted.length}`;
+    }
+    window.documentCountText = documentCountText;
 
     // Opens the customer-uploaded file from the shared record
     document.addEventListener("click", (e) => {
@@ -1222,7 +1237,9 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!link || !window.HSShared) return;
         e.preventDefault();
         const rec = window.HSShared.documentsFor(link.dataset.appid);
-        const doc = rec && rec.documents.find(d => d.id === link.dataset.viewSharedDoc);
+        const doc = link.dataset.viewSharedDoc === "agreement" && window.HSShared.agreementFileFor
+            ? (() => { const f = window.HSShared.agreementFileFor(link.dataset.appid); return f ? { fileName: f.fileName, fileType: f.fileType, fileData: f.fileData } : null; })()
+            : (rec && rec.documents.find(d => d.id === link.dataset.viewSharedDoc));
         if (!doc || !doc.fileData) return;
         const win = window.open();
         if (!win) return;
@@ -1269,7 +1286,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const docs = getApplicationDocuments(app);
             const docBtn = row.querySelector(".doc-status-text-btn, .btn-underwrite");
             if (docBtn) {
-                const countText = docs.filter(doc => doc.submitted).length + "/" + docs.length;
+                const countText = documentCountText(docs);
                 docBtn.textContent = countText;
                 docBtn.setAttribute("aria-label", "View documents for " + app.id + ": " + countText + " submitted");
                 docBtn.setAttribute("aria-haspopup", "dialog");

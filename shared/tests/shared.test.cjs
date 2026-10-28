@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const { environment, ROOT } = require('./helpers.cjs');
+const { environment, completeDocuments, ROOT } = require('./helpers.cjs');
 
 test('seed: every application has a unique 5-digit HS ID and every customer app link resolves', () => {
   const { S } = environment();
@@ -102,7 +102,7 @@ test('stored data from before the shared identity model is migrated without over
   old.applications.find(a => a.id === 'APP-1024').notes = 'kept';
   const { S } = environment([['HELLO_SOLAR_SUPER_ADMIN_DATA_V2', JSON.stringify(old)]]);
   const data = S.read();
-  assert.equal(data.schemaVersion, 5);
+  assert.equal(data.schemaVersion, 7);
   assert.ok(data.applications.find(a => a.id === 'APP-4091'));
   assert.ok(data.customers.find(x => x.id === 'CUS-1010'));
   assert.equal(data.applications.find(a => a.id === 'APP-1024').notes, 'kept');
@@ -112,6 +112,8 @@ test('stored data from before the shared identity model is migrated without over
 
 test('installer visibility: own and pool jobs only; never Direct or other installers', () => {
   const { S } = environment();
+  assert.ok(!S.isVisibleToInstaller(S.getApplication('APP-1024'), S.getAccount('installer', 'INS-006')), 'open job hidden until documents are complete');
+  completeDocuments(S, 'APP-1024');
   const data = S.read();
   const visible = ins => data.applications.filter(a => S.isVisibleToInstaller(a, data.installers.find(i => i.id === ins))).map(a => a.id);
   const ins6 = visible('INS-006');
@@ -148,6 +150,8 @@ test('installer portal job list: Super Admin assignment, Direct acceptance and d
   assert.ok(!ids().includes('APP-1048') && !ids().includes('APP-1062'), 'no other-installer or Direct jobs');
   assert.ok(!ids().some(id => ['APP-1027', 'APP-1035', 'APP-1021', 'APP-1031', 'APP-1033'].includes(id)), 'portal sample jobs are not merged');
   // Super Admin assigns APP-1050 (pool) to INS-002 -> leaves INS-006's view
+  assert.ok(!ids().includes('APP-1050'), 'open job waits for complete documents');
+  completeDocuments(S, 'APP-1050');
   assert.ok(ids().includes('APP-1050'));
   db.data = db.load();
   db.assignPartnerInstaller('APP-1050', 'SolarTech Visayas Solutions');
@@ -156,12 +160,14 @@ test('installer portal job list: Super Admin assignment, Direct acceptance and d
   signInInstaller(env, 'INS-002');
   assert.ok(ids().includes('APP-1050'), 'assignee sees it');
   // Super Admin accepts APP-1094 for Hello Solar Direct -> hidden from all partners
+  completeDocuments(S, 'APP-1094');
   db.data = db.load();
   db.acceptDirectInstallation('APP-1094');
   assert.ok(!ids().includes('APP-1094'));
   signInInstaller(env, 'INS-006');
   assert.ok(!ids().includes('APP-1094'));
   // Decline returns a pool job for reassignment and hides it from the decliner only
+  completeDocuments(S, 'APP-1024');
   assert.equal(inst.declineJob('APP-1024').success, true);
   assert.ok(!ids().includes('APP-1024'));
   signInInstaller(env, 'INS-002');
@@ -199,7 +205,9 @@ test('customer receipt reaches Super Admin verification; verification clears the
   assert.equal(db.verifyPaymentReceipt('APP-8821').success, true);
   app = S.getApplication('APP-8821');
   assert.equal(S.isClearedForInstallation(app), true);
-  assert.ok(S.isVisibleToInstaller(app, S.getAccount('installer', 'INS-006')), 'enters the partner pool');
+  assert.ok(!S.isVisibleToInstaller(app, S.getAccount('installer', 'INS-006')), 'waits for complete documents');
+  completeDocuments(S, 'APP-8821');
+  assert.ok(S.isVisibleToInstaller(S.getApplication('APP-8821'), S.getAccount('installer', 'INS-006')), 'enters the partner pool');
   // Installment receipt is recorded as a pending submission without touching the payment status
   const before = S.getApplication('APP-4085').paymentStatus;
   assert.equal(S.submitReceipt('CUS-1010', 'APP-4085', { fileName: 'gcash.png', amount: '6,200', billIds: ['bill-1'] }).ok, true);
@@ -232,20 +240,25 @@ test('customer document uploads are what Super Admin reviews, and the verdict fl
   ] } }));
   const db = c.HELLO_SOLAR_DB; db.data = db.load();
   const docs = db.getAppDocuments('APP-1105');
-  // Shared request list: 4 required documents; optional not-submitted documents are not listed
-  assert.equal(JSON.stringify(docs.map(d => d.status)), JSON.stringify(['Submitted', 'Missing', 'Missing', 'Missing', 'Missing', 'Missing']));
-  assert.equal(docs[0].file, 'id.png');
-  db.updateDocumentStatus('APP-1105', 'Valid Government ID — Front / Main Page', 'Verified');
+  // Same list as the customer's Documents page: the signed agreement, then every requested document
+  // ("If applicable" ones included, flagged optional)
+  assert.equal(JSON.stringify(docs.map(d => d.status)), JSON.stringify(['Missing', 'Submitted', 'Missing', 'Missing', 'Missing', 'Missing', 'Missing', 'Missing', 'Missing']));
+  assert.equal(docs[0].name, 'Signed Installment Agreement');
+  assert.equal(docs[1].file, 'id.png');
+  // an older Government ID Front upload carries over to Valid ID #1
+  assert.equal(docs[1].label, 'Valid ID #1 (front & back)');
+  assert.equal(docs.filter(d => d.optional).length, 1);
+  db.updateDocumentStatus('APP-1105', 'Valid ID #1 — Front & Back, with Signature', 'Verified');
   assert.equal(S.documentsFor('APP-1105').documents[0].status, 'ACCEPTED');
   assert.equal(db.data.applications.find(a => a.id === 'APP-1105').documents, undefined, 'no Super Admin copy of the documents');
   // A later customer re-upload is seen by Super Admin (no stale copy)
   const raw = JSON.parse(store.get('hello_solar_shared_documents'));
-  Object.assign(raw['APP-1105'].documents.find(d => d.id === 'proof_of_income'), { status: 'SUBMITTED', fileName: 'payslip.pdf' });
+  Object.assign(raw['APP-1105'].documents.find(d => d.id === 'income_proof'), { status: 'SUBMITTED', fileName: 'payslip.pdf' });
   store.set('hello_solar_shared_documents', JSON.stringify(raw));
-  assert.equal(db.getAppDocuments('APP-1105').find(d => d.name === 'Proof of Income').file, 'payslip.pdf');
+  assert.equal(db.getAppDocuments('APP-1105').find(d => d.name === 'Payslips (Last 3 Months) or Latest Bank Statement').file, 'payslip.pdf');
   // Without uploads the list comes from the shared record — no invented files or verdicts
   const fallback = db.getAppDocuments('APP-1075');
-  assert.ok(fallback.every(d => d.file === null && d.date === null && d.status === 'Missing'));
+  assert.ok(fallback.every(d => !d.file && !d.date && d.status === 'Missing'));
 });
 
 test('Customer and Financer read the same shared document record by APP ID', () => {
@@ -256,11 +269,11 @@ test('Customer and Financer read the same shared document record by APP ID', () 
   assert.ok(rec.documents.every(d => d.status === 'NOT_SUBMITTED'));
   // Commissioned systems start with the required documents Accepted
   assert.ok(S.documentRecordFor('APP-4091').documents.filter(d => !d.optional).every(d => d.status === 'ACCEPTED'));
-  // Full-payment applications have no installment document record
-  assert.equal(S.documentRecordFor('APP-8821'), null);
+  // Full-payment customers send the same documents
+  assert.equal(JSON.stringify(S.documentRecordFor('APP-8821').documents.map(d => d.id)), JSON.stringify(S.DOCUMENT_REQUESTS.map(d => d.id)));
   // A review verdict is visible on the same record for every reader
-  S.setDocumentStatus('APP-1105', 'proof_of_income', 'REUPLOAD_REQUIRED', 'Blurry copy');
-  const again = S.documentsFor('APP-1105').documents.find(d => d.id === 'proof_of_income');
+  S.setDocumentStatus('APP-1105', 'income_proof', 'REUPLOAD_REQUIRED', 'Blurry copy');
+  const again = S.documentsFor('APP-1105').documents.find(d => d.id === 'income_proof');
   assert.equal(again.status, 'REUPLOAD_REQUIRED');
   assert.equal(again.note, 'Blurry copy');
   assert.equal(S.documentSummary(S.documentsFor('APP-1105')).reuploadRequired, 1);
@@ -279,6 +292,9 @@ test('Assign Partner Installer offers only Active partner installer accounts and
   assert.ok(!ids().includes('INS-002'), 'suspended partner excluded');
   assert.equal(db.assignPartnerInstaller('APP-1050', 'INS-002').success, false);
   assert.equal(db.assignPartnerInstaller('APP-1050', 'INS-001').success, false);
+  assert.match(db.assignPartnerInstaller('APP-1050', 'INS-006', 'Oct 12').error, /Complete the documents first/, 'documents gate');
+  completeDocuments(S, 'APP-1050');
+  db.data = db.load();
   const res = db.assignPartnerInstaller('APP-1050', 'INS-006', 'Oct 12');
   assert.equal(res.success, true);
   const app = S.getApplication('APP-1050');
@@ -291,7 +307,9 @@ test('Assign Partner Installer offers only Active partner installer accounts and
 test('customer billing for a shared APP comes only from the shared payment schedule', () => {
   const { c, S } = environment();
   const sched = S.paymentScheduleFor('APP-4091');
-  assert.equal(sched.installments.length, 60);
+  // ₱554,000 at SolarTech's 8.75% with ₱9,066.67 a month → 82 payments, the last one only what is left
+  assert.equal(sched.installments.length, 82);
+  assert.ok(sched.installments[81].amount < 9066.67);
   assert.equal(JSON.stringify(sched.installments.slice(0, 6).map(i => [i.dueDate, i.status])), JSON.stringify([
     ['2026-05-01', 'Paid'], ['2026-06-01', 'Paid'], ['2026-07-01', 'Paid'], ['2026-08-01', 'Paid'], ['2026-09-01', 'Paid'], ['2026-10-15', 'Upcoming']]));
   assert.equal(S.paymentScheduleFor('APP-4085').installments[2].status, 'Overdue');
@@ -322,7 +340,7 @@ test('stored demo schedules are migrated to the shared APP schedule unless a rec
   };
   const { S } = environment([['HELLO_SOLAR_SUPER_ADMIN_DATA_V2', JSON.stringify(old)]]);
   const data = S.read();
-  assert.equal(data.schemaVersion, 5);
+  assert.equal(data.schemaVersion, 7);
   assert.equal(data.paymentSchedules['APP-4091'].installments[0].dueDate, '2026-05-01');
   assert.equal(data.paymentSchedules['APP-4088'].installments[0].dueDate, '2026-01-20', 'receipt history kept');
   assert.ok(data.paymentSchedules['APP-4072'].seeded);
@@ -333,6 +351,7 @@ test('financer decision notifies only that application\'s customer', () => {
   const store = fin.HelloSolarStore;
   // APP-1105 belongs to CUS-1001 (same applicant email); put it back in review to decide it
   fin.HSShared.update(d => { d.applications.find(a => a.id === 'APP-1105').stage = 'Under Review'; });
+  completeDocuments(fin.HSShared, 'APP-1105');
   assert.ok(store.approveFinancing('APP-1105'));
   const notes = JSON.parse(fin.storage.hello_solar_notifications_store || '[]').filter(n => n.recordId === 'APP-1105');
   assert.equal(notes.length, 1);
@@ -348,6 +367,8 @@ test('installer milestones notify only the application\'s customer', async () =>
   db.data = db.load();
   db.verifyPaymentReceipt('APP-8821');
   signInInstaller(env, 'INS-006');
+  assert.ok(!inst.getJobs().some(j => j.id === 'APP-8821'), 'installer is offered the job only once documents are complete');
+  completeDocuments(S, 'APP-8821');
   assert.equal(inst.acceptJob('APP-8821').success, true);
   assert.equal(inst.startInstallation('APP-8821').success, true);
   const notes = JSON.parse(store.get('hello_solar_notifications_store') || '[]').filter(n => n.recordId === 'APP-8821' && n.recipientRole === 'customer');
@@ -358,6 +379,7 @@ test('installer milestones notify only the application\'s customer', async () =>
 test('financer approval keeps financingStatus APPROVED and moves the application to Ready for Installation', () => {
   const fin = require('../../Hello_Solar_Financer/scripts/shared-env.cjs').makeFinancerContext();
   fin.HSShared.update(d => { const a = d.applications.find(x => x.id === 'APP-1105'); a.stage = 'Under Review'; a.installer = 'Unassigned'; delete a.assignedInstallerId; });
+  completeDocuments(fin.HSShared, 'APP-1105');
   assert.ok(fin.HelloSolarStore.approveFinancing('APP-1105'));
   const app = fin.HSShared.getApplication('APP-1105');
   assert.equal(app.stage, 'Ready for Installation');
@@ -381,7 +403,7 @@ test('stored Financer approvals at stage Approved are migrated to Ready for Inst
   delete a.assignedInstallerId; delete a.installationStatus;
   const b = old.applications.find(x => x.id === 'APP-1050'); // Super Admin seed approval — no Financer decision
   const { S } = environment([['HELLO_SOLAR_SUPER_ADMIN_DATA_V2', JSON.stringify(old)]]);
-  assert.equal(S.read().schemaVersion, 5);
+  assert.equal(S.read().schemaVersion, 7);
   assert.equal(S.getApplication('APP-1105').stage, 'Ready for Installation');
   assert.equal(S.getApplication('APP-1105').financingStatus, 'APPROVED');
   assert.equal(S.getApplication('APP-1050').stage, b.stage, 'non-Financer approvals untouched');
@@ -391,19 +413,20 @@ test('Super Admin document counts come from the shared document record, not app.
   const { c, S, store } = environment();
   const db = c.HELLO_SOLAR_DB; db.data = db.load();
   db.data.applications.find(a => a.id === 'APP-1105').docs = '5/5'; // stale stored value is ignored
-  assert.equal(db.getAppDocumentCounts('APP-1105').label, '0/6');
+  // 7 required documents + the signed Installment Agreement
+  assert.equal(db.getAppDocumentCounts('APP-1105').label, '0/8');
   const raw = { 'APP-1105': S.documentRecordFor('APP-1105') };
-  Object.assign(raw['APP-1105'].documents.find(d => d.id === 'proof_of_income'), { status: 'SUBMITTED', fileName: 'p.pdf' });
+  Object.assign(raw['APP-1105'].documents.find(d => d.id === 'income_proof'), { status: 'SUBMITTED', fileName: 'p.pdf' });
   store.set('hello_solar_shared_documents', JSON.stringify(raw));
   let n = db.getAppDocumentCounts('APP-1105');
-  assert.equal(n.label, '1/6');
+  assert.equal(n.label, '1/8');
   assert.equal(n.verified, 0);
-  S.setDocumentStatus('APP-1105', 'proof_of_income', 'ACCEPTED');
+  S.setDocumentStatus('APP-1105', 'income_proof', 'ACCEPTED');
   n = db.getAppDocumentCounts('APP-1105');
   assert.equal(n.verified, 1);
-  assert.equal(n.missing.length, 5);
+  assert.equal(n.missing.length, 7);
   // Overview alert text uses the same counts
   db.data.applications.find(a => a.id === 'APP-1105').stage = 'Missing Documents';
   const alert = db.getAttentionItems ? db.getAttentionItems().find(i => i.id === 'APP-1105') : null;
-  if (alert) assert.match(alert.context, /1\/6 uploaded/);
+  if (alert) assert.match(alert.context, /1\/8 uploaded/);
 });

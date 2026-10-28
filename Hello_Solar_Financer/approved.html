@@ -157,26 +157,26 @@
                 <div class="stats-grid approved-stats-grid">
                     <div class="stat-card">
                         <div class="stat-label">Total Disbursed</div>
-                        <div class="stat-value">₱42.12M</div>
-                        <div class="stat-subtext">176 active solar loans</div>
+                        <div class="stat-value" id="statTotalDisbursed">—</div>
+                        <div class="stat-subtext" id="statLoanCount">—</div>
                     </div>
 
                     <div class="stat-card">
                         <div class="stat-label">Monthly Inflow</div>
-                        <div class="stat-value">₱1.18M</div>
-                        <div class="stat-subtext">Next billing Sep 15, 2026</div>
+                        <div class="stat-value" id="statMonthlyInflow">—</div>
+                        <div class="stat-subtext" id="statNextBilling">—</div>
                     </div>
 
                     <div class="stat-card">
                         <div class="stat-label">On-Time Repayment</div>
-                        <div class="stat-value" style="color: var(--green);">99.2%</div>
-                        <div class="stat-subtext">Automated direct debit</div>
+                        <div class="stat-value" style="color: var(--green);" id="statOnTime">—</div>
+                        <div class="stat-subtext">Loans not overdue</div>
                     </div>
 
                     <div class="stat-card">
                         <div class="stat-label">Average Loan</div>
-                        <div class="stat-value">₱239,318</div>
-                        <div class="stat-subtext">36–60 month terms</div>
+                        <div class="stat-value" id="statAverageLoan">—</div>
+                        <div class="stat-subtext" id="statTermRange">—</div>
                     </div>
                 </div>
 
@@ -567,8 +567,8 @@
     </div>
 
     <script src="../shared/hello-solar-config.js"></script>
-    <script src="../shared/hello-solar-store.js"></script>
-    <script src="../shared/hello-solar-shared.js"></script>
+    <script src="../shared/hello-solar-store.js?v=20261028d"></script>
+    <script src="../shared/hello-solar-shared.js?v=20261028d"></script>
     <script src="js/portal_data.js"></script>
     <script src="js/portal.js"></script>
     <script src="js/approved.js"></script>

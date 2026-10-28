@@ -18,7 +18,7 @@
         if (el) el.textContent = value == null ? "" : String(value);
     }
     function readForm() { return Object.fromEntries(Object.entries(fields).map(([name, field]) => [name, field ? field.value : ""])); }
-    function hasInput() { return (fields.subject && fields.subject.value.trim()) || (fields.description && fields.description.value.trim()) || (fields.category && fields.category.value !== "") || (fields.priority && fields.priority.value !== "normal"); }
+    function hasInput() { return (fields.subject && fields.subject.value.trim()) || (fields.description && fields.description.value.trim()) || (fields.category && fields.category.value !== "") || (fields.priority && fields.priority.value !== "general"); }
     function packageKey(pkg = currentPackage) {
         if (!pkg) throw new Error("No selected system");
         const customer = portal ? portal.getCustomer() : {};
@@ -60,10 +60,40 @@
             }
         });
         Object.values(fields).forEach(field => { if (field) field.setCustomValidity(""); });
+        applyUrlPreset();
     }
     if (portal && portal.registerDirtyCheck) {
         portal.registerDirtyCheck(() => hasInput() && JSON.stringify(readForm()) !== savedDrafts.get(currentPackage && currentPackage.id)
             ? "a support request for this system is being written" : null);
+    }
+
+    // Status (customer wording) → ticket priority used by Super Admin
+    function ticketPriority(value) {
+        if (/^urgent/.test(value || "")) return "High";
+        if (value === "normal") return "Medium";
+        return "Low";
+    }
+    function statusLabel() {
+        const sel = fields.priority;
+        return sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : "General Inquiry";
+    }
+
+    // "Get warranty help" on Equipment opens Support with Equipment Warranty already chosen
+    let urlPresetApplied = false;
+    function applyUrlPreset() {
+        if (urlPresetApplied || !fields.category) return;
+        urlPresetApplied = true;
+        const params = new URLSearchParams(window.location.search);
+        const type = (params.get("type") || params.get("category") || "").toLowerCase();
+        if (!type) return;
+        const value = type === "warranty" ? "warranty" : type;
+        if (![...fields.category.options].some(o => o.value === value)) return;
+        fields.category.value = value;
+        fields.category.dispatchEvent(new Event("change", { bubbles: true }));
+        if (value === "warranty" && fields.subject && !fields.subject.value) {
+            const item = params.get("item");
+            fields.subject.value = item ? `Warranty claim — ${item}` : "Equipment warranty claim";
+        }
     }
 
     function telephone(phone) {
@@ -81,22 +111,22 @@
         if (hasInstaller) {
             // If an installer is assigned, show the assigned installer as the primary support contact
             name = pkg.assignedInstaller.name;
-            role = `${pkg.assignedInstaller.role || "Certified Solar Master Installer"} (Assigned Installer)`;
+            role = pkg.assignedInstaller.role || "Certified Solar Installer";
             phone = pkg.assignedInstaller.phone || "+63 917 555 0101";
-            availability = pkg.assignedInstaller.note || "Primary on-site installer and warranty technician. Mon–Sat, 8am–5pm.";
+            availability = "Mon–Sat, 8am–5pm · Tap Call now for immediate help.";
         } else {
             // If no installer is assigned yet, route support to Hello Solar / Super Admin
-            name = "Hello Solar Super Admin / Central Support";
-            role = "Super Admin & Central Dispatch (No installer assigned yet)";
+            name = "Hello Solar Central Support";
+            role = "Customer Care & Dispatch";
             phone = "+63 2 8888 0100";
-            availability = "Your solar application is in pre-installation processing. Direct support is routed to Super Admin.";
+            availability = "Open 24/7 · Tap Call now for immediate help.";
         }
 
         const href = telephone(phone) || "mailto:support@hellosolarph.com";
 
         setText("routingLeadName", name);
         setText("routingLeadRole", role);
-        setText("sidebarContactRole", hasInstaller ? "Assigned Installer" : "Super Admin Support");
+        setText("sidebarContactRole", hasInstaller ? "Assigned Installer" : "Hello Solar HQ");
         setText("sidebarContactName", name);
 
         if ($("routingLeadPhoneLink")) {
@@ -107,7 +137,9 @@
             $("supportHotlineBtn").href = href;
             $("supportHotlineBtn").setAttribute("aria-label", telephone(phone) ? `Call ${name}` : "Email Hello Solar Support");
         }
-        setText("routingLeadPhone", telephone(phone) ? `Call ${phone}` : "Email support");
+        setText("routingLeadPhone", telephone(phone) ? "Call now" : "Email support");
+        setText("routingLeadNumber", phone || "support@hellosolarph.com");
+        setText("routingLeadAvatar", String(name).split(/[\s/]+/).filter(w => /^[A-Za-z]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join("") || "HS");
         setText("supportHotlineText", telephone(phone) ? `Call ${phone}` : "Email support");
 
         setText("contactAvailability", availability);
@@ -156,6 +188,7 @@
                 description: t.notes,
                 category: t.topic || "General",
                 priority: t.priority,
+                urgency: t.urgency || "",
                 createdAt: t.createdAt,
                 status: t.status,
                 resolutionNote: t.resolutionNote || "",
@@ -246,7 +279,7 @@
         setText("modalTicketSubject", ticket.subject || ticket.title || "Untitled request");
         setText("modalTicketCategory", ticket.category || "General");
         setText("modalTicketDate", ticketDate(ticket));
-        setText("modalTicketPriority", ticket.priority ? String(ticket.priority).replace(/^./, c => c.toUpperCase()) : "Normal");
+        setText("modalTicketPriority", ticket.urgency || ({ high: "Urgent", medium: "Normal", low: "General Inquiry" })[String(ticket.priority || "").toLowerCase()] || "Normal");
         const defaultTech = ($("routingLeadName") && $("routingLeadName").textContent) || "Hello Solar Support";
         setText("modalTicketTechnician", ticket.technician || ticket.assignedTechnician || defaultTech);
         if ($("modalTicketStatus")) $("modalTicketStatus").replaceChildren(statusBadge(ticket));
@@ -356,7 +389,8 @@
                         hsId: currentPackage.hsId,
                         subject,
                         category,
-                        priority: (fields.priority && fields.priority.value === "urgent") ? "High" : "Medium",
+                        priority: ticketPriority(fields.priority && fields.priority.value),
+                        urgency: statusLabel(),
                         description: fields.description ? fields.description.value.trim() : ""
                     })
                     : { ok: false };

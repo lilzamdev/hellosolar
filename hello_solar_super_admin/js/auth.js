@@ -3,7 +3,7 @@
   const SESSION_KEY = 'hello_solar_super_admin_session';
   const DATA_KEY = 'HELLO_SOLAR_SUPER_ADMIN_DATA_V2';
   const SESSION_DURATION = 8 * 60 * 60 * 1000;
-  const ENGINEER_TITLE = 'Direct Installation Engineer';
+  const ENGINEER_TITLE = 'Installation Engineer';
   const ACCOUNTING_TITLE = 'Accounting';
   // Prototype / demo fallback accounts. Real Direct Installation Engineer accounts are
   // created by Super Admin (Accounts → Create Account) and stored in data.engineers.

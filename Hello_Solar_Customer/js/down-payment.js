@@ -1,7 +1,7 @@
 /**
  * Customer portal — Down Payment status and Reimbursement requests (handled by Super Admin → Accounting).
- * Policy: the down payment is refundable when the client proceeds with the installation,
- * and non-refundable when they decide not to proceed.
+ * Policy (same as Super Admin → Accounting): the down payment is refundable when the client does NOT proceed
+ * and is deducted from the system price when they proceed with the installation.
  */
 (function () {
     "use strict";
@@ -40,9 +40,10 @@
         const statusCls = dp.refunded ? "muted" : PILL[dp.status] || "muted";
         document.getElementById("dpAmount").textContent = peso(dp.amount);
         document.getElementById("dpStatus").innerHTML = `<span class="dp-pill ${statusCls}">${esc(statusLabel)}</span>`;
+        const refund = S.downPaymentRefundState ? S.downPaymentRefundState(app, data) : null;
         document.getElementById("dpRefundInfo").textContent = dp.refunded
             ? `${peso(dp.refund.amount)} refunded${dp.refund.refundedAt ? ` on ${fmtDate(dp.refund.refundedAt)}` : ""}`
-            : "—";
+            : (refund ? refund.label : "—");
         const list = document.getElementById("dpRequests");
         list.innerHTML = requests.map(r => `
             <li>
@@ -51,8 +52,11 @@
             </li>`).join("");
         list.hidden = !requests.length;
         const btn = document.getElementById("openReimbursementBtn");
-        btn.disabled = dp.refunded || requests.some(r => r.status === "Pending");
-        btn.textContent = requests.some(r => r.status === "Pending") ? "Request Under Review" : "Request Reimbursement";
+        const pendingRequest = requests.some(r => r.status === "Pending");
+        // Only when the deposit can actually be refunded (verified, not proceeding / undecided, not refunded yet)
+        btn.style.display = (pendingRequest || (refund && refund.canRequest)) ? "" : "none";
+        btn.disabled = dp.refunded || pendingRequest;
+        btn.textContent = pendingRequest ? "Request Under Review" : "Request a Refund";
     }
 
     function readFile(file) {

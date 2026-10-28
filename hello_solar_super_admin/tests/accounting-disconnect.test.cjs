@@ -9,6 +9,7 @@ const root = path.resolve(__dirname, '..');
 function environment() {
   const local = new Map();
   const context = {
+    HS_TODAY: '2026-09-25', /* tests run on the sample data date */
     console,
     localStorage: { getItem: k => (local.has(k) ? local.get(k) : null), setItem: (k, v) => local.set(k, String(v)), removeItem: k => local.delete(k) }
   };

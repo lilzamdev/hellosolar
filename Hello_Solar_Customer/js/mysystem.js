@@ -591,20 +591,10 @@
         });
     }
 
+    // Only redraw the power-flow lines on resize. (Phones resize while scrolling when the address bar
+    // hides — the page layout must not change then, so the bottom navigation and pop-ups stay.)
     window.addEventListener("resize", () => {
         updateFlowConnectors();
-        const sDetail = document.getElementById("systemDetailView");
-        if (sDetail && sDetail.classList.contains("active")) {
-            const isMobile = window.innerWidth <= 768;
-            sDetail.style.display = isMobile ? "flex" : "block";
-            if (isMobile) {
-                sDetail.classList.add("mobile-fullscreen");
-                document.body.classList.add("modal-open");
-            } else {
-                sDetail.classList.remove("mobile-fullscreen");
-                document.body.classList.remove("modal-open");
-            }
-        }
     });
     if (window.ResizeObserver) {
         const stageEl = document.querySelector(".power-flow-stage");
@@ -794,14 +784,14 @@
 
         systemsGrid.appendChild(addCard);
 
-        // Auto-open live details or link modal if specified in URL query or hash
+        // My System opens straight into the selected system's Live Telemetry (no overview cards).
+        // The system is switched from the System dropdown or the sidebar.
         const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get("view") === "live" || window.location.hash === "#live") {
-            const targetPkg = userPkgs.find(p => p.id === activePackageId) || userPkgs[0];
-            if (targetPkg) {
-                openSystemDetail(targetPkg);
-            }
-        } else if (urlParams.get("action") === "link" || window.location.hash === "#link") {
+        const targetPkg = userPkgs.find(p => p.id === activePackageId) || userPkgs[0];
+        if (targetPkg) {
+            openSystemDetail(targetPkg);
+        }
+        if (urlParams.get("action") === "link" || window.location.hash === "#link") {
             setTimeout(() => {
                 if (typeof openAddAccountModalDialog === "function") {
                     openAddAccountModalDialog();
@@ -907,21 +897,12 @@
         // Switch view containers
         if (systemsOverviewView) systemsOverviewView.style.display = "none";
         if (systemDetailView) {
-            const isMobile = window.innerWidth <= 768;
-            systemDetailView.style.display = isMobile ? "flex" : "block";
+            // The system view IS the My System page (no overview first), so on phones it stays a normal page:
+            // the top bar, the bottom navigation and pop-ups (Link Existing System) stay visible above it.
+            systemDetailView.style.display = "block";
             systemDetailView.classList.add("active");
-
-            // Mark detail view open on body for state binding
-            document.body.classList.add("detail-view-open");
-
-            // Check mobile viewport for full-screen app experience
-            if (isMobile) {
-                systemDetailView.classList.add("mobile-fullscreen");
-                document.body.classList.add("modal-open");
-            } else {
-                systemDetailView.classList.remove("mobile-fullscreen");
-                document.body.classList.remove("modal-open");
-            }
+            systemDetailView.classList.remove("mobile-fullscreen");
+            document.body.classList.remove("modal-open", "detail-view-open");
 
             const detailContent = systemDetailView.querySelector(".system-detail-content");
             if (detailContent) {
@@ -1073,9 +1054,7 @@
 
         window.scrollTo({ top: 0, behavior: "smooth" });
 
-        if (backToSystemsBtn) {
-            setTimeout(() => backToSystemsBtn.focus(), 100);
-        }
+
     }
 
     function closeSystemDetail() {
@@ -1116,20 +1095,7 @@
         detailSystemStatusCard.addEventListener("click", syncSelectedPackageBeforeNav);
     }
 
-    window.addEventListener("resize", () => {
-        if (systemDetailView && systemDetailView.classList.contains("active")) {
-            const isMobile = window.innerWidth <= 768;
-            systemDetailView.style.display = isMobile ? "flex" : "block";
-            document.body.classList.add("detail-view-open");
-            if (isMobile) {
-                systemDetailView.classList.add("mobile-fullscreen");
-                document.body.classList.add("modal-open");
-            } else {
-                systemDetailView.classList.remove("mobile-fullscreen");
-                document.body.classList.remove("modal-open");
-            }
-        }
-    });
+    // (Resizing keeps the normal page layout — no full-screen mode on phones)
 
     // --------------------------------------------------------------------------
     // 8. PER-SYSTEM INSTALLATION & ACTIVATION MODAL
@@ -1508,6 +1474,12 @@
                     if (linkedPkg) {
                         setSelectedPackageId(linkedPkg.id);
                         updateSelectedCardHighlight(linkedPkg.id);
+                        openSystemDetail(linkedPkg);
+                    }
+                    const slot = document.getElementById("pagePackageSelector");
+                    if (slot && window.HelloSolar && window.HelloSolar.initPackageSelector) {
+                        slot.innerHTML = "";
+                        window.HelloSolar.initPackageSelector(slot);
                     }
 
                     if (window.HelloSolar && window.HelloSolar.toast) {
@@ -1536,8 +1508,6 @@
                 closeActivationModal();
             } else if (addAccountModalBackdrop && addAccountModalBackdrop.classList.contains("open")) {
                 closeAddAccountModalDialog();
-            } else if (systemDetailView && systemDetailView.classList.contains("mobile-fullscreen")) {
-                closeSystemDetail();
             }
         }
     });
@@ -1603,19 +1573,12 @@
     window.addEventListener("helloSolarPackageChanged", (e) => {
         if (e.detail && e.detail.packageId) {
             updateSelectedCardHighlight(e.detail.packageId);
-        }
-    });
-
-    // Handle window resize for mobile-fullscreen class on detail view
-    window.addEventListener("resize", () => {
-        if (systemDetailView && systemDetailView.classList.contains("active")) {
-            if (window.innerWidth <= 768) {
-                systemDetailView.classList.add("mobile-fullscreen");
-                document.body.classList.add("modal-open", "detail-view-open");
-            } else {
-                systemDetailView.classList.remove("mobile-fullscreen");
-                document.body.classList.remove("modal-open", "detail-view-open");
+            const next = getUserPackages().find(p => p.id === e.detail.packageId);
+            if (next && (!currentPackage || currentPackage.id !== next.id)) {
+                openSystemDetail(next);
             }
         }
     });
+
+
 })();

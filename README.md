@@ -24,8 +24,9 @@ It is built with plain HTML, CSS and JavaScript. There is nothing to install and
 
 `index.html` takes you to the public website. To log in, go to `login.html`.
 
-All data is saved in your browser, so each browser has its own copy. To start fresh, clear the site data for
-`127.0.0.1` in your browser.
+All data is saved in your browser, so each browser has its own copy. To start fresh, open Super Admin →
+**Settings** → **Developer / Demo Tools** → **Reset Demo Data** (it clears everything saved in this browser and loads
+clean sample data). For a step-by-step demo, see `DEMO_GUIDE.md`.
 
 ## Test logins
 
@@ -44,32 +45,50 @@ These only work in demo mode (the default). The login page also shows a quick de
 ## How a customer buys a system
 
 1. The customer picks a package on the public website and clicks **Buy Now**. They choose **Installment** or **Full Payment**.
-2. They pay the **₱10,000 down payment** and upload a photo of the receipt. An email address is required.
+   Installment has three terms: **6 months, 3 years or 6 years** (6 years is the default). The monthly price of every
+   package and term is in one list, `PACKAGE_CATALOG` in `shared/hello-solar-store.js` (HS Pricing 2026).
+2. They pay the down payment (**₱10,000 Installment, ₱500 Full Payment**) and upload a photo of the receipt. An email address is required.
 3. When the receipt is uploaded, their customer account is **created automatically** and an activation link is queued for their email.
 4. The customer opens the link, sets a password, and logs in to the Customer portal.
-5. **Accounting** (in Super Admin) checks the down payment. The ₱10,000 is taken off the remaining balance.
-6. For Installment, a **Financer** reviews the customer's documents and approves the financing.
-   For Full Payment, the customer uploads the receipt for the remaining balance, and Super Admin verifies it on the
-   **Payments** page. An installer can only be assigned after this.
-7. An **Installer** is assigned, accepts the job, and installs the system.
+5. **Accounting** (in Super Admin) checks the down payment. The down payment is taken off the remaining balance.
+6. The customer answers and signs their agreement in **Documents** (Full Payment Agreement or Installment Agreement).
+7. For Installment, a **Financer** reviews the customer's documents and approves the financing — or Super Admin accepts it
+   with **Hello Solar Funding** (Hello Solar funds it directly). For Full Payment, the customer uploads the receipt for the
+   remaining balance, and Super Admin verifies it. An installer can only be assigned after this.
+8. An **Installer** is assigned, accepts the job, and installs the system.
 
-Super Admin shows where each application is in **Lifecycle Progression** (Applications › Details). Installment has 9 steps:
+Super Admin shows where each application is in **Lifecycle Progression** (Applications › Details). Full Payment and
+Installment use the same 10 steps:
 
-1. Account Created
-2. Down Payment
-3. Pending Finance
-4. Approved Financing
-5. Pending Installer
-6. Installer Accepted
-7. Pending Installation
-8. Ongoing Installation
-9. Completed
+1. Down Payment
+2. Account Created
+3. Documents Submission
+4. Pending Finance (Full Payment: full payment receipt waiting for verification)
+5. Approved Financing (Full Payment: full payment verified)
+6. Pending Installer
+7. Installer Accepted
+8. Pending Installation
+9. Ongoing Installation
+10. Completed
 
-Full Payment has 8 steps. Steps 3 and 4 are replaced by one step, **Full Payment Verified**, which is ticked when
-Super Admin verifies the full payment. Until then the application shows **Pending Full Payment**.
+The **Application Summary** under the steps lists the same 10 steps in order, with the details of each step.
 
-Installment customers upload 6 documents: valid ID, proof of income, proof of billing, bank statement, site photos
-(roof and neighborhood) and a Google Maps link of the house. Full Payment customers only need a valid ID.
+Site visits follow **Site Visit Payment → Pending Visit → Visit Confirmed**. When the visit is confirmed, the client gets a
+link (`Hello_Solar/continue.html`). **Yes** opens Buy Now with their details filled in so they pick Full Payment or
+Installment; **No** records that they are not continuing.
+
+Every customer (Installment and Full Payment) sends the same documents: Valid ID #1 and #2 (front and back, with
+signature), payslips (last 3 months) or the latest bank statement, proof of home ownership or a 5–10 year lease, proof of
+billing, site photos (roof and neighborhood), a Google Maps link of the house, and the signed agreement. Super Admin can
+**request** another document or mark one **Not required** (with a reason the customer sees). Financing approval and
+installation wait until every required document is in and the signed agreement is accepted.
+
+**Refunds:** the reservation deposit is refunded when the customer does **not** proceed and is deducted from the system
+price when they proceed. The ₱1,000 site visit fee is deducted when they proceed and is not refundable when they don't.
+
+**Dates:** every portal uses today's real date. A bill is overdue 5 days after its due date (Super Admin → Settings).
+The first installment is due one month after the financing is approved. Sample accounts move with the calendar, so
+the demo always shows bills that are paid, due soon and overdue.
 
 Customers can also send an inquiry or request a proposal instead of buying right away. Super Admin then follows up
 and creates their account.
@@ -79,12 +98,15 @@ and creates their account.
 - **Summary**: the main dashboard.
 - **Applications**: filters are All, Cash Applications (Full Payment waiting for payment), Missing Documents,
   Pending Financing, Pending Installation and Declined.
-- **Installations**: installation jobs. Inspect / Update has Overview, Schedule, Progress and Activity.
+- **Installations**: installation jobs only (maintenance jobs are on the Maintenance page). Inspect / Update has Overview,
+  Schedule, Progress and Activity.
 - **Maintenance**: every maintenance job. **Manage** changes the person, schedule, progress (click a step) and notes,
   and shows the history. If the person is changed, the new person must accept or decline first.
 - **Payments**: Total Revenue, Financer Funded, Financing Revenue and Financer Revenue. Customers get payment reminders
   7 days before, 1 day before and on the due date.
-- **Accounting**: verify down payments, refunds and reimbursements. The **Accounting** login only sees this page.
+- **Accounting** (tabs): Overview (revenue channels: Solar Financing Review, Solar Kit Revenue, Solar Installation
+  Revenue), Payments Received (every payment, verify here), Funder Schedule, Customer Schedule (filter by funder, with the
+  total monthly fixed), Refunds & Reimbursements, Costs & Systems. The **Accounting** login only sees this page.
 - **Support**: clicking a related ID opens the record beside the ticket list. Leaving Support closes it.
 - The **Direct Engineer** login sees Applications, Site Visits, Installations and Maintenance.
 
@@ -139,7 +161,13 @@ Good to know:
 
 ## Tests
 
-You need Node.js. Run these from the `Hello Solar` folder:
+You need Node.js. Run every test from the `Hello Solar` folder with:
+
+```
+node --test "shared/tests/*.test.cjs" "hello_solar_super_admin/tests/*.test.cjs"
+```
+
+Or one file at a time:
 
 ```
 node shared/tests/shared.test.cjs

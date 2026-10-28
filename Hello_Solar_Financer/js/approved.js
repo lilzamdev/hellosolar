@@ -373,7 +373,25 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
+    // Summary cards: live numbers from this financer's approved loans (shared records)
+    function renderApprovedStats() {
+        const store = window.HelloSolarStore;
+        if (!store || typeof store.getPortfolioStats !== "function") return;
+        const s = store.getPortfolioStats();
+        const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+        const fmt = iso => { const d = new Date(iso + "T00:00:00"); return isNaN(d) ? iso : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); };
+        const years = m => (m % 12 === 0 ? `${m / 12} yr${m === 12 ? "" : "s"}` : `${m} mos`);
+        set("statTotalDisbursed", store.pesoShort(s.total));
+        set("statLoanCount", `${s.count} approved loan${s.count === 1 ? "" : "s"}`);
+        set("statMonthlyInflow", store.pesoShort(s.inflow));
+        set("statNextBilling", s.nextBilling ? `Next billing ${fmt(s.nextBilling)}` : "No upcoming billing");
+        set("statOnTime", s.count ? `${s.onTimePct}%` : "—");
+        set("statAverageLoan", s.count ? store.peso(s.average) : "—");
+        set("statTermRange", s.minTerm ? (s.minTerm === s.maxTerm ? `${years(s.minTerm)} term` : `${years(s.minTerm)} – ${years(s.maxTerm)} terms`) : "—");
+    }
+
     function renderApprovedTable() {
+        renderApprovedStats();
         if (!approvedTable) return;
         const tbody = approvedTable.querySelector("tbody");
         if (!tbody) return;
@@ -394,8 +412,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     const repStatus = app.repaymentStatus || "Paid";
                     
                     let pillClass = "status-paid";
-                    if (repStatus.toLowerCase().includes("due")) pillClass = "status-due";
-                    else if (repStatus.toLowerCase().includes("unpaid") || repStatus.toLowerCase().includes("overdue")) pillClass = "status-unpaid";
+                    if (repStatus.toLowerCase().includes("unpaid") || repStatus.toLowerCase().includes("overdue")) pillClass = "status-unpaid";
+                    else if (repStatus.toLowerCase().includes("due")) pillClass = "status-due";
 
                     const isHiddenInitial = !approvedExpanded && idx >= 3;
                     return `
@@ -453,21 +471,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 const status = (app.repaymentStatus || "Paid").toLowerCase();
                 let statusLabel = app.repaymentStatus || "Paid";
                 let statusClass = "badge-approved";
-                if (status.includes("due")) {
-                    statusLabel = "Due Date";
-                    statusClass = "badge-pending";
-                } else if (status.includes("unpaid") || status.includes("overdue")) {
-                    statusLabel = "Unpaid";
+                // Same words as the table (shared schedule): Overdue · Due Soon · On Time · Paid in Full
+                if (status.includes("unpaid") || status.includes("overdue")) {
                     statusClass = "badge-rejected";
-                } else if (status.includes("paid")) {
-                    statusLabel = "Paid";
-                    statusClass = "badge-approved";
+                } else if (status.includes("due")) {
+                    statusClass = "badge-pending";
                 }
 
                 plan = {
                     borrower: app.applicant?.name || plan?.borrower || "Borrower",
                     contractNumber: plan?.contractNumber || `HS-CTR-2026-${app.id.replace(/[^0-9]/g, "")}`,
-                    status: plan?.status || (statusClass === "badge-approved" ? "paid" : (statusClass === "badge-pending" ? "due" : "unpaid")),
+                    status: statusClass === "badge-approved" ? "paid" : (statusClass === "badge-pending" ? "due" : "unpaid"),
                     statusLabel: statusLabel,
                     statusClass: statusClass,
                     fundedAmount: funded,

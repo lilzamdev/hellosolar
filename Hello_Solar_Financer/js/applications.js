@@ -91,8 +91,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     const searchStr = `${app.id} ${borrower} ${location}`.trim();
                     // Shared APP document record (same record as the Customer portal) — no separate checklist
                     const docs = window.getApplicationDocuments ? window.getApplicationDocuments(app) : [];
-                    const passedDocs = docs.filter(d => d.submitted).length;
-                    const totalDocs = docs.length;
+                    const countedDocs = docs.filter(d => d.counted !== false);
+                    const passedDocs = countedDocs.filter(d => d.submitted).length;
+                    const totalDocs = countedDocs.length;
 
                     return `
                         <tr data-status="${statusMeta.key}" data-size="${size}" data-appid="${app.id}"

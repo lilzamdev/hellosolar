@@ -1101,12 +1101,108 @@ window.HelloSolarStore = {
         return !(window.HS_CONFIG && (window.HS_CONFIG.isApi || window.HS_CONFIG.demoData === false));
     },
 
+    // Monthly installments of an application (saved schedule → chosen term → loan rule), never a guess
+    termMonthsFor: function (app) {
+        const db = window.HELLO_SOLAR_DB;
+        if (db && typeof db.scheduleTermFor === "function") return db.scheduleTermFor(app);
+        return Number(app.termMonths) > 0 ? Number(app.termMonths) : null;
+    },
+
+    // Repayment of an approved loan from the shared installment schedule (same schedule and overdue rule as
+    // Super Admin and the customer): status, payments made, balance and the next due date.
+    repaymentFor: function (app) {
+        const S = window.HSShared;
+        const sched = S && S.paymentScheduleFor ? S.paymentScheduleFor(app.id) : null;
+        const list = sched && Array.isArray(sched.installments) ? sched.installments : [];
+        if (!list.length) return { repaymentStatus: "Awaiting Schedule" };
+        const shared = S.read ? S.read() : null;
+        const grace = Number(shared && shared.settings && shared.settings.overdueThresholdDays) || 5;
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        const days = (a, b) => Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86400000);
+        const fmt = iso => { const d = new Date(iso + "T00:00:00"); return isNaN(d) ? iso : this.formatDate(d); };
+        const paid = list.filter(i => i.status === "Paid");
+        const unpaid = list.filter(i => i.status !== "Paid").sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)));
+        const totalPaid = paid.reduce((s, i) => s + (Number(i.paidAmount) || Number(i.amount) || 0), 0);
+        const remaining = unpaid.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+        const next = unpaid[0] || null;
+        let status = "On Time";
+        if (!next) status = "Paid in Full";
+        else if (unpaid.some(i => days(String(i.dueDate).slice(0, 10), today) >= grace)) status = "Overdue";
+        else if (days(today, String(next.dueDate).slice(0, 10)) <= 7) status = "Due Soon";
+        const recent = list.filter(i => i.status === "Paid").slice(-3).concat(next ? [next] : []).map(i => ({
+            num: i.no, date: fmt(String(i.dueDate).slice(0, 10)), ref: i.reference || (i.status === "Paid" ? "—" : "SCHEDULED"),
+            amount: this.peso(i.amount), status: i.status === "Paid" ? "Paid" : (status === "Overdue" ? "Overdue" : "Scheduled"),
+            statusClass: i.status === "Paid" ? "badge-approved" : (status === "Overdue" ? "badge-rejected" : "badge-pending")
+        }));
+        return {
+            repaymentStatus: status,
+            nextDueISO: (() => { const up = unpaid.find(i => String(i.dueDate).slice(0, 10) >= today); return up ? String(up.dueDate).slice(0, 10) : null; })(),
+            repaymentSchedule: {
+                planMonths: list.length,
+                planTerm: this.termText(list.length),
+                completedPayments: paid.length,
+                totalPaid: this.peso(Math.round(totalPaid * 100) / 100),
+                remainingBalance: this.peso(Math.round(remaining * 100) / 100),
+                remainingPayments: unpaid.length,
+                nextDueDate: next ? fmt(String(next.dueDate).slice(0, 10)) : "Paid in Full",
+                scheduleNote: next ? `Due every ${Number(String(next.dueDate).slice(8, 10))}th of the month` : "All installments paid",
+                recentInstallments: recent
+            }
+        };
+    },
+
+    // Live portfolio numbers for the signed-in financer (Approved page and Dashboard): approved loans only
+    getPortfolioStats: function () {
+        const S = window.HSShared;
+        const views = this.getSharedApplications().filter(v => v.financingStatus === "APPROVED");
+        const cats = { residential: { count: 0, amount: 0 }, commercial: { count: 0, amount: 0 }, battery: { count: 0, amount: 0 } };
+        let total = 0, inflow = 0, onTime = 0, nextBilling = null, minTerm = null, maxTerm = null;
+        views.forEach(v => {
+            const app = S.getApplication(v.id) || {};
+            const amount = Number(app.amount) || 0;
+            total += amount;
+            if (v.repaymentStatus !== "Paid in Full") inflow += Number(app.monthly) || 0;
+            if (v.repaymentStatus !== "Overdue") onTime += 1;
+            if (v.nextDueISO && (!nextBilling || v.nextDueISO < nextBilling)) nextBilling = v.nextDueISO;
+            const months = v.repaymentSchedule ? v.repaymentSchedule.planMonths : this.termMonthsFor(app);
+            if (months) { minTerm = minTerm == null ? months : Math.min(minTerm, months); maxTerm = maxTerm == null ? months : Math.max(maxTerm, months); }
+            const kw = parseFloat(String(app.system || "").match(/(\d+(?:\.\d+)?)\s*kW/i)?.[1]) || 0;
+            const type = String(app.projectType || app.category || "");
+            const key = /battery/i.test(type) ? "battery" : (/commercial/i.test(type) || kw >= 12 ? "commercial" : "residential");
+            cats[key].count += 1;
+            cats[key].amount += amount;
+        });
+        const count = views.length;
+        return {
+            count, total, inflow, nextBilling,
+            onTimePct: count ? Math.round(onTime / count * 1000) / 10 : 0,
+            average: count ? Math.round(total / count) : 0,
+            minTerm, maxTerm, categories: cats
+        };
+    },
+
+    // Short peso: ₱1.25M / ₱845K / ₱9,500
+    pesoShort: function (n) {
+        const v = Number(n) || 0;
+        if (v >= 1e6) return `₱${(Math.round(v / 1e4) / 100).toLocaleString("en-PH")}M`;
+        if (v >= 1e4) return `₱${Math.round(v / 1e3).toLocaleString("en-PH")}K`;
+        return this.peso(Math.round(v));
+    },
+
+    // "36 Months" — starts with the month count (other screens read the number from it)
+    termText: function (months) {
+        const m = Number(months);
+        if (!(m > 0)) return "—";
+        return `${m} Months`;
+    },
+
     baseDetail: function (app) {
         const detail = this.demoData() ? (FINANCER_DEFAULT_DATA.applications || []).find(a => a.id === app.id) : null;
         if (detail) return JSON.parse(JSON.stringify(detail));
         const months = Number(app.termMonths) > 0 ? Number(app.termMonths)
             : (app.amount && app.monthly ? Math.round(Number(app.amount) / Number(app.monthly)) : null);
-        const term = months ? `${months} Months` : "—";
+        const term = months ? this.termText(months) : "—";
         const created = app.createdAt ? this.formatDate(new Date(app.createdAt)) : "—";
         return {
             id: app.id,
@@ -1154,6 +1250,15 @@ window.HelloSolarStore = {
             installationStatus: app.installationStatus || null,
             systemStatus: app.systemStatus || null
         };
+        // Installment term and monthly: the same numbers Super Admin and the customer see (shared record and schedule)
+        const months = this.termMonthsFor(app);
+        if (months) {
+            const term = this.termText(months);
+            view.loan.term = view.loan.financingTerm = view.term = view.financingTerm = term;
+        }
+        if (app.monthly) view.loan.monthlyPayment = view.monthlyPayment = `${this.peso(app.monthly)}/mo`;
+        if (app.amount) view.loan.amount = view.loan.fundedAmount = view.fundedAmount = this.peso(app.amount);
+        if (state.financingStatus === "APPROVED") Object.assign(view, this.repaymentFor(app));
         view.financingStatus = state.financingStatus;
         view.applicationStatus = state.applicationStatus;
         view.loan.status = state.loanStatus;
@@ -1401,6 +1506,11 @@ window.HelloSolarStore = {
         const result = window.HSShared.update(store => {
             const app = (store.applications || []).find(a => a.id === appId && a.financerId === session.accountId);
             if (!app) return { ok: false, error: "Application not found for this financer." };
+            // Financing is approved only when every required document is sent and the signed agreement is Accepted
+            if (label === "Approved" && window.HSShared.applicationDocsComplete) {
+                const docs = window.HSShared.applicationDocsComplete(app);
+                if (!docs.ok) return { ok: false, error: `Complete the documents first. Still needed: ${docs.missing.join(", ")}.` };
+            }
             const view = this.toView(app);
             apply(app, view);
             app.updated = "Just now";
@@ -1417,6 +1527,7 @@ window.HelloSolarStore = {
                 details: { appId: app.id, decision: label, stage: app.stage }
             });
         }, () => ({ name: "financing.decision", payload: decided }));
+        this.lastDecisionError = result.ok ? "" : (result.error || "");
         if (!result.ok) return null;
         // Targeted to the application's customer only (never broadcast to every customer)
         if (customerId && message) {

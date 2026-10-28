@@ -9,7 +9,8 @@ const CUSTOMER_KEY = 'HELLO_SOLAR_CUSTOMER_INQUIRIES';
 
 function environment(queue = []) {
   const local = new Map([[CUSTOMER_KEY, JSON.stringify(queue)]]);
-  const context = { console, crypto: require('node:crypto').webcrypto, localStorage: { getItem: k => (local.has(k) ? local.get(k) : null), setItem: (k, v) => local.set(k, String(v)), removeItem: k => local.delete(k) } };
+  const context = {
+    HS_TODAY: '2026-09-25', /* tests run on the sample data date */ console, crypto: require('node:crypto').webcrypto, localStorage: { getItem: k => (local.has(k) ? local.get(k) : null), setItem: (k, v) => local.set(k, String(v)), removeItem: k => local.delete(k) } };
   context.window = context;
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(root, '../shared/hello-solar-store.js'), 'utf8'), context);

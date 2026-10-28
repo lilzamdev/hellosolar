@@ -332,7 +332,8 @@
         if (app.assignedInstallerId) return app.assignedInstallerId === installer.id;
         // Assigned by name only (legacy record): treat as assigned to that installer
         if (app.installer && app.installer !== "Unassigned") return norm(app.installer) === norm(installer.name);
-        return isClearedForInstallation(app) || declined;
+        // Open (unassigned) jobs reach installers only when the customer's documents are complete
+        return (isClearedForInstallation(app) && applicationDocsComplete(app).ok) || declined;
     }
 
     // ------------------------------------------------------------------
@@ -435,6 +436,107 @@
     }
 
     // ------------------------------------------------------------------
+    // Service agreement (Documents page). Full Payment → "Full Payment Agreement",
+    // Installment → "Installment Agreement" (PDFs in Hello_Solar_Customer/assets/PDF).
+    // The customer downloads the PDF, fills it out and signs it, then uploads the signed copy here.
+    // Super Admin (Applications › Details › Documents) views the file and accepts it or asks for a re-upload.
+    // Metadata lives on the application (app.agreement); the file itself is kept under its own key
+    // (local mode) so the main shared record stays small. Status: NOT_SUBMITTED | SUBMITTED | ACCEPTED | REUPLOAD_REQUIRED
+    // ------------------------------------------------------------------
+    const AGREEMENT_FILES_KEY = "hello_solar_signed_agreements";
+    const AGREEMENT_TEMPLATES = {
+        full_payment: { title: "Full Payment Agreement", file: "assets/PDF/Full Payment Agreement.pdf" },
+        installment: { title: "Installment Agreement", file: "assets/PDF/Installment Agreement.pdf" }
+    };
+    const AGREEMENT_MAX_BYTES = 2 * 1024 * 1024;
+    const AGREEMENT_TYPES = ["application/pdf", "image/jpeg", "image/png"];
+    const LEGACY_AGREEMENT_STATUS = { NOT_SIGNED: "NOT_SUBMITTED", SIGNED: "SUBMITTED", RESIGN_REQUIRED: "REUPLOAD_REQUIRED" };
+
+    function agreementFileFor(appId) {
+        const store = storage.json(AGREEMENT_FILES_KEY, {});
+        return store && store[appId] ? store[appId] : null;
+    }
+
+    function agreementFor(appOrId) {
+        const app = typeof appOrId === "string" ? getApplication(appOrId) : appOrId;
+        if (!app) return null;
+        const type = isFullPayment(app) ? "full_payment" : "installment";
+        const saved = app.agreement || {};
+        const status = LEGACY_AGREEMENT_STATUS[saved.status] || saved.status || "NOT_SUBMITTED";
+        return Object.assign({}, saved, AGREEMENT_TEMPLATES[type], { type, status });
+    }
+
+    function uploadSignedAgreement(customerId, appId, file, fileData) {
+        if (!file || !file.name) return { ok: false, error: "Choose the signed agreement file to upload." };
+        const fileType = file.type || "";
+        if (!AGREEMENT_TYPES.includes(fileType)) return { ok: false, error: "Upload a PDF, JPG or PNG file." };
+        if (Number(file.size) > AGREEMENT_MAX_BYTES) return { ok: false, error: "The file is too large. The maximum is 2 MB." };
+        const now = nowISO();
+        const result = update(data => {
+            const app = (data.applications || []).find(a => a.id === appId && a.customerId === customerId);
+            if (!app) return { ok: false, error: "This system is not linked to your account." };
+            const current = agreementFor(app);
+            if (current.status === "ACCEPTED") return { ok: false, error: "Your signed agreement was already accepted by Hello Solar." };
+            const customer = (data.customers || []).find(x => x.id === customerId);
+            app.agreement = {
+                type: current.type,
+                title: current.title,
+                fileName: file.name,
+                fileType,
+                fileSize: Number(file.size) || 0,
+                uploadedAt: now,
+                status: "SUBMITTED",
+                note: "",
+                reviewedAt: null
+            };
+            app.updated = "Just now";
+            logActivity(data, {
+                role: "Customer", actorId: customerId, user: customer ? customer.name : customerId, record: app.id, recordType: "Document",
+                action: `Customer uploaded the signed ${current.title} for ${app.id} (${file.name}).`,
+                details: { appId: app.id, agreement: current.title, fileName: file.name }
+            });
+            return { agreement: agreementFor(app) };
+        }, r => ({ name: "agreement.upload", payload: { appId, customerId, agreement: r.agreement } }));
+        if (!result.ok) return result;
+        if (!IS_API && fileData) {
+            try {
+                const store = storage.json(AGREEMENT_FILES_KEY, {}) || {};
+                store[appId] = { fileName: file.name, fileType, fileData, uploadedAt: now };
+                storage.set(AGREEMENT_FILES_KEY, JSON.stringify(store));
+            } catch (e) {
+                return { ok: false, error: "The file could not be saved in this browser (storage is full). Try a smaller file." };
+            }
+        }
+        if (IS_API && API) {
+            const form = new window.FormData();
+            form.append("file", file, file.name);
+            form.append("appId", appId);
+            API.command("agreement.upload", { appId }, { formData: form });
+        }
+        return result;
+    }
+
+    // Super Admin review: ACCEPTED, or REUPLOAD_REQUIRED with a note
+    function reviewAgreement(appId, status, note, actor) {
+        let st = String(status || "").toUpperCase();
+        st = LEGACY_AGREEMENT_STATUS[st] || st;
+        if (!["ACCEPTED", "REUPLOAD_REQUIRED"].includes(st)) return { ok: false, error: "Unknown agreement status." };
+        return update(data => {
+            const app = (data.applications || []).find(a => a.id === appId);
+            if (!app || !app.agreement || !app.agreement.uploadedAt) return { ok: false, error: "The customer has not uploaded the signed agreement yet." };
+            app.agreement.status = st;
+            app.agreement.note = note || "";
+            app.agreement.reviewedAt = nowISO();
+            logActivity(data, {
+                role: "Super Admin", user: actor || "Super Admin", record: app.id, recordType: "Document",
+                action: st === "ACCEPTED" ? `Accepted the signed ${app.agreement.title} for ${app.id}.` : `Asked the customer to upload the ${app.agreement.title} again for ${app.id}.`,
+                details: { appId: app.id, status: st, note: note || "" }
+            });
+            return { agreement: agreementFor(app) };
+        }, { name: "agreement.review", payload: { appId, status: st, note: note || "" } });
+    }
+
+    // ------------------------------------------------------------------
     // Site visits (landing page Site Assessment requests, assigned by Super Admin)
     // ------------------------------------------------------------------
     function siteVisitsFor(assigneeType, assigneeId, data) {
@@ -472,12 +574,32 @@
         const status = app.downPaymentStatus || (Number(app.downPayment) > 0 ? "Verified" : null);
         if (!status) return null;
         return {
-            amount: Number(app.downPaymentAmount || app.downPayment || 10000),
+            amount: Number(app.downPaymentAmount) > 0 ? Number(app.downPaymentAmount) : (isFullPayment(app) ? 500 : 10000),
             status,
             refunded: !!(app.refund && app.refund.status === "Refunded"),
             refund: app.refund || null,
             receiptName: app.downPaymentProof ? app.downPaymentProof.fileName : ""
         };
+    }
+
+    // Refund state of the down payment — same rule as Super Admin → Accounting: the deposit is refundable when
+    // the customer does NOT proceed and is deducted from the system price when they proceed.
+    // state: refunded | awaiting_verification | deducted | refundable | pending_decision
+    function downPaymentRefundState(app, data) {
+        const dp = downPaymentFor(app);
+        if (!dp) return null;
+        if (dp.refunded) return { state: "refunded", label: "Refunded", canRequest: false };
+        if (dp.status !== "Verified") return { state: "awaiting_verification", label: "Waiting for verification", canRequest: false };
+        const d = data || read();
+        let decision = app.clientDecision || null;
+        if (!decision) {
+            const job = d && Array.isArray(d.installations) && d.installations.some(j => j.appId === app.id && j.status !== "Cancelled");
+            if (["Declined", "Cancelled"].includes(app.stage)) decision = "Not Proceeding";
+            else if (job || isApplicationActive(app) || ["Approved", "Ready for Installation", "Installation", "In Progress", "Completed", "Installation Completed"].includes(app.stage)) decision = "Proceeding";
+        }
+        if (decision === "Proceeding") return { state: "deducted", label: "Deducted from your system price", canRequest: false };
+        if (decision === "Not Proceeding") return { state: "refundable", label: "Refundable", canRequest: true };
+        return { state: "pending_decision", label: "Refundable if you don't proceed", canRequest: true };
     }
 
     function reimbursementsFor(customerId, data) {
@@ -491,6 +613,13 @@
             if (!app) return { ok: false, error: "This system is not linked to your account." };
             const amount = Number(String(payload.amount || "").replace(/[^0-9.]/g, ""));
             if (!(amount > 0)) return { ok: false, error: "Enter the amount to be reimbursed." };
+            if (payload.type === "Site Visit Fee") return { ok: false, error: "The site visit fee is deducted from your system price when you proceed and is not refundable when you don't." };
+            if (payload.type === "Down Payment") {
+                const refund = downPaymentRefundState(app, data);
+                if (refund && !refund.canRequest) return { ok: false, error: refund.state === "deducted"
+                    ? "Your down payment is deducted from your system price because you are proceeding with the installation."
+                    : (refund.state === "refunded" ? "Your down payment was already refunded." : "Your down payment is still waiting for verification.") };
+            }
             const reason = String(payload.reason || "").trim();
             if (reason.length < 10) return { ok: false, error: "Please describe the reason (at least 10 characters)." };
             if (!Array.isArray(data.reimbursements)) data.reimbursements = [];
@@ -502,7 +631,7 @@
             const customer = (data.customers || []).find(c => c.id === customerId);
             const request = {
                 id: `RMB-${max + 1}`, customerId, customer: customer ? customer.name : app.customer, appId,
-                type: ["Down Payment", "Site Visit Fee", "Other"].includes(payload.type) ? payload.type : "Other",
+                type: ["Down Payment", "Other"].includes(payload.type) ? payload.type : "Other",
                 amount, reason,
                 attachment: payload.attachment && payload.attachment.fileName ? { fileName: payload.attachment.fileName, fileType: payload.attachment.fileType || "", dataUrl: payload.attachment.dataUrl || null } : null,
                 payoutDetails: String(payload.payoutDetails || "").trim(),
@@ -568,6 +697,7 @@
                 subject: ticket.subject || "Support Request",
                 concern: ticket.subject || ticket.category || "Support Request",
                 priority: ticket.priority || "Medium",
+                urgency: ticket.urgency || "",
                 status: "Open",
                 created: "Just now",
                 createdAt: now,
@@ -601,19 +731,26 @@
     // status: NOT_SUBMITTED | SUBMITTED | UNDER_REVIEW | ACCEPTED | REUPLOAD_REQUIRED
     const DOCUMENT_STATUSES = ["NOT_SUBMITTED", "SUBMITTED", "UNDER_REVIEW", "ACCEPTED", "REUPLOAD_REQUIRED"];
     const DOCUMENT_SUBMITTED_STATES = ["SUBMITTED", "UNDER_REVIEW", "ACCEPTED"];
-    // Documents requested for installment financing. optional → "if applicable" (not required while Not Submitted)
+    // Documents every customer submits (Full Payment and Installment). optional → "if applicable" (only when asked)
     const DOCUMENT_REQUESTS = [
-        { id: "gov_id_front", name: "Valid Government ID — Front / Main Page" },
-        { id: "gov_id_back", name: "Valid Government ID — Back", optional: true },
-        { id: "proof_of_income", name: "Proof of Income" },
+        { id: "valid_id_1", name: "Valid ID #1 — Front & Back, with Signature" },
+        { id: "valid_id_2", name: "Valid ID #2 — Front & Back, with Signature" },
+        { id: "income_proof", name: "Payslips (Last 3 Months) or Latest Bank Statement" },
+        { id: "residence_proof", name: "Proof of Home Ownership or Contract of Lease (5–10 Years, if Rented)" },
         { id: "proof_of_billing", name: "Proof of Billing / Utility Bill" },
-        { id: "bank_statement", name: "Bank Statement" },
         { id: "site_photos", name: "Site Photos — Roof & Neighborhood" },
         { id: "site_map_link", name: "Google Maps Link of House / Site", kind: "link" },
         { id: "other_requested", name: "Other Requested Document", optional: true }
     ];
-    // Earlier document ids carried over to the current list
-    const LEGACY_DOCUMENT_IDS = { government_id: "gov_id_front", meralco_bill: "proof_of_billing" };
+    // Earlier document ids carried over to the current list (an older Government ID → Valid ID #1; Proof of Income
+    // and Bank Statement → Payslips or Bank Statement, keeping the furthest-along of the two)
+    const LEGACY_DOCUMENT_IDS = {
+        government_id: "valid_id_1", gov_id_front: "valid_id_1", meralco_bill: "proof_of_billing",
+        proof_of_income: "income_proof", bank_statement: "income_proof"
+    };
+    const DOCUMENT_STATUS_RANK = { ACCEPTED: 4, UNDER_REVIEW: 3, SUBMITTED: 2, REUPLOAD_REQUIRED: 1, NOT_SUBMITTED: 0 };
+    // Requests added after the first document list. Applications approved / paid before they existed don't need them.
+    const LATER_DOCUMENT_IDS = { installment: ["valid_id_2", "residence_proof"], full_payment: ["valid_id_1", "valid_id_2", "income_proof", "residence_proof", "proof_of_billing"] };
 
     function normalizeDocumentStatus(s) {
         const key = String(s || "").trim().toUpperCase().replace(/[\s-]+/g, "_").replace(/^RE_UPLOAD/, "REUPLOAD");
@@ -629,7 +766,12 @@
         return Object.assign({}, rec, {
             documents: (rec.documents || []).map(d => {
                 const status = normalizeDocumentStatus(d.status || (d.submitted ? "SUBMITTED" : "NOT_SUBMITTED"));
-                return Object.assign({}, d, { status, submitted: DOCUMENT_SUBMITTED_STATES.includes(status) });
+                const view = Object.assign({}, d, { status, submitted: DOCUMENT_SUBMITTED_STATES.includes(status) });
+                // Marked "Not required" by Hello Solar (with the reason the customer sees)
+                if (d.waived && status !== "ACCEPTED") {
+                    Object.assign(view, { optional: true, notRequired: true, note: `Not required — ${d.waived.reason}` });
+                }
+                return view;
             })
         });
     }
@@ -637,9 +779,17 @@
     // Brings a stored record up to the current request list, keeping uploaded files and review decisions
     function migrateDocumentRecord(rec) {
         const byId = {};
+        const extras = [];
         (rec.documents || []).forEach(d => {
             const id = LEGACY_DOCUMENT_IDS[d.id] || d.id;
-            byId[id] = Object.assign({}, d, { id });
+            const next = Object.assign({}, d, { id, legacyId: d.id !== id ? d.id : d.legacyId });
+            const prev = byId[id];
+            if (!prev) { byId[id] = next; return; }
+            // Two older documents became one request: keep the furthest along, the other stays as an extra if it has a file
+            const rank = x => DOCUMENT_STATUS_RANK[normalizeDocumentStatus(x.status)] || 0;
+            const [keep, other] = rank(next) > rank(prev) ? [next, prev] : [prev, next];
+            byId[id] = keep;
+            if (other.fileName) extras.push(Object.assign({}, other, { id: other.legacyId || `${id}_extra`, optional: true }));
         });
         const docs = DOCUMENT_REQUESTS.map(def => {
             const prev = byId[def.id];
@@ -648,9 +798,11 @@
             return prev ? Object.assign({}, prev, { name: def.name, optional: !!def.optional }, kind)
                 : Object.assign({ id: def.id, name: def.name, optional: !!def.optional, status: "NOT_SUBMITTED", submitted: false, note: "" }, kind);
         });
-        // Keep any extra document that already has a file or a review decision
-        Object.values(byId).forEach(d => {
-            if (d.fileName || normalizeDocumentStatus(d.status) !== "NOT_SUBMITTED") docs.push(d);
+        // Documents Hello Solar requested for this customer stay as they are (required)
+        Object.values(byId).filter(d => d.requested).forEach(d => docs.push(d));
+        // Keep any other extra document that already has a file or a review decision (not counted as required)
+        Object.values(byId).filter(d => !d.requested).concat(extras).forEach(d => {
+            if (d.fileName || normalizeDocumentStatus(d.status) !== "NOT_SUBMITTED") docs.push(Object.assign({}, d, { optional: true }));
         });
         const changed = JSON.stringify(docs.map(d => [d.id, d.name, !!d.optional, d.kind || ""])) !==
             JSON.stringify((rec.documents || []).map(d => [d.id, d.name, !!d.optional, d.kind || ""]));
@@ -667,10 +819,10 @@
     }
 
     // The APP's document record, created with the standard request list the first time any portal opens it
-    // (commissioned systems start with the required documents Accepted). Installment applications only.
+    // (commissioned systems start with the required documents Accepted). Full Payment and Installment.
     function documentRecordFor(appId) {
         const app = getApplication(appId);
-        if (!app || isFullPayment(app)) return documentsFor(appId);
+        if (!app) return documentsFor(appId);
         const store = readDocumentStore();
         let rec = store[appId];
         let changed = false;
@@ -678,7 +830,7 @@
             const done = isApplicationActive(app);
             rec = store[appId] = {
                 appId,
-                paymentType: "installment",
+                paymentType: isFullPayment(app) ? "full_payment" : "installment",
                 updatedAt: nowISO(),
                 documents: DOCUMENT_REQUESTS.map(d => {
                     const status = done && !d.optional ? "ACCEPTED" : "NOT_SUBMITTED";
@@ -693,7 +845,61 @@
             // api mode: the backend creates/migrates document records — keep the computed view in the page cache only
             try { storage.set(DOCUMENTS_KEY, JSON.stringify(store)); } catch (e) { /* storage full — record still returned */ }
         }
-        return normalizeDocumentRecord(rec);
+        return exemptLaterDocs(app, exemptInstalledSiteDocs(app, normalizeDocumentRecord(rec)));
+    }
+
+    // Applications approved (Installment) or paid (Full Payment) before a request existed don't need it
+    function isPastApproval(app) {
+        if (isFullPayment(app)) {
+            return ["Ready for Installation", "Installation", "In Progress", "Completed", "Installation Completed"].includes(app.stage) ||
+                ["Verified", "Paid", "Completed", "Verified / Paid"].includes(app.paymentStatus);
+        }
+        return ["Approved", "Ready for Installation", "Installation", "In Progress", "Completed", "Installation Completed"].includes(app.stage);
+    }
+    // Only applications created before these document rules (Oct 27, 2026) can be exempt — newer ones must send them all
+    const DOCUMENT_RULES_SINCE = "2026-10-27T12:00:00.000Z";
+    function exemptLaterDocs(app, rec) {
+        if (!app || !isPastApproval(app)) return rec;
+        if (app.createdAt && String(app.createdAt) >= DOCUMENT_RULES_SINCE) return rec;
+        const later = LATER_DOCUMENT_IDS[isFullPayment(app) ? "full_payment" : "installment"];
+        rec.documents = rec.documents.map(d => (later.includes(d.id) && d.status === "NOT_SUBMITTED" && !d.notRequired)
+            ? Object.assign({}, d, { optional: true, notRequired: true, note: "Not required — approved before this was added." })
+            : d);
+        return rec;
+    }
+
+    // Can the application move on (financing approval, installer assignment)? Every required document must be
+    // sent (and not waiting for a re-upload) and the signed agreement must be Accepted by Hello Solar.
+    function applicationDocsComplete(appOrId) {
+        const app = typeof appOrId === "string" ? getApplication(appOrId) : appOrId;
+        if (!app) return { ok: false, missing: ["Application not found"] };
+        const missing = [];
+        const ag = agreementFor(app);
+        if (!ag || ag.status !== "ACCEPTED") {
+            missing.push(`Signed ${ag ? ag.title : "agreement"}${ag && ag.status === "SUBMITTED" ? " (waiting for your review)" : ""}`);
+        }
+        {
+            const rec = documentRecordFor(app.id);
+            (rec && rec.documents || []).filter(d => !d.optional && ["NOT_SUBMITTED", "REUPLOAD_REQUIRED"].includes(d.status))
+                .forEach(d => missing.push(d.name));
+        }
+        return { ok: missing.length === 0, missing };
+    }
+
+    // Site Photos and the Google Maps link are for checking the site before installation. Once the system is
+    // being installed (or is installed) they are not required anymore when they were never sent.
+    const SITE_DOC_IDS = ["site_photos", "site_map_link"];
+    function isInstallationStarted(app) {
+        const inst = String(app.installationStatus || "").toUpperCase();
+        return ["Installation", "In Progress", "Completed", "Installation Completed"].includes(app.stage) ||
+            inst === "INSTALLATION_IN_PROGRESS" || inst === "COMPLETED";
+    }
+    function exemptInstalledSiteDocs(app, rec) {
+        if (!app || !isInstallationStarted(app)) return rec;
+        rec.documents = rec.documents.map(d => (SITE_DOC_IDS.includes(d.id) && d.status === "NOT_SUBMITTED")
+            ? Object.assign({}, d, { optional: true, notRequired: true, note: "Not required — the system is already installed." })
+            : d);
+        return rec;
     }
 
     // Review verdict on one document (Financer / Super Admin). docRef: document id or exact name.
@@ -711,6 +917,58 @@
         storage.set(DOCUMENTS_KEY, JSON.stringify(store));
         sendCommand({ name: "document.review", payload: { appId, docId: doc.id, status: doc.status, note: doc.note || "" } });
         return Object.assign({}, doc);
+    }
+
+    // Hello Solar asks the customer for one more document (Super Admin › Details › Documents › Request Document).
+    // It becomes a required line on the customer's checklist and the customer is notified.
+    function requestDocument(appId, payload, actor) {
+        const name = String(payload && payload.name || "").trim();
+        const note = String(payload && payload.note || "").trim();
+        if (name.length < 3) return { ok: false, error: "Write the name of the document you need." };
+        const app = getApplication(appId);
+        if (!app) return { ok: false, error: "Application not found." };
+        documentRecordFor(appId);
+        const store = readDocumentStore();
+        const rec = store[appId];
+        if (!rec) return { ok: false, error: "Document record not found." };
+        if (rec.documents.some(d => d.requested && d.name.toLowerCase() === name.toLowerCase() && d.status !== "ACCEPTED")) {
+            return { ok: false, error: `"${name}" is already requested.` };
+        }
+        const now = nowISO();
+        const doc = { id: `req_${Date.now().toString(36)}`, name, requested: true, requestNote: note, requestedBy: actor || "Hello Solar", requestedAt: now,
+            optional: false, status: "NOT_SUBMITTED", submitted: false, note: "" };
+        rec.documents.push(doc);
+        rec.updatedAt = now;
+        storage.set(DOCUMENTS_KEY, JSON.stringify(store));
+        update(data => { logActivity(data, { role: "Admin", actorId: "ADMIN-01", user: actor || "ADMIN", record: appId, recordType: "Document",
+            action: `${actor || "ADMIN"} requested "${name}" from ${app.customer} for ${appId}${note ? ` (${note})` : ""}`, details: { appId, docId: doc.id, name, note } }); return {}; },
+            { name: "document.request", payload: { appId, docId: doc.id, name, note } });
+        if (app.customerId) notify({ recipientRole: "customer", recipientId: app.customerId, eventType: "DOCUMENT_REQUESTED", recordId: appId,
+            title: "Hello Solar needs a document", message: `Please upload: ${name}${note ? ` — ${note}` : ""}.`, targetUrl: "documents.html", actionLabel: "Upload" });
+        return { ok: true, document: Object.assign({}, doc) };
+    }
+
+    // Hello Solar marks a document "Not required" (reason shown to the customer), or requires it again
+    function setDocumentNotRequired(appId, docId, reason, actor) {
+        const app = getApplication(appId);
+        documentRecordFor(appId);
+        const store = readDocumentStore();
+        const rec = store[appId];
+        const doc = rec && Array.isArray(rec.documents) ? rec.documents.find(d => d.id === docId) : null;
+        if (!app || !doc) return { ok: false, error: "Document not found." };
+        const text = reason === null ? null : String(reason || "").trim();
+        if (text !== null && text.length < 3) return { ok: false, error: "Write a short reason (the customer will see it)." };
+        if (text !== null && normalizeDocumentStatus(doc.status) === "ACCEPTED") return { ok: false, error: "This document is already accepted." };
+        const now = nowISO();
+        if (text === null) delete doc.waived;
+        else doc.waived = { reason: text, by: actor || "Hello Solar", at: now };
+        rec.updatedAt = now;
+        storage.set(DOCUMENTS_KEY, JSON.stringify(store));
+        update(data => { logActivity(data, { role: "Admin", actorId: "ADMIN-01", user: actor || "ADMIN", record: appId, recordType: "Document",
+            action: text === null ? `${actor || "ADMIN"} required "${doc.name}" again for ${appId}` : `${actor || "ADMIN"} marked "${doc.name}" as not required for ${appId}: ${text}`,
+            details: { appId, docId, reason: text } }); return {}; },
+            { name: "document.waive", payload: { appId, docId, reason: text } });
+        return { ok: true };
     }
 
     // Customer upload of one required document. Local mode keeps the file (data URL) in the document store;
@@ -880,6 +1138,100 @@
         return sent;
     }
 
+    // ------------------------------------------------------------------
+    // Document progress — the same count in every portal: each required document (not "Not required") plus the
+    // signed agreement. items: agreement first, then the documents in order (Not required ones included, flagged).
+    // ------------------------------------------------------------------
+    function documentProgress(appOrId) {
+        const app = typeof appOrId === "string" ? getApplication(appOrId) : appOrId;
+        if (!app) return { total: 0, submitted: 0, accepted: 0, items: [] };
+        const ag = agreementFor(app);
+        const rec = documentRecordFor(app.id);
+        const items = [{
+            id: "agreement", name: `Signed ${ag.title}`, isAgreement: true, required: true, notRequired: false,
+            status: ag.status, submitted: ["SUBMITTED", "ACCEPTED"].includes(ag.status), note: ag.note || "",
+            fileName: ag.fileName || "", uploadedAt: ag.uploadedAt || null
+        }].concat((rec && rec.documents || [])
+            .filter(d => !(d.optional && !d.notRequired && d.status === "NOT_SUBMITTED"))
+            .map(d => Object.assign({}, d, { required: !d.optional, notRequired: !!d.notRequired })));
+        const counted = items.filter(i => i.required);
+        return {
+            total: counted.length,
+            submitted: counted.filter(i => i.submitted).length,
+            accepted: counted.filter(i => i.status === "ACCEPTED").length,
+            items
+        };
+    }
+
+    // ------------------------------------------------------------------
+    // Sample data (local demo): sample applications already past financing approval / payment have their
+    // documents and signed agreement on file (sample files), so the demo follows the same documents rule as real
+    // applications. Runs once per browser; applications in review keep their missing documents.
+    // ------------------------------------------------------------------
+    const SAMPLE_DOCS_FLAG = "sampleDocumentsV1";
+    function sampleFileData(title, customer) {
+        const esc = v => String(v || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400">` +
+            `<rect width="640" height="400" fill="#FFFBEB"/><rect x="14" y="14" width="612" height="372" rx="18" fill="none" stroke="#F59E0B" stroke-width="3" stroke-dasharray="12 9"/>` +
+            `<text x="320" y="170" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#1C1917" text-anchor="middle">${esc(title)}</text>` +
+            `<text x="320" y="214" font-family="Arial, sans-serif" font-size="18" fill="#57534E" text-anchor="middle">${esc(customer)}</text>` +
+            `<text x="320" y="262" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#B45309" text-anchor="middle">SAMPLE DOCUMENT · HELLO SOLAR DEMO</text></svg>`;
+        return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    }
+    function seedSampleDocuments() {
+        if (IS_API || CONFIG.demoData === false || window.HS_SKIP_SAMPLE_DOCS) return false;
+        const data = read();
+        if (!data || data[SAMPLE_DOCS_FLAG] || !Array.isArray(data.applications)) return false;
+        const sampleApps = data.applications.filter(a => !a.createdAt && isPastApproval(a));
+        const docStore = readDocumentStore();
+        const agreementFiles = storage.json(AGREEMENT_FILES_KEY, {}) || {};
+        const when = "2026-09-01T09:00:00.000Z";
+        sampleApps.forEach(app => {
+            documentRecordFor(app.id); // creates / migrates the stored record
+        });
+        const store = readDocumentStore();
+        sampleApps.forEach(app => {
+            const rec = store[app.id];
+            if (!rec || !Array.isArray(rec.documents)) return;
+            rec.documents.forEach(d => {
+                if (d.optional || d.waived || ["SUBMITTED", "UNDER_REVIEW", "ACCEPTED"].includes(normalizeDocumentStatus(d.status))) return;
+                const title = String(d.name || "").split(" — ")[0];
+                if (d.kind === "link") {
+                    Object.assign(d, { link: `https://maps.google.com/?q=${encodeURIComponent(app.location || "Philippines")}` });
+                } else {
+                    Object.assign(d, { fileName: `sample-${d.id}.svg`, fileType: "image/svg+xml", fileSize: 1200, fileData: sampleFileData(title, app.customer) });
+                }
+                Object.assign(d, { status: "ACCEPTED", submitted: true, uploadedAt: when, reviewedAt: when, note: "" });
+            });
+            rec.updatedAt = nowISO();
+            if (!agreementFiles[app.id]) {
+                const title = isFullPayment(app) ? "Full Payment Agreement" : "Installment Agreement";
+                agreementFiles[app.id] = { fileName: "signed-agreement-sample.svg", fileType: "image/svg+xml", fileData: sampleFileData(`Signed ${title}`, app.customer), uploadedAt: when };
+            }
+        });
+        try {
+            storage.set(DOCUMENTS_KEY, JSON.stringify(store));
+            storage.set(AGREEMENT_FILES_KEY, JSON.stringify(agreementFiles));
+        } catch (e) { return false; }
+        update(d => {
+            (d.applications || []).forEach(app => {
+                if (app.createdAt || !isPastApproval(app)) return;
+                const ag = agreementFor(app);
+                if (ag.status !== "ACCEPTED") {
+                    app.agreement = { type: ag.type, title: ag.title, fileName: "signed-agreement-sample.svg", fileType: "image/svg+xml",
+                        fileSize: 1200, uploadedAt: when, status: "ACCEPTED", note: "", reviewedAt: when };
+                }
+            });
+            d[SAMPLE_DOCS_FLAG] = true;
+            return {};
+        });
+        // The store on this page loaded its copy before this ran: give it the updated records so its next save
+        // does not write the old ones back
+        const db = window.HELLO_SOLAR_DB;
+        if (db && typeof db.load === "function") { try { db.data = db.load(); } catch (e) { /* keeps its copy */ } }
+        return true;
+    }
+
     window.HSShared = {
         CONFIG,
         IS_API,
@@ -910,12 +1262,20 @@
         isVisibleToInstaller,
         claimApplicationByHsId,
         submitReceipt,
+        agreementFor,
+        applicationDocsComplete,
+        agreementFileFor,
+        uploadSignedAgreement,
+        reviewAgreement,
+        AGREEMENT_TEMPLATES,
         paymentScheduleFor,
         createSupportTicket,
         supportTicketsFor,
         documentsFor,
         documentRecordFor,
         setDocumentStatus,
+        requestDocument,
+        setDocumentNotRequired,
         uploadDocument,
         saveDocumentLink,
         writeDocumentStore,
@@ -933,8 +1293,12 @@
         siteVisitsFor,
         completeSiteVisit,
         downPaymentFor,
+        downPaymentRefundState,
         reimbursementsFor,
         requestReimbursement,
-        sendDueReminders
+        sendDueReminders,
+        documentProgress,
+        seedSampleDocuments
     };
+    try { seedSampleDocuments(); } catch (e) { /* sample documents are a demo convenience only */ }
 })(typeof window !== "undefined" ? window : this);

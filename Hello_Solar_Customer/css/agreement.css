@@ -1,0 +1,76 @@
+/* Documents page — Service Agreement: 1 Download → 2 Fill out & sign → 3 Upload signed copy */
+.agreement-panel { padding: 24px; margin-bottom: 20px; }
+.agreement-panel [hidden] { display: none !important; }
+.agreement-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.agreement-head-main { display: flex; gap: 14px; align-items: flex-start; }
+.agreement-icon {
+    width: 42px; height: 42px; border-radius: 12px; background: var(--selected, #FFF4CC); color: var(--focus, #92400E);
+    display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.agreement-icon svg { width: 20px; height: 20px; }
+.agreement-title { font-size: 18px; font-weight: 800; margin: 0 0 4px; }
+.agreement-sub { margin: 0; font-size: 13px; color: var(--muted, #57534E); }
+.agreement-status { font-size: 12px; font-weight: 800; padding: 6px 12px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; }
+.agreement-status.is-required { background: #FFF7ED; color: #C2410C; border-color: #FED7AA; }
+.agreement-status.is-review { background: #EFF6FF; color: #1D4ED8; border-color: #BFDBFE; }
+.agreement-status.is-accepted { background: #ECFDF5; color: #047857; border-color: #A7F3D0; }
+
+.agreement-msg { font-size: 13px; font-weight: 600; padding: 10px 14px; border-radius: 10px; margin-bottom: 16px; }
+.agreement-msg.is-error { background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; }
+.agreement-msg.is-success { background: #ECFDF5; color: #047857; border: 1px solid #A7F3D0; }
+.agreement-msg.is-info { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
+
+.agreement-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.agreement-step {
+    display: flex; gap: 12px; align-items: flex-start; padding: 16px; border: 1px solid var(--border, #E5E0D8);
+    border-radius: 14px; background: var(--surface, #fff); min-width: 0;
+}
+.agreement-step-num {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+    background: var(--primary, #FDC400); color: var(--ink, #1C1917); font-size: 13px; font-weight: 800;
+}
+.agreement-step-body { min-width: 0; }
+.agreement-step-body h3 { margin: 3px 0 6px; font-size: 14px; font-weight: 800; }
+.agreement-step-body p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--muted, #57534E); overflow-wrap: anywhere; }
+.agreement-step-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.agreement-btn {
+    display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 10px;
+    border: 1px solid var(--border, #E5E0D8); background: var(--surface, #fff); color: var(--ink, #1C1917);
+    font: 700 13px var(--font-main, inherit); text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.agreement-btn svg { width: 15px; height: 15px; }
+.agreement-btn:hover { border-color: var(--icon, #F59E0B); background: var(--selected, #FFF4CC); }
+.agreement-btn.is-primary { background: var(--primary, #FDC400); border-color: var(--primary, #FDC400); }
+.agreement-btn.is-primary:hover { background: var(--primary-hover, #EAB600); }
+
+.agreement-uploaded {
+    display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 12px 14px;
+    border: 1px solid var(--border, #E5E0D8); border-radius: 12px; background: #FFFDF8;
+}
+.agreement-uploaded-icon { width: 36px; height: 36px; border-radius: 10px; background: #FFF4CC; color: #92400E; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.agreement-uploaded-icon svg { width: 18px; height: 18px; }
+.agreement-uploaded-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.agreement-uploaded-main strong { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agreement-uploaded-main span { font-size: 12px; color: var(--muted, #57534E); }
+
+@media (max-width: 1024px) { .agreement-steps { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .agreement-panel { padding: 16px; } }
+
+/* ===== Compact agreement card (inside "To do" / "Waiting") ===== */
+.agreement-card { border: 1px solid var(--border, #E7E1D8); border-radius: 14px; background: var(--surface, #fff); padding: 16px 18px; }
+.agreement-card[hidden], .agreement-card [hidden] { display: none !important; }
+.agreement-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.agreement-card .agreement-title { font-size: 15px; margin: 0 0 3px; }
+.agreement-flow { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 12px; }
+.flow-step { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 700; }
+.flow-num { width: 24px; height: 24px; border-radius: 50%; background: #FEF3C7; color: #92400E; display: inline-grid; place-items: center; font-size: 12px; font-weight: 800; }
+.flow-arrow { color: #D6D3D1; font-size: 18px; }
+.agreement-btn.is-upload { background: #F97316; border-color: #F97316; color: #fff; }
+.agreement-btn.is-upload:hover { background: #EA580C; border-color: #EA580C; }
+.agreement-hint { margin: 12px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted, #57534E); }
+.agreement-card .agreement-uploaded { margin-top: 12px; }
+.agreement-card .agreement-msg { margin-bottom: 12px; }
+@media (max-width: 700px) {
+    .flow-arrow { display: none; }
+    .agreement-flow { flex-direction: column; align-items: flex-start; }
+}

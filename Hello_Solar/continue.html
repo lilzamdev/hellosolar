@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Continue with Hello Solar</title>
+    <link rel="icon" type="image/png" href="assets/images/logofortab.png">
+    <script src="../shared/hello-solar-config.js"></script>
+    <script src="../shared/hello-solar-store.js?v=20261028d"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg: #FAF7F2; --ink: #1C1917; --muted: #57534E; --line: #E5E0D8; --brand: #FF8400; --brand-dark: #C2410C; }
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px;
+            background: var(--bg); color: var(--ink); font-family: "Plus Jakarta Sans", system-ui, sans-serif; }
+        .card { width: 100%; max-width: 520px; background: #fff; border: 1px solid var(--line); border-radius: 20px;
+            box-shadow: 0 12px 32px rgb(28 25 23 / 8%); overflow: hidden; }
+        .card-top { padding: 22px 26px; background: linear-gradient(135deg, #FF9E00 0%, #FF7700 100%); color: #fff; }
+        .card-top img { height: 30px; display: block; filter: brightness(0) invert(1); }
+        .eyebrow { margin-top: 14px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .9; }
+        h1 { margin: 6px 0 0; font-size: 22px; line-height: 1.3; }
+        .card-body { padding: 24px 26px 26px; }
+        .lead { margin: 0 0 18px; font-size: 14.5px; line-height: 1.6; color: var(--muted); }
+        .facts { display: grid; gap: 8px; margin: 0 0 22px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: #FFFDF8; }
+        .facts div { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+        .facts span { color: var(--muted); }
+        .facts strong { text-align: right; }
+        .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        button { height: 50px; border-radius: 12px; font: 800 15px "Plus Jakarta Sans", system-ui, sans-serif; cursor: pointer; }
+        .yes { border: 0; background: linear-gradient(135deg, #FF9E00 0%, #FF7700 100%); color: #fff; box-shadow: 0 6px 16px rgb(255 119 0 / 25%); }
+        .no { border: 1px solid var(--line); background: #fff; color: var(--ink); }
+        .no:hover { background: #F3EFE8; }
+        .note { margin: 14px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
+        .done { text-align: center; padding: 8px 0; }
+        .done h2 { margin: 0 0 8px; font-size: 19px; }
+        .done p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+        .error { color: #B91C1C; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 12px; padding: 12px 14px; font-size: 13.5px; }
+        [hidden] { display: none !important; }
+    </style>
+</head>
+
+<body>
+    <main class="card" aria-labelledby="cTitle">
+        <div class="card-top">
+            <img src="assets/images/hello_solar.png" alt="Hello Solar">
+            <div class="eyebrow">After your site visit</div>
+            <h1 id="cTitle">Would you like to continue with your solar installation?</h1>
+        </div>
+        <div class="card-body">
+            <div id="cError" class="error" hidden></div>
+
+            <section id="cAsk" hidden>
+                <p class="lead">Thank you for letting us visit your home. If you want to go ahead, choose <strong>Yes</strong> and
+                    pick how you want to pay: <strong>Full Payment</strong> or <strong>Installment</strong>.</p>
+                <div class="facts">
+                    <div><span>Site visit</span><strong id="cVisit">—</strong></div>
+                    <div><span>Name</span><strong id="cName">—</strong></div>
+                    <div><span>Package</span><strong id="cPackage">—</strong></div>
+                    <div><span>Location</span><strong id="cLocation">—</strong></div>
+                </div>
+                <div class="actions">
+                    <button type="button" class="no" id="cNo">No, not now</button>
+                    <button type="button" class="yes" id="cYes">Yes, continue</button>
+                </div>
+                <p class="note">If you continue, your ₱1,000 site visit fee will be deducted from your total system price.</p>
+            </section>
+
+            <section id="cDone" class="done" hidden>
+                <h2 id="cDoneTitle">Thank you</h2>
+                <p id="cDoneText"></p>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        (function () {
+            const $ = id => document.getElementById(id);
+            const params = new URLSearchParams(location.search);
+            const visitId = params.get("visit") || "";
+            const token = params.get("t") || "";
+            const db = window.HELLO_SOLAR_DB;
+
+            function fail(msg) {
+                $("cError").textContent = msg;
+                $("cError").hidden = false;
+                $("cAsk").hidden = true;
+            }
+
+            if (!db || !db.getSiteVisits) return fail("We could not load your request. Please contact Hello Solar.");
+            db.data = db.load();
+            const visit = (db.getSiteVisits() || []).find(v => v.id === visitId);
+            if (!visit || !visit.continueToken || visit.continueToken !== token) {
+                return fail("This link is not valid anymore. Please contact Hello Solar.");
+            }
+
+            function showDone(proceed) {
+                $("cAsk").hidden = true;
+                $("cDone").hidden = false;
+                $("cDoneTitle").textContent = proceed ? "Great! Taking you to checkout…" : "Thank you for letting us know";
+                $("cDoneText").textContent = proceed
+                    ? "Choose Full Payment or Installment on the next page."
+                    : "We won't continue with your installation. If you change your mind, just contact Hello Solar.";
+            }
+
+            function goToCheckout() {
+                location.href = `index.html?visit=${encodeURIComponent(visit.id)}&t=${encodeURIComponent(token)}#buy`;
+            }
+
+            if (/^No/.test(visit.continueResponse || "")) { showDone(false); return; }
+            if (/^Yes/.test(visit.continueResponse || "") && params.get("again") !== "1") { showDone(true); setTimeout(goToCheckout, 900); return; }
+
+            $("cVisit").textContent = visit.id;
+            $("cName").textContent = visit.customer || "—";
+            $("cPackage").textContent = visit.package || "—";
+            $("cLocation").textContent = visit.location || "—";
+            $("cAsk").hidden = false;
+
+            $("cYes").addEventListener("click", () => {
+                const res = db.respondSiteVisitContinue(visit.id, token, "Yes");
+                if (!res.success) return fail(res.error);
+                showDone(true);
+                setTimeout(goToCheckout, 900);
+            });
+            $("cNo").addEventListener("click", () => {
+                const res = db.respondSiteVisitContinue(visit.id, token, "No");
+                if (!res.success) return fail(res.error);
+                showDone(false);
+            });
+        })();
+    </script>
+</body>
+
+</html>

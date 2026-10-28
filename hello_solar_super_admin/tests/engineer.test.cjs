@@ -11,6 +11,7 @@ function environment() {
   const local = new Map(), session = new Map();
   const store = map => ({ getItem: k => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: k => map.delete(k) });
   const context = {
+    HS_TODAY: '2026-09-25', /* tests run on the sample data date */
     console, crypto, location: { protocol: 'file:', replace() {} },
     localStorage: store(local), sessionStorage: store(session),
     document: { documentElement: { hasAttribute: () => false } },

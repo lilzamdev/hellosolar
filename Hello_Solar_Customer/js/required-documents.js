@@ -1,5 +1,6 @@
 /**
- * Hello Solar Customer Portal - Required Documents (Installment customers only)
+ * Hello Solar Customer Portal - Documents (every system: the signed agreement + the required documents).
+ * The page groups them by what the customer has to do: To do · Waiting for Hello Solar · Done · Only if asked.
  *
  * Shared document store keyed by APP ID (localStorage "hello_solar_shared_documents").
  * The Financer portal reads/updates the same records, so it reviews the exact files uploaded here.
@@ -26,14 +27,17 @@
     // Short display names (by document id). The shared record keeps its full names, which the Financer and
     // Super Admin match on.
     const DISPLAY_NAME = {
-        gov_id_front: "Government ID Front",
-        gov_id_back: "Government ID Back",
-        proof_of_income: "Proof of Income",
+        valid_id_1: "Valid ID #1 (front & back)",
+        valid_id_2: "Valid ID #2 (front & back)",
+        income_proof: "Payslips (last 3 months) or Bank Statement",
+        residence_proof: "Proof of Home Ownership or Contract of Lease",
         proof_of_billing: "Proof of Billing",
-        bank_statement: "Bank Statement",
         other_requested: "Other Document",
         site_photos: "Site Photos (Roof & Neighborhood)",
-        site_map_link: "Google Maps Link of House / Site"
+        site_map_link: "Google Maps Link of Your House",
+        gov_id_back: "Government ID Back (older upload)",
+        proof_of_income: "Proof of Income (older upload)",
+        bank_statement: "Bank Statement (older upload)"
     };
     const displayName = doc => DISPLAY_NAME[doc.id] || doc.name;
     // The document request list, status rules and record creation live in the shared layer
@@ -139,65 +143,117 @@
         return isNaN(d) ? "" : d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
     }
 
-    function render(pkg) {
-        const section = document.getElementById("requiredDocumentsSection");
-        if (!section) return;
-        currentPkg = pkg || null;
+    // Short names for the checklist rows
+    const ROW_NAME = {
+        valid_id_1: "Valid ID #1",
+        valid_id_2: "Valid ID #2",
+        income_proof: "Payslips or Bank Statement",
+        residence_proof: "Proof of Home Ownership or Lease",
+        proof_of_billing: "Proof of Billing",
+        site_photos: "Site Photos",
+        site_map_link: "Google Maps Link of Your House",
+        other_requested: "Other Document"
+    };
+    // What to upload (shown as the button's tooltip)
+    const DOC_HELP = {
+        valid_id_1: "Front and back in one PDF or photo. The ID must show your signature.",
+        valid_id_2: "A different valid ID. Front and back in one PDF or photo, with your signature.",
+        income_proof: "Payslips for the last 3 months, or your latest bank statement.",
+        residence_proof: "Land title / tax declaration, or a 5–10 year Contract of Lease if you rent.",
+        proof_of_billing: "Your latest electric bill.",
+        site_photos: "Clear photos of your roof and the area around your house.",
+        site_map_link: "Open Google Maps, find your house, tap Share and paste the link.",
+        other_requested: "Upload only if Hello Solar asks for it."
+    };
+    const rowName = doc => ROW_NAME[doc.id] || displayName(doc);
+    // 0 = to do (re-upload first), 1 = checking, 2 = accepted
+    const stateOf = status => status === "REUPLOAD_REQUIRED" ? "redo"
+        : (status === "ACCEPTED" ? "done" : (status === "SUBMITTED" || status === "UNDER_REVIEW" ? "wait" : "todo"));
+    const ORDER = { redo: 0, todo: 0, wait: 1, done: 2, skip: 3 };
+    let editingLink = null;
 
-        if (!isInstallment(pkg) || !pkg.appId) {
-            section.hidden = true;
-            return;
-        }
+    function rowHtml(r) {
+        const icon = { todo: "", redo: "!", wait: "⏳", done: "✓", skip: "–" }[r.state];
+        let right;
+        if (r.state === "skip") right = `<span class="docs-row-status">Not needed</span>`;
+        else if (r.state === "done") right = `${r.view || ""}<span class="docs-row-status">Accepted</span>`;
+        else if (r.state === "wait") right = `${r.view || ""}<span class="docs-row-status is-wait">Checking</span>`;
+        else right = r.actions;
+        return `
+            <li class="docs-row is-${r.state}">
+                <span class="docs-row-icon is-${r.state}" aria-hidden="true">${icon}</span>
+                <div class="docs-row-name">${escapeHtml(r.name)}${r.sub ? `<small class="${r.state === "redo" ? "is-red" : ""}">${r.sub}</small>` : ""}</div>
+                <div class="docs-row-right">${right}</div>
+            </li>`;
+    }
+
+    function render(pkg) {
+        currentPkg = pkg || null;
+        const card = document.getElementById("docsCard");
+        if (!card) return;
+        if (!pkg || !pkg.appId) { card.hidden = true; return; }
 
         const rec = api.ensureRecord(pkg);
-        const docs = rec?.documents || [];
-        section.hidden = false;
+        const allDocs = rec?.documents || [];
+        const docs = allDocs.filter(d => !d.notRequired);
+        const agreement = window.HSShared && window.HSShared.agreementFor ? window.HSShared.agreementFor(pkg.appId) : null;
+        const rows = [];
 
-        const appIdEl = document.getElementById("requiredDocsAppId");
-        if (appIdEl) appIdEl.textContent = pkg.appId;
-
-        const requiredDocs = docs.filter(d => !d.optional);
-        const accepted = requiredDocs.filter(d => d.status === "ACCEPTED").length;
-        const actionNeeded = docs.filter(d => d.status === "REUPLOAD_REQUIRED" ||
-            (!d.optional && d.status === "NOT_SUBMITTED")).length;
-        const summaryEl = document.getElementById("requiredDocsSummary");
-        if (summaryEl) {
-            summaryEl.textContent = actionNeeded
-                ? `${actionNeeded} to upload · ${accepted} of ${requiredDocs.length} accepted`
-                : `${accepted} of ${requiredDocs.length} accepted`;
+        if (agreement) {
+            const state = stateOf(agreement.status);
+            const hasFile = !!(agreement.uploadedAt && window.HSShared.agreementFileFor && (window.HSShared.agreementFileFor(pkg.appId) || {}).fileData);
+            const file = encodeURI(agreement.file || "");
+            rows.push({
+                key: -1, state, name: "Signed Agreement",
+                sub: state === "redo" ? `Please upload again${agreement.note ? ` — ${escapeHtml(agreement.note)}` : "."}`
+                    : (state === "todo" ? `Download the ${escapeHtml(agreement.title)}, print and sign it, then upload it.` : ""),
+                actions: `<a class="docs-textlink" href="${file}" download="${escapeHtml(`${agreement.title} - ${pkg.appId}.pdf`)}">Download form</a>
+                    <button type="button" class="docs-btn" data-upload-agreement>Upload</button>`,
+                view: hasFile ? `<button type="button" class="docs-textlink is-muted" data-view-agreement>View</button>` : ""
+            });
         }
-
-        const list = document.getElementById("requiredDocsList");
-        if (!list) return;
-        list.innerHTML = docs.map(doc => {
-            const meta = STATUS[doc.status];
-            const canUpload = UPLOADABLE.includes(doc.status);
-            const btnLabel = doc.status === "REUPLOAD_REQUIRED" ? "Re-upload" : "Upload";
+        docs.forEach((doc, i) => {
+            const state = stateOf(doc.status);
+            if (doc.optional && state === "todo") return; // "Other Document": footer link until it is used
             const isLink = doc.kind === "link";
-            const fileLine = isLink && doc.link
-                ? `<span class="req-doc-file"><a href="${escapeHtml(doc.link)}" target="_blank" rel="noopener">Open in Google Maps</a>${doc.uploadedAt ? ` · ${formatDate(doc.uploadedAt)}` : ""}</span>`
-                : doc.fileName
-                ? `<span class="req-doc-file">${doc.fileData
-                    ? `<a href="#" data-view-doc="${escapeHtml(doc.id)}">${escapeHtml(doc.fileName)}</a>`
-                    : escapeHtml(doc.fileName)}${doc.fileSize ? ` · ${formatSize(doc.fileSize)}` : ""}${doc.uploadedAt ? ` · ${formatDate(doc.uploadedAt)}` : ""}</span>`
-                : "";
-            const note = doc.note ? `<span class="req-doc-note">${escapeHtml(doc.note)}</span>` : "";
-            return `
-                <li class="req-doc-item" data-doc-id="${escapeHtml(doc.id)}">
-                    <div class="req-doc-info">
-                        <span class="req-doc-name">${escapeHtml(displayName(doc))}${doc.optional ? ` <span class="req-doc-optional">If applicable</span>` : ""}</span>
-                        ${fileLine}${note}
-                    </div>
-                    <div class="req-doc-actions">
-                        <span class="req-doc-badge req-doc-badge--${meta.cls}">${meta.label}</span>
-                        ${canUpload && isLink ? `<input type="url" class="req-doc-link-input" data-link-input="${escapeHtml(doc.id)}"
-                            placeholder="Paste Google Maps link" aria-label="Google Maps link of the house or site">
-                            <button type="button" class="req-doc-upload-btn" data-save-link="${escapeHtml(doc.id)}">Save Link</button>` : ""}
-                        ${canUpload && !isLink ? `<button type="button" class="req-doc-upload-btn" data-upload-doc="${escapeHtml(doc.id)}"
-                            aria-label="${btnLabel} ${escapeHtml(displayName(doc))}">${btnLabel}</button>` : ""}
-                    </div>
-                </li>`;
-        }).join("");
+            let actions;
+            if (isLink && editingLink === doc.id) {
+                actions = `<input type="url" class="req-doc-link-input" data-link-input="${escapeHtml(doc.id)}" placeholder="Paste Google Maps link"
+                        aria-label="Google Maps link of your house">
+                    <button type="button" class="docs-btn" data-save-link="${escapeHtml(doc.id)}">Save</button>`;
+            } else {
+                actions = `<button type="button" class="docs-btn" ${isLink ? `data-edit-link="${escapeHtml(doc.id)}"` : `data-upload-doc="${escapeHtml(doc.id)}"`}
+                    title="${escapeHtml(DOC_HELP[doc.id] || "")}">${isLink ? "Add Link" : "Upload"}</button>`;
+            }
+            const view = doc.kind === "link" && doc.link
+                ? `<a class="docs-textlink is-muted" href="${escapeHtml(doc.link)}" target="_blank" rel="noopener">Open</a>`
+                : (doc.fileData ? `<button type="button" class="docs-textlink is-muted" data-view-doc="${escapeHtml(doc.id)}">View</button>` : "");
+            rows.push({
+                key: i, state, name: rowName(doc), actions, view,
+                sub: state === "redo" ? `Please upload again${doc.note ? ` — ${escapeHtml(doc.note)}` : "."}`
+                    : (doc.requested && state === "todo" ? `Requested by Hello Solar${doc.requestNote ? ` — ${escapeHtml(doc.requestNote)}` : ""}` : "")
+            });
+        });
+        // Documents Hello Solar does not need (with the reason), greyed out at the bottom
+        allDocs.forEach((doc, i) => {
+            if (!doc.notRequired || doc.id === "other_requested") return;
+            rows.push({ key: 100 + i, state: "skip", name: rowName(doc), sub: escapeHtml(String(doc.note || "").replace(/^Not required — /, "").replace(/^./, c => c.toUpperCase())) });
+        });
+        rows.sort((a, b) => (ORDER[a.state] - ORDER[b.state]) || (a.key - b.key));
+
+        const required = docs.filter(d => !d.optional);
+        const total = required.length + (agreement ? 1 : 0);
+        const done = required.filter(d => d.status === "ACCEPTED").length + (agreement && agreement.status === "ACCEPTED" ? 1 : 0);
+        const countEl = document.getElementById("docsCount");
+        if (countEl) countEl.textContent = done === total && total ? "All done 🎉" : `${done} of ${total} done`;
+        const bar = document.getElementById("docsBar");
+        if (bar) bar.style.width = `${total ? Math.round(done / total * 100) : 0}%`;
+        const list = document.getElementById("docsRows");
+        if (list) list.innerHTML = rows.map(rowHtml).join("");
+        const other = docs.find(d => d.id === "other_requested");
+        const otherWrap = document.getElementById("docsOtherWrap");
+        if (otherWrap) otherWrap.hidden = !(other && stateOf(other.status) === "todo");
+        card.hidden = false;
     }
 
     function showMessage(text, type) {
@@ -211,14 +267,25 @@
     let pendingDocId = null;
 
     document.addEventListener("click", (e) => {
+        if (e.target.closest("[data-upload-agreement]")) { if (window.openAgreementUpload) window.openAgreementUpload(); return; }
+        if (e.target.closest("[data-view-agreement]") && currentPkg) { if (window.openStoredAgreement) window.openStoredAgreement(currentPkg.appId); return; }
+        const editLink = e.target.closest("[data-edit-link]");
+        if (editLink && currentPkg) {
+            editingLink = editLink.dataset.editLink;
+            render(currentPkg);
+            const input = document.querySelector(`[data-link-input="${editingLink}"]`);
+            if (input) input.focus();
+            return;
+        }
         const saveLinkBtn = e.target.closest("[data-save-link]");
         if (saveLinkBtn && currentPkg && window.HSShared?.saveDocumentLink) {
             const docId = saveLinkBtn.dataset.saveLink;
             const input = document.querySelector(`[data-link-input="${docId}"]`);
             const res = window.HSShared.saveDocumentLink(currentPkg.appId, docId, input ? input.value : "");
             if (!res.ok) { showMessage(res.error, "error"); return; }
+            editingLink = null;
             notify(currentPkg.appId);
-            showMessage("Google Maps link saved. Awaiting review.", "success");
+            showMessage("Google Maps link saved. Hello Solar will check it.", "success");
             render(currentPkg);
             return;
         }
@@ -264,7 +331,7 @@
         reader.onload = () => {
             try {
                 const doc = api.uploadDocument(currentPkg.appId, docId, file, reader.result);
-                showMessage(`${displayName(doc)} uploaded. Awaiting review.`, "success");
+                showMessage(`${rowName(doc)} uploaded. Hello Solar will check it.`, "success");
             } catch (err) {
                 showMessage(err.message || "Upload failed. Please try again.", "error");
             }
@@ -281,7 +348,8 @@
     window.addEventListener("hellosolar:documents-updated", () => { if (currentPkg) render(currentPkg); });
 
     window.renderRequiredDocuments = function (pkg) {
-        showMessage("", "info");
+        if (!pkg || !currentPkg || pkg.appId !== currentPkg.appId) { showMessage("", "info"); editingLink = null; }
         render(pkg);
     };
+    window.showDocumentsMessage = showMessage;
 })();

@@ -184,3 +184,43 @@ html, body, .app, .main { background: #FFFFFF; }
         }
     }
 }
+
+/* System list (System dropdown) on phones: one clean row per system —
+   name + status on the first line, details on the second line, no wrapping or overlapping */
+@media (max-width: 600px) {
+    .package-dropdown-menu {
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+    }
+    .package-items-list { max-height: min(52vh, 360px); }
+    .package-item {
+        display: grid !important;
+        grid-template-columns: 12px minmax(0, 1fr) auto;
+        grid-template-areas: "dot main state";
+        align-items: center;
+        column-gap: 10px;
+        padding: 10px 12px;
+    }
+    .package-item-dot { grid-area: dot; }
+    .package-item-main { grid-area: main; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .package-item-state { grid-area: state; }
+    .package-item-check { display: none !important; }
+    .package-item-top { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+    .package-item-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .package-item-capacity { flex: 0 0 auto; }
+    .package-item-meta {
+        display: block !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 11.5px;
+    }
+    .package-item-meta > span { display: inline; }
+    .package-item-sep { margin: 0 3px; }
+    /* Short and readable: full name, then "APP · payment type" (capacity and HS ID are on the page header) */
+    .package-item-capacity { display: none; }
+    .package-item-meta > span:nth-child(3), .package-item-meta > span:nth-child(4) { display: none; }
+}

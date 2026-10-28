@@ -2,7 +2,7 @@
 // Run: node --test shared/tests/
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { environment } = require('./helpers.cjs');
+const { environment, completeDocuments } = require('./helpers.cjs');
 const { makeFinancerContext } = require('../../Hello_Solar_Financer/scripts/shared-env.cjs');
 
 const notesOf = env => JSON.parse(env.store.get('hello_solar_notifications_store') || '[]');
@@ -45,9 +45,14 @@ test('Super Admin assigns only Active-contract financers; the application then a
   assert.ok(notesOf(env).some(n => n.recipientRole === 'financer' && n.recipientId === 'FIN-005' && n.recordId === ids.appId));
   assert.ok(S.read().activity.some(a => a.record === ids.appId && /assigned .* to financer FIN-005/.test(a.action)));
 
-  const storage = Object.fromEntries(env.store);
-  const fin5 = makeFinancerContext(storage, 'FIN-005');
+  let storage = Object.fromEntries(env.store);
+  let fin5 = makeFinancerContext(storage, 'FIN-005');
   assert.ok(fin5.HelloSolarStore.getApplicationById(ids.appId), 'visible to the assigned financer');
+  assert.equal(fin5.HelloSolarStore.approveFinancing(ids.appId), null, 'blocked until the documents are complete');
+  assert.match(fin5.HelloSolarStore.lastDecisionError, /Complete the documents first/);
+  completeDocuments(S, ids.appId);
+  storage = Object.fromEntries(env.store);
+  fin5 = makeFinancerContext(storage, 'FIN-005');
   assert.ok(fin5.HelloSolarStore.approveFinancing(ids.appId), 'assigned financer can decide it');
   const fin1 = makeFinancerContext(storage, 'FIN-001');
   assert.equal(fin1.HelloSolarStore.getApplicationById(ids.appId), null, 'not visible to other financers');

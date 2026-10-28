@@ -1364,6 +1364,8 @@ const InstallerData = (() => {
 
         const context = projectContext();
         if (!context) return { success: false, error: 'Your installer account could not be verified.' };
+        const docsBlock = documentsBlockReason(job);
+        if (docsBlock) return { success: false, error: docsBlock };
         const { installerId, installerName } = context;
 
         job.installationStatus = 'AWAITING_INSTALLATION';
@@ -1491,12 +1493,22 @@ const InstallerData = (() => {
      * User requirement:
      * - installationStatus = INSTALLATION_IN_PROGRESS
      */
+    // Hello Solar releases a job only when the customer's documents are complete and the signed agreement is Accepted
+    function documentsBlockReason(job) {
+        if (!job || isMaintenanceJob(job) || !window.HSShared || typeof window.HSShared.applicationDocsComplete !== 'function') return '';
+        if (!window.HSShared.getApplication || !window.HSShared.getApplication(job.id)) return '';
+        const docs = window.HSShared.applicationDocsComplete(job.id);
+        return docs.ok ? '' : `Waiting for Hello Solar: the customer's documents are not complete yet (${docs.missing.join(', ')}).`;
+    }
+
     function startInstallation(jobId) {
         const job = getJobById(jobId);
         if (!job) return { success: false, error: 'Job not found' };
         if (isMaintenanceJob(job) || String(job.installationStatus || '').toUpperCase() !== 'AWAITING_INSTALLATION') {
             return { success: false, error: 'Installation can only be started for accepted jobs awaiting installation.' };
         }
+        const docsBlock = documentsBlockReason(job);
+        if (docsBlock) return { success: false, error: docsBlock };
 
         job.installationStatus = 'INSTALLATION_IN_PROGRESS';
         job.status = 'In Progress';

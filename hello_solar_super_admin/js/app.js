@@ -6,7 +6,7 @@
   // --- ROLE-BASED ACCESS (Super Admin vs Direct Installation Engineer) ---
   const SESSION = (window.SuperAdminAuth && window.SuperAdminAuth.getSession && window.SuperAdminAuth.getSession()) || {};
   const IS_ENGINEER = SESSION.role === "direct-engineer";
-  const ENGINEER = { name: SESSION.name || "Direct Installation Engineer", actorId: SESSION.accountId || SESSION.actorId || "ENG-DEMO" };
+  const ENGINEER = { name: SESSION.name || "Installation Engineer", actorId: SESSION.accountId || SESSION.actorId || "ENG-DEMO" };
   const ENGINEER_PAGES = ["applications", "installations", "site-visits", "maintenance"];
   // Accounting accounts see only the Accounting page
   const IS_ACCOUNTING = SESSION.role === "accounting";
@@ -197,6 +197,11 @@
     appStageFilter: "All",
     appSearchQuery: "",
     appFinancerFilter: "All",
+    accTab: "overview",
+    accSub: { in: "received", out: "funders" },
+    accMonth: "",
+    accLedgerStatus: "All",
+    accFunderFilter: "All",
     selectedAppId: null,
 
     // Installations Page
@@ -389,7 +394,7 @@
 
     // Nav badges
     if ($("#navBadgeApps")) $("#navBadgeApps").textContent = apps.length;
-    if ($("#navBadgeInstalls")) $("#navBadgeInstalls").textContent = installs.length;
+    if ($("#navBadgeInstalls")) $("#navBadgeInstalls").textContent = installs.filter(isInstallationWork).length;
     const unresolvedSupport = support.filter(s => s.status === "Open" || s.status === "In Progress").length;
     if ($("#navBadgeSupport")) $("#navBadgeSupport").textContent = unresolvedSupport;
 
@@ -415,13 +420,11 @@
       inqBadge.style.display = unreadInquiries > 0 ? "inline-flex" : "none";
     }
 
-    // Topbar - Active Hello Solar Direct projects (excluding completed and cancelled)
-    const directCount = installs.filter(j =>
-      j.installerType === "Hello Solar Direct" &&
-      j.status !== "Completed" &&
-      j.status !== "Cancelled"
-    ).length;
-    if ($("#quickDirectCount")) $("#quickDirectCount").textContent = `${directCount} Hello Solar Projects`;
+    // Topbar - active Hello Solar Installation projects: the same projects as Accounting › Installation Costs,
+    // without the completed / declined ones
+    const directCount = (db.getDirectInstallationCosts ? db.getDirectInstallationCosts() : [])
+      .filter(r => !["Completed", "Installation Completed", "Declined", "Cancelled"].includes(r.stage)).length;
+    if ($("#quickDirectCount")) $("#quickDirectCount").textContent = `${directCount} Active Hello Solar Project${directCount === 1 ? "" : "s"}`;
     if ($("#notifBadgeCount")) $("#notifBadgeCount").textContent = attention.length;
     if ($("#notifHeadCount")) $("#notifHeadCount").textContent = attention.length;
 
@@ -677,6 +680,24 @@
     "Pending Financing": "financing",
     "Pending Installation": "installation"
   };
+  // "Updated" time of an application: its latest logged activity (real time), not a fixed text
+  let lastActivityCache = { size: -1, map: new Map() };
+  function appUpdatedLabel(app) {
+    const log = db.data.activity || [];
+    if (lastActivityCache.size !== log.length) {
+      const map = new Map();
+      log.forEach(e => {
+        const id = e && (e.recordId || e.record);
+        if (!id || !e.timestamp) return;
+        const t = Date.parse(e.timestamp);
+        if (Number.isFinite(t) && (!map.has(id) || t > map.get(id))) map.set(id, t);
+      });
+      lastActivityCache = { size: log.length, map };
+    }
+    const t = lastActivityCache.map.get(app.id) || Date.parse(app.updatedAt || app.createdAt || "");
+    if (!Number.isFinite(t)) return "—";
+    return (db.formatRelativeAuditTime && db.formatRelativeAuditTime(new Date(t))) || new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
   function stageGroupOf(stage) {
     for (const [group, stages] of Object.entries(STAGE_GROUPS)) {
       if (stages.includes(stage)) return group;
@@ -723,6 +744,14 @@
     const name = packageNameOf(rec);
     const size = systemSizeOf(rec?.system);
     return name ? `${name} · ${size}` : size;
+  }
+  // Installment terms (6 months · 3 years · 6 years) from the shared package list
+  function installmentTermOptions() {
+    return (window.HELLO_SOLAR_PACKAGES && window.HELLO_SOLAR_PACKAGES.termOptions) || [6, 36, 72];
+  }
+  function termText(months) {
+    const P = window.HELLO_SOLAR_PACKAGES;
+    return P && P.termLabel ? P.termLabel(months) : `${months} months`;
   }
   function paymentTypeOf(app) {
     return db.isFullPaymentApp(app) ? "Full Payment" : "Installment";
@@ -795,43 +824,38 @@
       const paymentType = paymentTypeOf(app);
       const stageGroup = stageGroupOf(app.stage);
 
+      // One line per cell: long values are cut with "…" and shown in full on hover
       let actionContent = "";
-      if (isDirect) {
-        actionContent = `<span class="badge-direct-installed" title="Assigned to Hello Solar Internal Team">🏠 Hello Solar Direct</span>`;
-      } else if (isEligible) {
-        actionContent = `
-          <button class="btn-home-direct" data-open-direct-modal="${app.id}" title="Accept for Hello Solar Direct Install" aria-label="Hello Solar Direct Install">
-            <span class="home-icon">🏠</span> Direct Install
-          </button>
-        `;
+      if (!IS_ENGINEER && db.isEligibleForHelloSolarFunding(app)) {
+        actionContent = `<button class="btn-hs-funding apps-mini-btn" data-hs-funding="${app.id}" title="Accept financing with Hello Solar Funding">Fund</button>`;
+      } else if (isEligible && !isDirect) {
+        actionContent = `<button class="btn-home-direct apps-mini-btn" data-open-direct-modal="${app.id}" title="Accept for Hello Solar Installation" aria-label="Hello Solar Direct Install">🏠 Direct</button>`;
       }
+      const financerFull = db.isHelloSolarFunded(app) ? "Hello Solar Funding" : (app.financer || "Pending");
+      const financerHtml = db.isHelloSolarFunded(app)
+        ? `<span class="badge-hs-funded" title="Hello Solar Funding">HS Funding</span>`
+        : safeText(financerFull.replace(" Financing", "").replace(" Program", ""));
+      const installerFull = isDirect ? "Hello Solar Internal Team" : (app.installer || "Unassigned");
+      const installerHtml = isDirect
+        ? `<span class="badge-hs-install" title="Installed by the Hello Solar team">HS Installation</span>`
+        : safeText(installerFull);
+      const subLine = `${packageWithSize(app)} • ${pesoCompact(app.amount)}`;
 
       return `
         <tr>
           <td><span class="record-id">${app.id}</span></td>
-          <td>${app.location}</td>
-          <td>
-            <strong>${app.customer}</strong>
-            <span class="sub-info">${safeText(packageWithSize(app))} • ${pesoCompact(app.amount)}</span>
+          <td title="${safeText(app.location)}">${safeText(app.location)}</td>
+          <td title="${safeText(app.customer)} · ${safeText(subLine)}">
+            <strong class="app-cust-name">${safeText(app.customer)}</strong>
+            <span class="sub-info">${safeText(subLine)}</span>
           </td>
-          <td>
-            ${paymentTypePill(paymentType)}
-          </td>
-          <td>
-            <span class="status-pill ${stageGroupClass(stageGroup)}">${safeText(stageGroup)}</span>
-          </td>
-          <td>${app.financer ? app.financer.replace(" Financing", "").replace(" Program", "") : "Pending"}</td>
-          <td>
-            ${isDirect
-          ? `<span style="color:var(--accent); font-weight:700;">🏠 Hello Solar Internal Team</span>`
-          : `<span>${app.installer || "Unassigned"}</span>`}
-          </td>
-          <td><span class="sub-info" style="margin:0;">${app.updated || "Just now"}</span></td>
-          <td style="text-align: right;">
-            <div style="display:inline-flex; align-items:center; gap:8px; justify-content:flex-end;">
-              <button class="btn btn-secondary btn-sm" data-view-app="${app.id}" title="View application details">Details →</button>
-              ${actionContent}
-            </div>
+          <td title="${!db.isFullPaymentApp(app) && Number(app.termMonths) > 0 ? safeText(termText(Number(app.termMonths))) : ""}">${paymentTypePill(paymentType)}</td>
+          <td><span class="status-pill ${stageGroupClass(stageGroup)}" title="${safeText(stageGroup)}">${safeText(stageGroup)}</span></td>
+          <td title="${safeText(financerFull)}">${financerHtml}</td>
+          <td title="${safeText(installerFull)}">${installerHtml}</td>
+          <td><span class="sub-info" style="margin:0;">${safeText(appUpdatedLabel(app))}</span></td>
+          <td class="apps-action-cell">
+            <button class="btn btn-secondary btn-sm apps-mini-btn" data-view-app="${app.id}" title="View application details">Details</button>${actionContent}
           </td>
         </tr>
       `;
@@ -885,52 +909,53 @@
       }
     }
     if ($("#drawerCustomerName")) $("#drawerCustomerName").textContent = `${app.customer} • ${app.customerId}`;
-    if ($("#drawerUpdated")) $("#drawerUpdated").textContent = `Last updated ${app.updated}`;
+    if ($("#drawerUpdated")) $("#drawerUpdated").textContent = `Last updated ${appUpdatedLabel(app)}`;
 
-    // 2. Stepper Progression (Overview Tab)
-    // Installment: Cj's 9 steps. Full Payment has no financing: its two finance steps are replaced by one
-    // "Full Payment Verified" step, reached only when Super Admin verifies the full payment receipt (8 steps).
+    // 2. Lifecycle Progression (Overview Tab) — same 10 steps for Full Payment and Installment:
+    // Down Payment → Account Created → Documents Submission → Pending Finance → Approved Financing →
+    // Pending Installer → Installer Accepted → Pending Installation → Ongoing Installation → Completed.
+    // Full Payment: "Pending Finance" = full payment receipt waiting for verification, "Approved Financing" = verified.
     const isFullPayment = (app.paymentType || "").toLowerCase().includes("full") || app.financer === "Not Required";
-    const stages = isFullPayment
-      ? ["Account Created", "Down Payment", "Full Payment Verified", "Pending Installer",
-        "Installer Accepted", "Pending Installation", "Ongoing Installation", "Completed"]
-      : ["Account Created", "Down Payment", "Pending Finance", "Approved Financing", "Pending Installer",
-        "Installer Accepted", "Pending Installation", "Ongoing Installation", "Completed"];
+    const stages = ["Down Payment", "Account Created", "Documents Submission", "Pending Finance", "Approved Financing",
+      "Pending Installer", "Installer Accepted", "Pending Installation", "Ongoing Installation", "Completed"];
     const at = name => stages.indexOf(name);
     const dpState = db.downPaymentState(app);
     // Installation progress lives on the installation job / installationStatus, not only on app.stage
-    const installJob = (db.data.installations || []).find(j => j.appId === app.id && j.status !== "Cancelled");
+    const installJob = (db.data.installations || []).find(j => j.appId === app.id && j.status !== "Cancelled" && j.installerType !== "Maintenance");
     const instStatus = String(app.installationStatus || "").toUpperCase();
     const installDone = instStatus === "COMPLETED" || (installJob && installJob.status === "Completed");
     const installing = instStatus === "INSTALLATION_IN_PROGRESS" || app.stage === "In Progress" ||
       (installJob && (["Testing", "Delayed"].includes(installJob.status) || (installJob.status === "In Progress" && Number(installJob.progress) > 0))) ||
       (app.stage === "Installation" && !instStatus && app.installerAcceptance !== "Accepted");
     const installerAccepted = instStatus === "AWAITING_INSTALLATION" || app.installerAcceptance === "Accepted" ||
-      app.dispatchStatus === "Accepted" || !!(installJob && installJob.engineerAcceptedAt);
+      app.dispatchStatus === "Accepted" || !!(installJob && installJob.engineerAcceptedAt) ||
+      !!(installJob && ["Scheduled", "Ready"].includes(installJob.status) && !hasNoInstaller(app));
 
     const readyForInstaller = ["Ready for Installation", "Installation"].includes(app.stage);
     // Full Payment balance verified (same rule that clears the job for installers)
     const fullPaymentVerified = isFullPayment && (["Verified / Paid", "Verified", "Paid", "Completed"].includes(app.paymentStatus) ||
       app.receiptVerificationStatus === "Verified");
+    const docCountsLc = db.getAppDocumentCounts(app.id);
+    const docsMissing = app.stage === "Missing Documents" || docCountsLc.missing.length > 0;
+    const agreement = window.HSShared && window.HSShared.agreementFor ? window.HSShared.agreementFor(app) : null;
 
     let currentStageIndex;
     if (app.stage === "Completed" || installDone) currentStageIndex = at("Completed");
     else if (installing) currentStageIndex = at("Ongoing Installation");
     else if (installerAccepted) currentStageIndex = at("Pending Installation");
-    else if (isFullPayment) currentStageIndex = fullPaymentVerified || readyForInstaller ? at("Pending Installer") : at("Full Payment Verified");
-    else if (readyForInstaller) currentStageIndex = at("Pending Installer");
-    else if (app.stage === "Approved") currentStageIndex = at("Approved Financing");
-    else currentStageIndex = at("Pending Finance"); // Financing Review / Pending Finance / Missing Documents
+    else if (readyForInstaller || fullPaymentVerified) currentStageIndex = at("Pending Installer");
+    else if (!isFullPayment && app.stage === "Approved") currentStageIndex = at("Approved Financing");
+    else if (docsMissing) currentStageIndex = at("Documents Submission");
+    else currentStageIndex = at("Pending Finance"); // Financing Review / Pending Finance / unverified full payment
+    if (!app.customerId && currentStageIndex > at("Account Created")) currentStageIndex = at("Account Created");
     // The down payment must be verified before the project can move toward installation
-    if (dpState !== "Verified" && (currentStageIndex < at("Pending Installer") || (currentStageIndex === at("Pending Installer") && !readyForInstaller))) {
+    if (dpState !== "Verified" && currentStageIndex <= at("Pending Installer") && !installerAccepted) {
       currentStageIndex = at("Down Payment");
     }
     // Completed is only ticked once the application itself is marked Completed
     const finished = app.stage === "Completed";
     // Header pill and Current Stage use the Lifecycle step name; a declined application keeps "Declined".
-    // While the full payment is still unverified the pill reads "Pending Full Payment".
-    const lifecycleLabel = app.stage === "Declined" ? "Declined"
-      : (stages[currentStageIndex] === "Full Payment Verified" ? "Pending Full Payment" : stages[currentStageIndex]);
+    const lifecycleLabel = app.stage === "Declined" ? "Declined" : stages[currentStageIndex];
     if ($("#drawerStagePill")) {
       $("#drawerStagePill").textContent = lifecycleLabel;
       $("#drawerStagePill").className = `status-pill ${getStatusClass(lifecycleLabel)}`;
@@ -938,19 +963,25 @@
     // Full Payment: the system price still owed is shown as a balance, not as the stage.
     // Buy Now terms: the verified down payment is deducted from the total system price.
     const payInfo = isFullPayment && !finished && db.calculatePaymentStatus ? db.calculatePaymentStatus(app) : null;
-    const dpCredit = dpState === "Verified" && app.downPaymentStatus ? Number(app.downPaymentAmount || 10000) : 0;
+    const dpCredit = dpState === "Verified" && app.downPaymentStatus ? db.downPaymentAmount(app) : 0;
     const balanceDue = payInfo && payInfo.remainingBalance > 0 ? Math.max(0, payInfo.remainingBalance - dpCredit) : 0;
 
+    const stepState = i => (i < currentStageIndex || (finished && i === currentStageIndex)) ? "done" : (i === currentStageIndex ? "current" : "upcoming");
+    // Documents Submission is only ticked when every required document and the signed agreement are complete.
+    // When the application already moved past it without them, the step shows "!" instead of ✓.
+    const docsIncomplete = docCountsLc.missing.length > 0 || !!(agreement && agreement.status !== "ACCEPTED");
+    const docsIssue = docCountsLc.missing.length
+      ? `Missing: ${docCountsLc.missing.map(d => d.label || d.name).join(", ")}`
+      : "The signed agreement is waiting for review";
     const stepperEl = $("#drawerStepper");
     if (stepperEl) {
       stepperEl.innerHTML = stages.map((stg, i) => {
-        let cls = "";
-        const done = i < currentStageIndex || (finished && i === currentStageIndex);
-        if (done) cls = "completed";
-        else if (i === currentStageIndex) cls = "active";
+        let st = stepState(i);
+        if (st === "done" && stg === "Documents Submission" && docsIncomplete) st = "warn";
+        const cls = st === "done" ? "completed" : (st === "current" ? "active" : (st === "warn" ? "warn" : ""));
         return `
-          <div class="step-item ${cls}">
-            <div class="step-bubble">${done ? '✓' : i + 1}</div>
+          <div class="step-item ${cls}"${st === "warn" ? ` title="${safeText(docsIssue)}"` : ""}>
+            <div class="step-bubble">${st === "done" ? '✓' : (st === "warn" ? '!' : i + 1)}</div>
             <div class="step-label">${stg}</div>
           </div>
         `;
@@ -962,38 +993,64 @@
     if (calloutEl) {
       calloutEl.style.display = isEligibleDirect ? "block" : "none";
     }
+    // Hello Solar Funding callout (installment applications waiting for financing)
+    const fundCallout = $("#drawerHsFundingCallout");
+    if (fundCallout) fundCallout.style.display = !IS_ENGINEER && db.isEligibleForHelloSolarFunding(app) ? "block" : "none";
 
-    // Overview Tab Details
-    if ($("#drawerOverviewAppId")) $("#drawerOverviewAppId").textContent = app.id;
-    if ($("#drawerOverviewCustomer")) $("#drawerOverviewCustomer").textContent = app.customer;
-    if ($("#drawerPaymentType")) $("#drawerPaymentType").innerHTML = paymentTypePill(isFullPayment ? "Full Payment" : "Installment");
-    if ($("#drawerLocation")) $("#drawerLocation").textContent = app.location;
-    if ($("#drawerSystem")) $("#drawerSystem").textContent = packageWithSize(app);
-    if ($("#drawerAmount")) $("#drawerAmount").textContent = peso(app.amount);
-    if ($("#drawerOverviewStage")) {
-      $("#drawerOverviewStage").innerHTML = safeText(lifecycleLabel) +
-        (balanceDue ? `<span class="sub-info">Full payment balance: ${safeText(peso(balanceDue))} due${dpCredit ? ` (after ${safeText(peso(dpCredit))} down payment)` : ""}</span>` : "");
-    }
-    if ($("#drawerFinancer")) $("#drawerFinancer").textContent = app.financer;
-    const dpEl = $("#drawerDownPayment");
-    if (dpEl) {
-      const dpAmount = peso(app.downPaymentAmount || 10000);
-      const hasReceipt = !!(app.downPaymentProof && app.downPaymentProof.dataUrl);
-      dpEl.innerHTML = `${safeText(dpAmount)} · <span class="status-pill ${dpState === "Verified" ? "success" : "warn"}" style="font-size:11px;">${safeText(dpState)}</span>` +
-        (hasReceipt ? ` <button type="button" class="link-btn" id="btnViewDownPaymentReceipt" style="font-size:12px;">View receipt</button>` : "");
-    }
-    if ($("#drawerInstallerSummary")) {
-      $("#drawerInstallerSummary").textContent = isDirect
-        ? "Hello Solar Internal Team (Direct)"
-        : (isUnassigned ? "Unassigned (Pending)" : `${app.installer} (Partner)`);
-    }
-    if ($("#drawerPanels")) $("#drawerPanels").textContent = app.panels;
-    if ($("#drawerInverter")) $("#drawerInverter").textContent = app.inverter;
-    if ($("#drawerBattery")) {
-      const rec = db.getInstallationProgress ? db.getInstallationProgress({ appId: app.id }) : null;
-      const b = rec && rec.battery ? [rec.battery.brand, rec.battery.model, rec.battery.capacityKwh ? `${rec.battery.capacityKwh} kWh` : ""].filter(Boolean).join(" ") : "";
+    // Project strip is not used anymore (its details are in the Application Summary)
+    const stripEl = $("#drawerProjectStrip");
+    if (stripEl) { stripEl.innerHTML = ""; stripEl.style.display = "none"; }
+
+    // Application Summary — the application's details (not the step status, which the Lifecycle Progression
+    // above already shows), grouped in the same order as the lifecycle steps.
+    const summaryEl = $("#drawerLifecycleSummary");
+    if (summaryEl) {
+      const progressRec = db.getInstallationProgress ? db.getInstallationProgress({ appId: app.id }) : null;
       const pkg = packageOf(app);
-      $("#drawerBattery").textContent = b || app.battery || (pkg && pkg.battery ? `${pkg.battery} (${pkg.name})` : "Pending Assessment");
+      const battery = progressRec && progressRec.battery && progressRec.battery.brand
+        ? [progressRec.battery.brand, progressRec.battery.model, progressRec.battery.capacityKwh ? `${progressRec.battery.capacityKwh} kWh` : ""].filter(Boolean).join(" ")
+        : (app.battery || (pkg && pkg.battery ? `${pkg.battery} (${pkg.name})` : "Pending assessment"));
+      const dp = app.downPaymentProof || null;
+      const custRec = (db.data.customers || []).find(c => c.id === app.customerId) || {};
+      const hasDpReceipt = !!(dp && dp.dataUrl);
+      const fmtDay = iso => iso ? formatReadableDate(String(iso).slice(0, 10)) : "—";
+      const dash = v => (v === null || v === undefined || v === "") ? "—" : safeText(v);
+      const pill = (text, cls) => `<span class="status-pill ${cls}" style="font-size:11px;">${safeText(text)}</span>`;
+      const installerName = isDirect ? "Hello Solar Internal Team" : (isUnassigned ? "Not assigned yet" : app.installer);
+      const agreementLabel = agreement
+        ? ({ NOT_SUBMITTED: "Not submitted", SUBMITTED: "Submitted · for review", ACCEPTED: "Accepted", REUPLOAD_REQUIRED: "Re-upload requested" })[agreement.status] || agreement.status
+        : "—";
+      const agreementCls = agreement && agreement.status === "ACCEPTED" ? "success" : (agreement && agreement.status === "SUBMITTED" ? "direct" : "warn");
+      const agreementActions = agreement && agreement.uploadedAt
+        ? ` <button type="button" class="link-btn" data-agreement-view="${safeText(app.id)}" style="margin:0 0 0 6px;">View file</button>`
+        : "";
+      const financed = ["Approved", "Ready for Installation", "Installation", "In Progress", "Completed"].includes(app.stage);
+      const sched = db.getPaymentSchedule ? db.getPaymentSchedule(app.id) : null;
+      const term = !isFullPayment && sched && sched.installments ? sched.installments.length : (app.termMonths || null);
+
+      // Key details only, each with its own label, in lifecycle order (empty values are left out)
+      const financerText = db.isHelloSolarFunded(app) ? "Hello Solar Funding"
+        : (app.financerId || (app.financer && !["Pending", "Unassigned"].includes(app.financer)) ? app.financer : "Not assigned yet");
+      const items = [
+        ["Down Payment", `${safeText(peso(db.downPaymentAmount(app)))} ${pill(dpState, dpState === "Verified" ? "success" : "warn")}` +
+          (hasDpReceipt ? ` <button type="button" class="link-btn" id="btnViewDownPaymentReceipt" style="font-size:12px; margin:0 0 0 4px;">View receipt</button>` : "")],
+        ["Customer", dash(app.customer)],
+        ["HS ID", dash(db.getAppHsId(app))],
+        ["Contact No.", dash(app.phone || app.contactPhone || custRec.phone)],
+        ["Documents", `${docCountsLc.submitted} of ${docCountsLc.total} submitted${docCountsLc.verified < docCountsLc.submitted ? ` · ${docCountsLc.submitted - docCountsLc.verified} for review` : ""}`],
+        ["Agreement", agreement ? pill(agreementLabel, agreementCls) + agreementActions : "—"],
+        ["System", safeText(packageWithSize(app))],
+        [isFullPayment ? "System Price" : "Amount Financed", safeText(peso(app.amount))],
+        ...(isFullPayment
+          ? [["Balance Due", balanceDue ? safeText(peso(balanceDue)) : (fullPaymentVerified ? "Fully paid" : "—")]]
+          : [["Financer", safeText(financerText)],
+             ["Installment Term", term ? safeText(termText(term)) + (term % 12 === 0 ? ` · ${term} payments` : "") : "—"],
+             ["Monthly Payment", app.monthly ? `${safeText(peso(app.monthly))} / month` : "—"]]),
+        ["Installer", isUnassigned && !isDirect ? "Not assigned yet" : safeText(installerName)],
+        ["Installation Schedule", installJob ? safeText((installJob.schedule || "Pending Schedule").replace(/\s*\(Delayed\)/gi, "")) : "Not scheduled"]
+      ].filter(([, v]) => v && v !== "—");
+      summaryEl.innerHTML = `<div class="as-grid">${items.map(([k, v]) =>
+        `<div class="as-item"><span>${safeText(k)}</span><strong>${v}</strong></div>`).join("")}</div>`;
     }
     if ($("#drawerNotes")) $("#drawerNotes").textContent = app.notes || "No notes entered.";
 
@@ -1015,10 +1072,10 @@
     }
     if ($("#docSummarySub")) {
       $("#docSummarySub").textContent = missingDocs.length > 0
-        ? `Missing: ${missingDocs.map(d => d.name).join(", ")}`
+        ? `Missing: ${missingDocs.map(d => d.label || d.name).join(", ")}`
         : (awaitingReview > 0
-          ? `Awaiting review: ${docs.filter(d => d.status === "Submitted").map(d => d.name).join(", ")}`
-          : `All required KYC identification and roof structural engineering sign-offs are verified.`);
+          ? `Awaiting review: ${docs.filter(d => d.status === "Submitted" && !d.optional).map(d => d.label || d.name).join(", ")}`
+          : `All required documents, including the signed agreement, are verified.`);
     }
     if ($("#docCompliancePill")) {
       const pending = missingDocs.length > 0 || awaitingReview > 0;
@@ -1028,27 +1085,44 @@
 
     const docListEl = $("#drawerDocList");
     if (docListEl) {
-      docListEl.innerHTML = docs.map(doc => {
-        const isMiss = doc.status === "Missing" || doc.status === "Rejected";
+      // Same layout as the customer's Documents page: the agreement, then the Required Documents (Installment)
+      const required = docs.filter(doc => !doc.isAgreement);
+      const docCard = doc => {
+        const isMiss = (doc.status === "Missing" && !doc.optional) || doc.status === "Rejected";
+        const pending = doc.notRequired
+          ? `<span style="color:var(--muted);">${safeText(doc.note || "Not required")}${doc.waived ? ` · by ${safeText(doc.waived.by)}` : ""}</span>`
+          : doc.optional && doc.status === "Missing"
+          ? '<span style="color:var(--muted);">Not needed unless requested</span>'
+          : (doc.status === "Verified" ? '<span style="color:var(--muted);">Accepted · no file on record</span>' : '<span style="color:var(--danger); font-weight:700;">Waiting for the customer to upload</span>');
         return `
           <div class="doc-card ${isMiss ? 'missing' : ''}">
             <div class="doc-left">
               <div class="doc-icon">${isMiss ? '⚠' : '📄'}</div>
               <div class="doc-info">
-                <h4>${doc.name}</h4>
+                <h4>${safeText(doc.label || doc.name)}${doc.optional && !doc.notRequired ? ' <span class="doc-optional-tag">If applicable</span>' : ''}${doc.requested ? ' <span class="doc-optional-tag">Requested</span>' : ''}</h4>
                 <div class="doc-meta">
-                  ${doc.date ? `Uploaded on ${doc.date} • ` : ''}
-                  ${doc.link ? `<a href="${safeText(doc.link)}" target="_blank" rel="noopener">Open in Google Maps ↗</a>` : doc.file ? `<code>${safeText(doc.file)}</code>` : '<span style="color:var(--danger); font-weight:700;">Pending customer upload</span>'}
+                  ${doc.requested && doc.requestNote ? `<span>${safeText(doc.requestNote)}</span><br>` : ''}
+                  ${doc.date ? `Uploaded on ${safeText(formatReadableDate(doc.date))} • ` : ''}
+                  ${doc.link ? `<a href="${safeText(doc.link)}" target="_blank" rel="noopener">Open in Google Maps ↗</a>` : doc.file ? `<code>${safeText(doc.file)}</code>` : pending}
+                  ${doc.note && doc.status === "Rejected" ? `<br><span style="color:var(--danger);">${safeText(doc.note)}</span>` : ''}
                 </div>
               </div>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
-              <span class="doc-badge ${doc.status.toLowerCase()}">${doc.status}</span>
-              ${doc.file && !doc.link ? `<button class="btn btn-secondary btn-sm" data-preview-doc="${app.id}:${doc.name}">View</button>` : ''}
+              <span class="doc-badge ${doc.optional && doc.status === "Missing" ? "optional" : doc.status.toLowerCase()}">${safeText(doc.statusLabel || doc.status)}</span>
+              ${doc.file && !doc.link ? `<button class="btn btn-secondary btn-sm" data-preview-doc="${app.id}:${safeText(doc.name)}">View</button>` : ''}
+              ${IS_ENGINEER || !doc.id ? '' : (doc.waived
+                ? `<button type="button" class="link-btn doc-mini-action" data-doc-require="${safeText(doc.id)}">Require again</button>`
+                : (!doc.optional && doc.status !== "Verified"
+                  ? `<button type="button" class="link-btn doc-mini-action" data-doc-waive="${safeText(doc.id)}" data-doc-label="${safeText(doc.label || doc.name)}">Not required</button>` : ''))}
             </div>
           </div>
         `;
-      }).join("");
+      };
+      docListEl.innerHTML =
+        `<div class="doc-group-title">Agreement</div>` + agreementDocCard(app) +
+        `<div class="doc-group-title doc-group-title-row"><span>Required Documents</span>${IS_ENGINEER ? "" : `<button type="button" class="btn btn-secondary btn-sm" data-doc-request="${safeText(app.id)}">+ Request Document</button>`}</div>` +
+        (required.length ? required.map(docCard).join("") : `<p class="doc-group-note">No document requests yet.</p>`);
     }
 
     // 4. Financing Tab
@@ -1105,7 +1179,7 @@
           <div class="install-option-card highlight">
             <div>
               <div style="font-weight:700; font-size:13.5px; color:var(--accent); margin-bottom:4px;">
-                🏠 Hello Solar Direct Project
+                🏠 Hello Solar Installation Project
               </div>
               <p style="margin:0; font-size:12px; color:var(--ink-secondary); line-height:1.45;">
                 This project has been accepted for internal delivery and scheduled with <strong>Hello Solar Internal Team</strong>.
@@ -1125,7 +1199,7 @@
             </p>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="btn btn-primary btn-sm" id="btnTabReassignDirect">
-                <span>🏠</span> Reassign to Hello Solar Direct...
+                <span>🏠</span> Reassign to Hello Solar Installation...
               </button>
               <button class="btn btn-secondary btn-sm" id="btnTabChangePartner">
                 Change Partner Installer...
@@ -1143,13 +1217,13 @@
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
               <div class="install-option-card highlight" style="flex-direction:column; justify-content:space-between; margin:0;">
                 <div>
-                  <div style="font-weight:700; font-size:13px; color:var(--accent); margin-bottom:4px;">🏠 Hello Solar Direct</div>
+                  <div style="font-weight:700; font-size:13px; color:var(--accent); margin-bottom:4px;">🏠 Hello Solar Installation</div>
                   <p style="font-size:11.5px; color:var(--ink-secondary); margin:0 0 10px; line-height:1.4;">
-                    Execute internally with Hello Solar Internal Team Alpha.
+                    Installed by the Hello Solar Internal Team.
                   </p>
                 </div>
                 <button class="btn btn-primary btn-sm" id="btnTabDirectAccept" style="width:100%;">
-                  Accept Direct Install
+                  Accept Hello Solar Installation
                 </button>
               </div>
 
@@ -1225,7 +1299,7 @@
       } else if (isEligibleDirect) {
         footHtml = `
           <button class="btn btn-primary btn-sm" id="btnDrawerFootDirect">
-            <span>🏠</span> Direct Install
+            <span>🏠</span> HS Installation
           </button>
           <button class="btn btn-secondary btn-sm" id="btnDrawerFootPartner">
             Assign Partner
@@ -1239,13 +1313,16 @@
         `;
       } else if (isDirect) {
         footHtml = `
-          <span class="badge-direct-installed">🏠 Hello Solar Direct Active</span>
+          <span class="badge-direct-installed">🏠 Hello Solar Installation Active</span>
         `;
       }
       if (!IS_ENGINEER && db.downPaymentState(app) !== "Verified") {
         footHtml = `
           <button class="btn btn-primary btn-sm" id="btnDrawerVerifyDownPayment">Verify Down Payment</button>
         ` + footHtml;
+      }
+      if (!IS_ENGINEER && db.isEligibleForHelloSolarFunding(app)) {
+        footHtml = `<button class="btn btn-secondary btn-sm" id="btnDrawerFootHsFunding">Hello Solar Funding</button>` + footHtml;
       }
       const reviewStages = ["Submitted", "Financing Review", "Pending Finance", "Missing Documents"];
       if (!db.isFullPaymentApp(app) && app.stage !== "Declined" && (!app.financerId || reviewStages.includes(app.stage))) {
@@ -1269,7 +1346,7 @@
 
     // Check capacity limit configured in Settings
     const limit = Number(db.data.settings?.maxDirectProjects) || 12;
-    const designatedTeam = db.data.settings?.directInstallTeam || "Hello Solar Central Operations (Team Alpha)";
+    const designatedTeam = db.data.settings?.directInstallTeam || "Hello Solar Internal Team";
     const activeDirectCount = db.data.installations.filter(j =>
       (j.installerType === "Hello Solar Direct" || j.installer === designatedTeam || j.installer === "Hello Solar Internal Team") &&
       !["Completed", "Cancelled"].includes(j.status)
@@ -1309,8 +1386,8 @@
     if (result.success) {
       $("#directInstallModal")?.classList.remove("open");
 
-      const team = db.data.settings?.directInstallTeam || "Hello Solar Central Operations (Team Alpha)";
-      showToast(`Application ${appId} accepted for Hello Solar Direct Installation. Assigned to ${team}.`, "direct", "🏠");
+      const team = db.data.settings?.directInstallTeam || "Hello Solar Internal Team";
+      showToast(`Application ${appId} accepted for Hello Solar Installation. Assigned to ${team}.`, "direct", "🏠");
 
       // Rerender page and update open drawer in place
       renderCurrentPage();
@@ -1318,8 +1395,140 @@
         openAppDrawer(appId);
       }
     } else {
-      showToast(result.message || "Could not accept Hello Solar Direct installation.", "danger", "⚠️");
+      showToast(result.message || "Could not accept the Hello Solar installation.", "danger", "⚠️");
     }
+  }
+
+  // --- SIGNED AGREEMENT (uploaded by the customer from Documents) — shown first in Details › Documents ---
+  function agreementDocCard(app) {
+    const ag = window.HSShared && window.HSShared.agreementFor ? window.HSShared.agreementFor(app) : null;
+    if (!ag) return "";
+    const uploaded = !!ag.uploadedAt;
+    const label = { NOT_SUBMITTED: "Missing", SUBMITTED: "Submitted", ACCEPTED: "Verified", REUPLOAD_REQUIRED: "Rejected" }[ag.status] || "Missing";
+    const badgeText = { NOT_SUBMITTED: "Not Submitted", SUBMITTED: "Submitted", ACCEPTED: "Accepted", REUPLOAD_REQUIRED: "Re-upload Required" }[ag.status] || "Not Submitted";
+    const sizeText = ag.fileSize ? (ag.fileSize >= 1048576 ? `${(ag.fileSize / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(ag.fileSize / 1024))} KB`) : "";
+    const meta = uploaded
+      ? `Uploaded on ${safeText(formatReadableDate(String(ag.uploadedAt).slice(0, 10)))} • <code>${safeText(ag.fileName || "signed agreement")}</code>${sizeText ? ` • ${sizeText}` : ""}` +
+        (ag.status === "REUPLOAD_REQUIRED" && ag.note ? `<br><span style="color:var(--danger);">Re-upload requested: ${safeText(ag.note)}</span>` : "")
+      : `<span style="color:var(--danger); font-weight:700;">Waiting for the customer to upload the signed ${safeText(ag.title)}</span>`;
+    const actions = uploaded
+      ? `<button class="btn btn-secondary btn-sm" data-agreement-view="${safeText(app.id)}">View</button>` +
+        (!IS_ENGINEER && ag.status === "SUBMITTED"
+          ? ` <button class="btn btn-primary btn-sm" data-agreement-accept="${safeText(app.id)}">Accept</button> <button class="btn btn-secondary btn-sm" data-agreement-reupload="${safeText(app.id)}">Ask to Re-upload</button>`
+          : "")
+      : "";
+    return `
+      <div class="doc-card agreement-doc-card ${uploaded ? "" : "missing"}">
+        <div class="doc-left">
+          <div class="doc-icon">${uploaded ? "✍️" : "⚠"}</div>
+          <div class="doc-info">
+            <h4>${safeText(ag.title)} <span class="doc-optional-tag">Signed copy</span></h4>
+            <div class="doc-meta">${meta}</div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+          <span class="doc-badge ${label.toLowerCase()}">${badgeText}</span>
+          ${actions}
+        </div>
+      </div>`;
+  }
+
+  // --- HELLO SOLAR FUNDING (Super Admin accepts the financing directly) ---
+  function openHsFundingModal(appId) {
+    if (IS_ENGINEER) return;
+    const app = db.data.applications.find(a => a.id === appId);
+    if (!app) return;
+    if (!db.isEligibleForHelloSolarFunding(app)) {
+      showToast(`${appId} is not waiting for financing.`, "warn", "⚠");
+      return;
+    }
+    state.selectedAppId = appId;
+    const set = (id, v) => { if ($(id)) $(id).textContent = v; };
+    set("#hsfAppId", app.id);
+    set("#hsfCustomer", app.customer);
+    set("#hsfSystem", packageWithSize(app));
+    set("#hsfAmount", peso(app.amount));
+    set("#hsfMonthly", app.monthly ? `${peso(app.monthly)} / mo` : "—");
+    set("#hsfFinancer", app.financerId ? app.financer : "Not assigned");
+    if ($("#hsfError")) $("#hsfError").style.display = "none";
+    // Funding needs every required document and the Accepted signed agreement
+    const gate = db.documentsGate ? db.documentsGate(app) : { ok: true, missing: [] };
+    const warn = $("#hsfDocsWarn");
+    if (warn) {
+      warn.style.display = gate.ok ? "none" : "block";
+      warn.textContent = gate.ok ? "" : `Cannot fund yet. Still needed: ${gate.missing.join(", ")}.`;
+    }
+    if ($("#btnConfirmHsFunding")) $("#btnConfirmHsFunding").disabled = !gate.ok;
+    $("#hsFundingModal")?.classList.add("open");
+  }
+
+  function confirmHsFunding() {
+    const appId = state.selectedAppId;
+    if (!appId) return;
+    const res = db.acceptHelloSolarFunding(appId, { adminUser: SESSION.name ? `ADMIN (${SESSION.name})` : "ADMIN (Limuel)" });
+    if (!res.success) {
+      if ($("#hsfError")) { $("#hsfError").textContent = res.error; $("#hsfError").style.display = "block"; }
+      return;
+    }
+    $("#hsFundingModal")?.classList.remove("open");
+    showToast(`${appId} accepted for Hello Solar Funding. Financing approved.`, "success", "₱");
+    renderCurrentPage();
+    if ($("#appDrawerOverlay")?.classList.contains("open")) openAppDrawer(appId);
+  }
+
+  // --- REQUEST A DOCUMENT / MARK A DOCUMENT NOT REQUIRED (Details › Documents) ---
+  function openDocRequestModal(mode, appId, docId, docLabel) {
+    state.docRequest = { mode, appId, docId };
+    const isRequest = mode === "request";
+    const set = (id, v) => { if ($(id)) $(id).textContent = v; };
+    set("#drqTitle", isRequest ? "Request a Document" : "Mark as Not Required");
+    set("#drqSub", isRequest
+      ? `${appId} · The customer sees it on their Documents page and gets a notification.`
+      : `${appId} · ${docLabel}. The customer sees that it is not needed, with your reason.`);
+    if ($("#drqNameWrap")) $("#drqNameWrap").style.display = isRequest ? "" : "none";
+    set("#drqNoteLabel", isRequest ? "What should the customer upload? (optional)" : "Reason (the customer will see it)");
+    if ($("#drqName")) $("#drqName").value = "";
+    if ($("#drqNote")) {
+      $("#drqNote").value = "";
+      $("#drqNote").placeholder = isRequest ? "e.g. Your latest Certificate of Employment, signed by HR" : "e.g. Not needed — you are the registered owner on the title";
+    }
+    set("#btnConfirmDocRequest", isRequest ? "Send Request" : "Mark Not Required");
+    if ($("#drqError")) $("#drqError").style.display = "none";
+    $("#docRequestModal")?.classList.add("open");
+    setTimeout(() => (isRequest ? $("#drqName") : $("#drqNote"))?.focus(), 50);
+  }
+
+  function confirmDocRequest() {
+    const r = state.docRequest;
+    if (!r || !window.HSShared) return;
+    const actor = SESSION.name ? `ADMIN (${SESSION.name})` : "ADMIN (Limuel)";
+    const res = r.mode === "request"
+      ? window.HSShared.requestDocument(r.appId, { name: $("#drqName")?.value, note: $("#drqNote")?.value }, actor)
+      : window.HSShared.setDocumentNotRequired(r.appId, r.docId, $("#drqNote")?.value, actor);
+    if (!res || res.ok === false) {
+      if ($("#drqError")) { $("#drqError").textContent = (res && res.error) || "Could not save."; $("#drqError").style.display = "block"; }
+      return;
+    }
+    $("#docRequestModal")?.classList.remove("open");
+    db.data = db.load();
+    showToast(r.mode === "request" ? `Document requested from the customer · ${r.appId}` : `Marked as not required · ${r.appId}`, "success", "✓");
+    reopenDrawerDocuments(r.appId);
+    renderCurrentPage();
+  }
+
+  function reopenDrawerDocuments(appId) {
+    openAppDrawer(appId);
+    switchDrawerTab("documents");
+  }
+
+  function requireDocumentAgain(appId, docId) {
+    const actor = SESSION.name ? `ADMIN (${SESSION.name})` : "ADMIN (Limuel)";
+    const res = window.HSShared && window.HSShared.setDocumentNotRequired(appId, docId, null, actor);
+    if (!res || res.ok === false) { showToast((res && res.error) || "Could not update the document.", "danger", "⚠"); return; }
+    db.data = db.load();
+    showToast(`The customer needs to upload it again · ${appId}`, "success", "✓");
+    reopenDrawerDocuments(appId);
+    renderCurrentPage();
   }
 
   // --- PARTNER INSTALLER ASSIGNMENT MODAL ---
@@ -1413,11 +1622,33 @@
     const docs = db.getAppDocuments(appId);
     const doc = docs.find(d => d.name === docName);
 
-    if ($("#dpmTitle")) $("#dpmTitle").textContent = docName;
+    state.dpmDocName = docName;
+    if ($("#dpmTitle")) $("#dpmTitle").textContent = doc ? (doc.label || docName) : docName;
     if ($("#dpmFileName")) $("#dpmFileName").textContent = doc ? doc.file || "No file uploaded" : "document.pdf";
     if ($("#dpmFileMeta")) $("#dpmFileMeta").textContent = doc && doc.date ? `Uploaded on ${doc.date} • Verified KYC` : "Awaiting applicant upload";
-    if ($("#dpmStatus")) $("#dpmStatus").textContent = doc ? doc.status : "Pending";
+    if ($("#dpmStatus")) $("#dpmStatus").textContent = doc ? (doc.statusLabel || doc.status) : "Pending";
     if ($("#dpmAppId")) $("#dpmAppId").textContent = `${app.id} (${app.customer})`;
+    if ($("#dpmFileMeta") && doc && doc.date) $("#dpmFileMeta").textContent = `Uploaded on ${formatReadableDate(doc.date)}`;
+
+    // The actual uploaded file (shared APP document record), with a download link
+    let box = $("#dpmFilePreview");
+    if (!box && $("#dpmFileName")) {
+      box = document.createElement("div");
+      box.id = "dpmFilePreview";
+      box.className = "dpm-file-preview";
+      $("#dpmFileName").closest("div").after(box);
+    }
+    if (box) {
+      const rec = window.HSShared && window.HSShared.documentsFor ? window.HSShared.documentsFor(appId) : null;
+      const sharedDoc = rec ? (rec.documents || []).find(d => d.name === docName) : null;
+      const dataUrl = sharedDoc && sharedDoc.fileData;
+      const mime = (String(dataUrl || "").match(/^data:([^;,]+)/) || [])[1] || "";
+      box.innerHTML = !dataUrl ? ""
+        : (mime.startsWith("image/") ? `<img src="${dataUrl}" alt="${safeText(docName)}">`
+          : (mime === "application/pdf" ? `<iframe src="${dataUrl}" title="${safeText(docName)}"></iframe>` : "")) +
+          `<a class="btn btn-secondary btn-sm" href="${dataUrl}" download="${safeText(sharedDoc.fileName || "document")}">Download file</a>`;
+      box.style.display = dataUrl ? "" : "none";
+    }
 
     $("#docPreviewModal")?.classList.add("open");
   }
@@ -1433,8 +1664,11 @@
     });
   }
 
+  // Maintenance jobs live on the Maintenance page only (not under Installations)
+  function isInstallationWork(job) { return !!job && job.installerType !== "Maintenance"; }
+
   function renderInstallations() {
-    const installs = IS_ENGINEER ? db.getDirectInstallJobs() : db.data.installations;
+    const installs = (IS_ENGINEER ? db.getDirectInstallJobs() : db.data.installations).filter(isInstallationWork);
 
     const filtered = installs.filter(job => {
       // Type filter
@@ -1474,10 +1708,8 @@
 
     tbody.innerHTML = filtered.map(job => {
       const isDirect = job.installerType === "Hello Solar Direct";
-      const isMaintenance = job.installerType === "Maintenance";
-      const typeDisplay = isDirect ? "🏠 Hello Solar" : (isMaintenance ? "🔧 Maintenance" : job.installerType);
-      const maint = db.getMaintenance(job);
-      const typePillClass = isDirect ? "direct" : (isMaintenance ? "warn" : "neutral");
+      const typeDisplay = isDirect ? "🏠 Hello Solar" : job.installerType;
+      const typePillClass = isDirect ? "direct" : "neutral";
 
       const isLeadAssigned = job.leadTech &&
         job.leadTech !== "Hello Solar Internal Team" &&
@@ -1493,6 +1725,9 @@
         actionBtnText = dState === "pending" ? "Review & Accept" : (["completed", "active"].includes(dState) ? "View Progress" : "Update Progress");
       }
       const schedDisplay = (job.schedule || "Pending Schedule").replace(/\s*\(Delayed\)/gi, "").trim();
+      // A scheduled job whose date already passed (still not started) is flagged
+      const schedTime = Date.parse(schedDisplay.replace(/\s*·.*$/, ""));
+      const pastSchedule = ["Scheduled", "Ready"].includes(job.status) && Number.isFinite(schedTime) && schedTime < new Date().setHours(0, 0, 0, 0);
 
       return `
         <tr>
@@ -1513,10 +1748,10 @@
           </td>
           <td>
             <span class="status-pill ${getStatusClass(job.status === "Ready" ? "Approved" : job.status)}">${safeText(installStatusLabel(job.status))}</span>
-            ${maint && maint.status !== "Completed" ? `<span class="sub-info">Maintenance: ${safeText(maint.request ? `Waiting for ${maint.request.name}` : maint.status)}</span>` : ""}
           </td>
           <td>
-            <span style="font-size:12px; font-weight:600;">${schedDisplay}</span>
+            <span style="font-size:12px; font-weight:600;">${safeText(schedDisplay)}</span>
+            ${pastSchedule ? `<span class="sub-info" style="color:#B91C1C; font-weight:700;">Date passed · update the schedule</span>` : ""}
           </td>
           <td style="text-align: right;">
             <button class="btn btn-secondary btn-sm" data-update-job="${job.id}">${actionBtnText}</button>
@@ -1772,7 +2007,11 @@
       }
     }
 
-    db.updateInstallationStatus(jobId, newStatus, newSchedule, notes, delayReason, leadTech);
+    const statusRes = db.updateInstallationStatus(jobId, newStatus, newSchedule, notes, delayReason, leadTech);
+    if (statusRes && statusRes.success === false) {
+      showToast(statusRes.error || "This installation cannot be updated yet.", "danger", "⚠");
+      return;
+    }
     // A new date notifies both the customer and the installer
     if (rescheduleDate) db.notifyInstallationRescheduled(db.data.installations.find(j => j.id === jobId), newSchedule);
     $("#installModal")?.classList.remove("open");
@@ -2000,7 +2239,7 @@
     if ($("#schedLocation")) $("#schedLocation").textContent = cand.location;
     if ($("#schedSystem")) $("#schedSystem").textContent = cand.system;
     if ($("#schedType")) {
-      $("#schedType").textContent = isDirect ? "🏠 Hello Solar Direct" : (isMaintenance ? "🔧 Maintenance" : cand.installerType);
+      $("#schedType").textContent = isDirect ? "🏠 Hello Solar Installation" : (isMaintenance ? "🔧 Maintenance" : cand.installerType);
     }
     if ($("#schedInstaller")) $("#schedInstaller").textContent = isDirect ? "Hello Solar Internal Team" : cand.installer;
     if ($("#schedLead")) $("#schedLead").textContent = isLeadAssigned ? cand.leadTech : "Lead: Unassigned";
@@ -2169,12 +2408,12 @@
         return matchStatus && matchSearch;
       });
       tbody.innerHTML = !filtered.length
-        ? `<tr><td colspan="6" style="text-align:center; padding:32px; color:var(--muted);">No Direct Installation Engineer accounts found.</td></tr>`
+        ? `<tr><td colspan="6" style="text-align:center; padding:32px; color:var(--muted);">No Installation Engineer accounts found.</td></tr>`
         : filtered.map(e => `
           <tr>
             <td><span class="record-id">${safeText(e.id)}</span></td>
             <td><strong>${safeText(e.name)}</strong><span class="sub-info">Joined ${safeText(e.joined || '—')}</span></td>
-            <td><span class="status-pill direct">Direct Installation Engineer</span></td>
+            <td><span class="status-pill direct">Installation Engineer</span></td>
             <td><span style="font-size:12px;">${safeText(e.email)}</span><span class="sub-info">${safeText(e.phone)}</span></td>
             <td><span class="status-pill ${getStatusClass(e.status)}">${safeText(e.status)}</span></td>
             <td style="text-align: right;">
@@ -2315,7 +2554,7 @@
         tbody.innerHTML = filtered.map(i => {
           const isDirect = i.id === "INS-001" || i.type === "Internal";
           const companyName = isDirect ? "Hello Solar Internal Team" : i.name;
-          const modelDisplay = isDirect ? "🏠 Hello Solar Direct" : "Partner Installer";
+          const modelDisplay = isDirect ? "🏠 Hello Solar Installation" : "Partner Installer";
           const modelPill = isDirect ? "direct" : "neutral";
 
           return `
@@ -2588,7 +2827,7 @@
           <div class="detail-item"><span>Team Lead / Contact</span><strong>${acc.contact}</strong></div>
           <div class="detail-item"><span>Contact Email</span><strong>${acc.email}</strong></div>
           <div class="detail-item"><span>Contact Phone</span><strong>${acc.phone}</strong></div>
-          <div class="detail-item"><span>Installer Model</span><div><span class="status-pill ${isDirect ? 'direct' : 'neutral'}">${isDirect ? '🏠 Hello Solar Direct' : 'Partner Installer'}</span></div></div>
+          <div class="detail-item"><span>Installer Model</span><div><span class="status-pill ${isDirect ? 'direct' : 'neutral'}">${isDirect ? '🏠 Hello Solar Installation' : 'Partner Installer'}</span></div></div>
           <div class="detail-item"><span>Active Installations</span><strong>${acc.activeJobs} jobs active</strong></div>
           <div class="detail-item"><span>Completed Installations</span><strong>${acc.completedJobs} projects completed</strong></div>
           <div class="detail-item"><span>Quality Rating</span><strong>⭐ ${acc.rating || '4.8'} / 5.0</strong></div>
@@ -2601,9 +2840,9 @@
           <div class="detail-item"><span>Full Name</span><strong>${safeText(acc.name)}</strong></div>
           <div class="detail-item"><span>Email</span><strong>${safeText(acc.email || '—')}</strong></div>
           <div class="detail-item"><span>Mobile Number</span><strong>${safeText(acc.phone || '—')}</strong></div>
-          <div class="detail-item"><span>Role</span><div><span class="status-pill direct">Direct Installation Engineer</span></div></div>
+          <div class="detail-item"><span>Role</span><div><span class="status-pill direct">Installation Engineer</span></div></div>
           <div class="detail-item"><span>Account Status</span><div><span class="status-pill ${getStatusClass(acc.status)}">${safeText(acc.status)}</span></div></div>
-          <div class="detail-item"><span>Portal Access</span><strong>Applications · Installations / Direct Installation</strong></div>
+          <div class="detail-item"><span>Portal Access</span><strong>Applications · Installations (Hello Solar Installation)</strong></div>
           <div class="detail-item"><span>Direct Jobs Led</span><strong>${assigned.length} (${assigned.filter(j => j.status !== "Completed").length} active)</strong></div>
           <div class="detail-item"><span>Member Since</span><strong>${safeText(acc.joined || '—')}</strong></div>
         `;
@@ -3029,7 +3268,7 @@
       } else if (tab === "installers") {
         csvRows.push("Installer ID,Company or Team,Installer Model,Contact Lead,Email,Phone,Active Jobs,Completed Jobs,Rating,Status");
         db.data.installers.forEach(i => {
-          const model = i.type === "Internal" ? "Hello Solar Direct" : "Partner Installer";
+          const model = i.type === "Internal" ? "Hello Solar Installation" : "Partner Installer";
           const compName = i.type === "Internal" ? "Hello Solar Internal Team" : i.name;
           csvRows.push([cleanCsv(i.id), cleanCsv(compName), cleanCsv(model), cleanCsv(i.contact), cleanCsv(i.email), cleanCsv(i.phone), cleanCsv(i.activeJobs), cleanCsv(i.completedJobs), cleanCsv(i.rating), cleanCsv(i.status)].join(","));
         });
@@ -3089,13 +3328,13 @@
     if ($("#payHsFunded")) $("#payHsFunded").textContent = peso(kpis.portfolioHsFunded);
     if ($("#payThirdPartyFunded")) $("#payThirdPartyFunded").textContent = peso(kpis.financerFunded);
 
-    if ($("#payExpectedRevenue")) $("#payExpectedRevenue").textContent = peso(kpis.financingRevenue);
+    if ($("#payExpectedRevenue")) $("#payExpectedRevenue").textContent = peso(kpis.paymentsReceived ?? kpis.financingRevenue);
     if ($("#payRevenueSince")) {
       $("#payRevenueSince").textContent = kpis.revenueSince
         ? `Since ${formatReadableDate(kpis.revenueSince)} – ${formatReadableDate(kpis.revenueTo)}`
         : "No payments collected yet";
     }
-    if ($("#payHsRevenue")) $("#payHsRevenue").textContent = peso(kpis.financingHsRevenue);
+    if ($("#payHsRevenue")) $("#payHsRevenue").textContent = peso(kpis.paymentsHsShare ?? kpis.financingHsRevenue);
     if ($("#payThirdPartyRevenue")) $("#payThirdPartyRevenue").textContent = peso(kpis.financerRevenue);
 
     if ($("#payOverdueCount")) $("#payOverdueCount").textContent = kpis.overdueCount;
@@ -3192,6 +3431,7 @@
           <td><strong>${app.customer}</strong><span class="sub-info">${app.location}</span></td>
           <td>
             ${paymentTypePill(paymentType, "sa-pill-xs")}
+            ${paymentDownPaymentLine(app)}
             ${renderPaymentFundingInfo(fundingOf(app))}
           </td>
           <td>${amountDisplay}</td>
@@ -3205,6 +3445,14 @@
     }).join("");
   }
 
+  // Down payment under the payment type: ₱500 Full Payment / ₱10,000 Installment
+  function paymentDownPaymentLine(app) {
+    const st = db.downPaymentState(app);
+    const cls = st === "Verified" ? "success" : (st === "Pending Verification" ? "warn" : "neutral");
+    const label = st;
+    return `<span class="pay-dp-line">Down payment: <strong>${safeText(peso(db.downPaymentAmount(app)))}</strong> <span class="status-pill ${cls}" style="font-size:10px; padding:1px 7px;">${safeText(label)}</span></span>`;
+  }
+
   // ==================== ACCOUNTING / ANALYTICS (Super Admin only) ====================
   // ─────────────────────────────────────────────────────────────────────────
   // DOWN PAYMENT (drawer pill)
@@ -3212,7 +3460,7 @@
   function drawerDownPaymentInfo(app) {
     const hasField = app.downPaymentStatus !== undefined;
     if (!hasField && !(!db.isFullPaymentApp(app) && Number(app.downPayment) > 0)) return null;
-    const amount = peso(app.downPaymentAmount || app.downPayment || 10000);
+    const amount = peso(db.downPaymentAmount(app));
     const st = db.downPaymentState(app);
     if (app.refund && app.refund.status === "Refunded") return { cls: "neutral", text: `DP ${amount} · Refunded`, title: "Down payment refunded" };
     if (st === "Verified") return { cls: "success", text: `DP ${amount} received`, title: "Down payment received and verified" };
@@ -3319,7 +3567,8 @@
     if (!body) return;
     const q = ($("#siteVisitSearch")?.value || "").trim().toLowerCase();
     const filter = state.siteVisitFilter || "All";
-    const rows = visibleSiteVisits().filter(v => (filter === "All" || v.status === filter) &&
+    const stageOf = v => v.status === "Cancelled" ? "Cancelled" : db.siteVisitStage(v);
+    const rows = visibleSiteVisits().filter(v => (filter === "All" || stageOf(v) === filter) &&
       (!q || [v.id, v.customer, v.location, v.phone, v.email, v.package, v.assignee && v.assignee.name].some(x => String(x || "").toLowerCase().includes(q))));
     $$("#siteVisitFilterTabs .chip-btn").forEach(b => b.classList.toggle("active", b.dataset.status === filter));
     if (!rows.length) {
@@ -3342,9 +3591,13 @@
       } else if (v.status === "Pending Assignment") {
         actions = `<button class="btn btn-primary btn-sm" data-sv-assign="${safeText(v.id)}">Assign</button> <button class="btn btn-secondary btn-sm" data-sv-cancel="${safeText(v.id)}">Cancel</button>`;
       } else if (v.status === "Scheduled") {
-        actions = `<button class="btn btn-primary btn-sm" data-sv-complete="${safeText(v.id)}">Mark Completed</button> <button class="btn btn-secondary btn-sm" data-sv-cancel="${safeText(v.id)}">Cancel</button>`;
+        actions = `<button class="btn btn-primary btn-sm" data-sv-complete="${safeText(v.id)}">Confirm Visit</button> <button class="btn btn-secondary btn-sm" data-sv-cancel="${safeText(v.id)}">Cancel</button>`;
+      } else if (v.status === "Completed") {
+        actions = v.continueLink
+          ? `<button class="btn btn-secondary btn-sm" data-sv-copylink="${safeText(v.id)}">Copy Link</button> <a class="btn btn-secondary btn-sm" href="../${safeText(v.continueLink)}" target="_blank" rel="noopener">Open</a>`
+          : `<button class="btn btn-primary btn-sm" data-sv-sendlink="${safeText(v.id)}">Send Link</button>`;
       } else {
-        actions = v.completedAt ? `<span class="sub-info">${safeText(svDate(v.completedAt.slice(0, 10)))}</span>` : "—";
+        actions = "—";
       }
       const preferred = v.preferredDate && v.preferredDate !== v.scheduledDate ? `<span class="sub-info">Preferred: ${safeText(svDate(v.preferredDate))}</span>` : "";
       return `
@@ -3354,10 +3607,32 @@
           <td>${safeText(svDate(v.scheduledDate, v.scheduledTime))}${preferred}</td>
           <td>${fee}</td>
           <td>${assign}</td>
-          <td><span class="status-pill ${SV_STATUS_CLASS[v.status] || "neutral"}">${safeText(v.status)}</span></td>
+          <td>${siteVisitLifecycleHtml(v)}</td>
           <td style="text-align:right; white-space:nowrap;">${actions}</td>
         </tr>`;
     }).join("");
+  }
+
+  // Site Visit Payment → Pending Visit → Visit Confirmed (+ the client's answer to the continue link)
+  function siteVisitLifecycleHtml(v) {
+    if (v.status === "Cancelled") return `<span class="status-pill danger">Cancelled</span>`;
+    const steps = ["Site Visit Payment", "Pending Visit", "Visit Confirmed"];
+    const cur = steps.indexOf(db.siteVisitStage(v));
+    const pills = steps.map((stp, i) => {
+      const cls = i < cur || (i === 2 && cur === 2) ? "done" : (i === cur ? "current" : "");
+      return `<span class="sv-step ${cls}">${i < cur || (i === 2 && cur === 2) ? "✓ " : ""}${stp}</span>`;
+    }).join(`<span class="sv-step-sep">›</span>`);
+    let extra = "";
+    if (v.status === "Completed") {
+      const resp = v.continueResponse || (v.continueLink ? "Awaiting Response" : "Link not sent");
+      const cls = /^Yes/.test(resp) ? "success" : (/^No/.test(resp) ? "danger" : "warn");
+      extra = `<div class="sv-continue">Continue link: <span class="status-pill ${cls}" style="font-size:10.5px;">${safeText(resp)}</span>${v.continueLinkSentAt ? ` · sent ${safeText(svDate(v.continueLinkSentAt.slice(0, 10)))}` : ""}</div>`;
+    } else if (v.status === "Scheduled") {
+      extra = `<div class="sv-continue">Visit scheduled</div>`;
+    } else if (v.feePaymentStatus === "Verified") {
+      extra = `<div class="sv-continue">Fee verified · assign who visits</div>`;
+    }
+    return `<div class="sv-lifecycle">${pills}</div>${extra}`;
   }
 
   let svaVisitId = null;
@@ -3427,7 +3702,7 @@
   // ─────────────────────────────────────────────────────────────────────────
   const ACC_PAY_CLASS = { Verified: "success", "Pending Verification": "warn", "Not Submitted": "neutral" };
   const ACC_DECISION_CLASS = { Proceeding: "success", "Not Proceeding": "danger", Awaiting: "neutral" };
-  const ACC_REFUND_CLASS = { Refunded: "success", "Eligible for Refund": "warn", "Non-refundable": "danger", "Pending Decision": "neutral", "Awaiting Verification": "neutral" };
+  const ACC_REFUND_CLASS = { Refunded: "success", "Deducted from Price": "success", "Eligible for Refund": "warn", "Non-refundable": "danger", "Pending Decision": "neutral", "Awaiting Verification": "neutral" };
 
   function renderClientPayments() {
     const body = $("#accClientPaymentsBody");
@@ -3451,7 +3726,9 @@
       } else if (r.refundStatus === "Pending Decision") {
         action = `<span class="acc-actions"><button class="btn btn-secondary btn-sm" data-acc-decision="Proceeding" ${key}>Proceeding</button><button class="btn btn-secondary btn-sm" data-acc-decision="Not Proceeding" ${key}>Not Proceeding</button></span>`;
       } else if (r.refundStatus === "Eligible for Refund") {
-        action = `<span class="acc-actions"><button class="btn btn-primary btn-sm" data-acc-refund ${key}>Refund</button><button class="btn btn-secondary btn-sm" data-acc-decision="Not Proceeding" ${key}>Not Proceeding</button></span>`;
+        action = `<span class="acc-actions"><button class="btn btn-primary btn-sm" data-acc-refund ${key}>Refund</button><button class="btn btn-secondary btn-sm" data-acc-decision="Proceeding" ${key}>Mark Proceeding</button></span>`;
+      } else if (r.refundStatus === "Deducted from Price") {
+        action = `<span class="acc-actions"><button class="btn btn-secondary btn-sm" data-acc-decision="Not Proceeding" ${key} title="The client did not proceed after all">Not Proceeding</button></span>`;
       } else if (r.refundStatus === "Non-refundable") {
         action = `<span class="acc-actions"><span class="sub-info" style="margin:0;">No refund</span><button class="btn btn-secondary btn-sm" data-acc-decision="Proceeding" ${key}>Mark Proceeding</button></span>`;
       } else {
@@ -3595,6 +3872,25 @@
       if (sel && sel.value) openSiteVisitAssignModal(sel.dataset.svSelect, sel.value);
     });
     document.addEventListener("click", e => {
+      const linkBtn = e.target.closest("[data-sv-copylink],[data-sv-sendlink]");
+      if (linkBtn) {
+        const id = linkBtn.dataset.svCopylink || linkBtn.dataset.svSendlink;
+        let v = db.getSiteVisits().find(x => x.id === id);
+        if (linkBtn.dataset.svSendlink) {
+          const res = db.sendSiteVisitContinueLink(id, { adminUser: SESSION.name ? `ADMIN (${SESSION.name})` : "ADMIN (Limuel)" });
+          if (!res.success) { showToast(res.error, "danger", "⚠"); return; }
+          v = res.visit;
+          showToast(`Continue link sent to ${safeText(v.customer)}.`, "success", "✓");
+          renderCurrentPage();
+        }
+        if (v && v.continueLink && linkBtn.dataset.svCopylink) {
+          const url = new URL(`../${v.continueLink}`, window.location.href).href;
+          (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(
+            () => showToast("Continue link copied.", "success", "✓"),
+            () => showToast(url, "info", "🔗"));
+        }
+        return;
+      }
       const t = e.target.closest("[data-sv-receipt],[data-sv-verify],[data-sv-assign],[data-sv-complete],[data-sv-cancel],[data-sv-doc],[data-acc-verify],[data-acc-decision],[data-acc-refund],[data-acc-receipt],[data-reimb-approve],[data-reimb-decline],[data-reimb-file]");
       if (!t) return;
       const adminUser = SESSION.name ? `ADMIN (${SESSION.name})` : "ADMIN (Limuel)";
@@ -3615,7 +3911,7 @@
           const v = visit(d.svComplete);
           if (!v || !v.assignee || v.assignee.refId !== ENGINEER.actorId) return;
         }
-        done(db.updateSiteVisitStatus(d.svComplete, "Completed", opts), `${d.svComplete} marked as completed.`);
+        done(db.updateSiteVisitStatus(d.svComplete, "Completed", opts), `${d.svComplete} visit confirmed · continue link sent to the client.`);
       } else if (d.svCancel && !IS_ENGINEER) done(db.updateSiteVisitStatus(d.svCancel, "Cancelled", { user: adminUser }), `${d.svCancel} cancelled.`);
       else if (t.hasAttribute("data-acc-verify")) {
         const res = d.kind === "dp" ? db.verifyDownPayment(d.id, { adminUser }) : db.verifySiteVisitFee(d.id, { adminUser });
@@ -3654,10 +3950,341 @@
     set("#accContractsExpired", s.contracts.expired);
     set("#accContractsOther", `${s.contracts.terminated} / ${s.contracts.pendingStart}`);
 
+    renderAccountingTabs();
+    renderRevenueChannels();
+    renderMoneyOverview();
+    renderPaymentsLedger();
+    renderFunderSchedule();
+    renderCustomerSchedule();
+    renderFunderLoans();
     renderClientPayments();
     renderReimbursements();
     renderInstallationCostTable();
     renderSystemConnectionTable();
+  }
+
+  // ---- Accounting tabs: Overview · Money In · Money Out · System Control ----
+  // Each Money In / Money Out sub-tab shows one existing panel (data-acc-panel)
+  const ACC_SUBS = {
+    in: [["received", "Payments Received", "payments"], ["monthly", "Monthly Payments", "customers"], ["loans", "From Funders", "loans"]],
+    out: [["funders", "Funders", "funders"], ["refunds", "Refunds", "refunds"], ["costs", "Installation Costs", "operations"]]
+  };
+  // Older tab names still open the right place
+  const ACC_LEGACY_TAB = { payments: ["in", "received"], customers: ["in", "monthly"], funders: ["out", "funders"], refunds: ["out", "refunds"], operations: ["out", "costs"] };
+
+  function renderAccountingTabs() {
+    if (ACC_LEGACY_TAB[state.accTab]) {
+      const [tab, sub] = ACC_LEGACY_TAB[state.accTab];
+      state.accTab = tab;
+      state.accSub[tab] = sub;
+    }
+    const tab = ["overview", "in", "out", "system"].includes(state.accTab) ? state.accTab : "overview";
+    $$("#accTabs .acc-tab").forEach(b => {
+      const on = b.dataset.accTab === tab;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    const subs = ACC_SUBS[tab];
+    const seg = $("#accSubTabs");
+    let panel = tab;
+    if (subs) {
+      const current = subs.find(s => s[0] === state.accSub[tab]) || subs[0];
+      state.accSub[tab] = current[0];
+      panel = current[2];
+      if (seg) {
+        seg.hidden = false;
+        seg.innerHTML = subs.map(([id, label]) => `<button type="button" class="${id === current[0] ? "active" : ""}" data-acc-sub="${id}" role="tab" aria-selected="${id === current[0]}">${label}</button>`).join("");
+      }
+    } else if (seg) {
+      seg.hidden = true;
+      seg.innerHTML = "";
+    }
+    $$("#page-accounting .acc-panel").forEach(p => p.classList.toggle("active", p.dataset.accPanel === panel));
+  }
+
+  // ---- Month picker (Overview + Money Out › Funders) ----
+  function accThisMonth() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+  function accMonth() {
+    if (!/^\d{4}-\d{2}$/.test(state.accMonth || "")) state.accMonth = accThisMonth();
+    return state.accMonth;
+  }
+  function accMonthLabel(m, style = "long") {
+    return new Date(`${m}-01T00:00:00`).toLocaleDateString("en-US", { month: style, year: "numeric" });
+  }
+  function accShiftMonth(m, step) {
+    const [y, mo] = m.split("-").map(Number);
+    const d = new Date(y, mo - 1 + step, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+  function renderAccMonthNav() {
+    const m = accMonth();
+    const atLatest = m >= accThisMonth();
+    const html = `<div class="acc-month-nav" role="group" aria-label="Month">
+        <button type="button" data-acc-month="-1" aria-label="Previous month">‹</button>
+        <span>${accMonthLabel(m)}</span>
+        <button type="button" data-acc-month="1" aria-label="Next month" ${atLatest ? "disabled" : ""}>›</button>
+      </div>`;
+    $$("#page-accounting .acc-month-slot").forEach(el => { el.innerHTML = html; });
+  }
+
+  // ---- Overview: Money In, Money Out and To Check for the picked month ----
+  function renderMoneyOverview() {
+    renderAccMonthNav();
+    if (!db.getMoneySummary || !$("#accInTotal")) return;
+    const s = db.getMoneySummary(accMonth());
+    const set = (id, v) => { if ($(id)) $(id).textContent = v; };
+    const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+    set("#accInTotal", pesoExact(s.moneyIn.total));
+    set("#accInHint", s.moneyIn.total
+      ? [s.moneyIn.customerCount ? `${pesoExact(s.moneyIn.customers)} from ${plural(s.moneyIn.customerCount, "customer payment")}` : "",
+        s.moneyIn.funderCount ? `${pesoExact(s.moneyIn.funders)} from funders` : ""].filter(Boolean).join(" · ")
+      : "No verified payments this month");
+    set("#accOutTotal", pesoExact(s.moneyOut.total));
+    const outParts = [
+      s.moneyOut.funders ? `Funders ${pesoExact(s.moneyOut.funders)}` : "",
+      s.moneyOut.refunds ? `Refunds ${pesoExact(s.moneyOut.refunds)}` : "",
+      s.moneyOut.costs ? `Installation ${pesoExact(s.moneyOut.costs)}` : ""
+    ].filter(Boolean);
+    set("#accOutHint", outParts.length ? outParts.join(" · ") : "Nothing paid out yet this month");
+    set("#accOutStill", s.stillToPay.count ? `Still to pay: ${pesoExact(s.stillToPay.amount)} to ${plural(s.stillToPay.count, "funder")}` : "All funders are paid for this month");
+    if ($("#accOutStill")) $("#accOutStill").classList.toggle("is-done", !s.stillToPay.count);
+    set("#accCheckCount", String(s.toCheck.count));
+    set("#accCheckHint", s.toCheck.count ? `${pesoExact(s.toCheck.amount)} waiting for verification` : "Nothing to check");
+
+    const list = $("#accCheckList");
+    if (!list) return;
+    if (!s.toCheck.rows.length) {
+      list.innerHTML = `<p class="acc-check-empty">All payments are checked. 🎉</p>`;
+      return;
+    }
+    const PAY_FOR = { "Monthly Installment": "Monthly Payment" };
+    list.innerHTML = s.toCheck.rows.slice(0, 6).map(r => `<div class="acc-check-row">
+        <div class="acc-check-who">
+          <strong>${safeText(PAY_FOR[r.type] || r.type)} — ${safeText(r.client || "—")}</strong>
+          <span>${safeText([r.ref, r.reference, shortDate(r.date)].filter(x => x && x !== "—").join(" · "))}</span>
+        </div>
+        <strong class="acc-check-amt">${pesoExact(r.amount)}</strong>
+        ${r.hasReceipt ? `<button type="button" class="btn btn-secondary btn-sm" data-ledger-receipt="${safeText(r.key)}">View</button>` : ""}
+        <button type="button" class="btn btn-primary btn-sm" data-ledger-verify="${safeText(r.key)}">Verify</button>
+      </div>`).join("") + (s.toCheck.rows.length > 6
+      ? `<button type="button" class="link-btn acc-check-more" data-acc-go="in:received:check">See all ${s.toCheck.rows.length} payments to check →</button>` : "");
+  }
+
+  // ---- Money In › From Funders ----
+  function renderFunderLoans() {
+    const body = $("#accLoansBody");
+    if (!body || !db.getFunderLoansReceived) return;
+    const rows = db.getFunderLoansReceived();
+    const received = rows.filter(r => r.received);
+    if ($("#accLoansTotal")) $("#accLoansTotal").textContent = pesoExact(received.reduce((s, r) => s + r.amount, 0));
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:22px; color:var(--muted);">No loans from funders yet.</td></tr>`;
+      return;
+    }
+    const cls = { Active: "success", Expired: "neutral", Terminated: "danger", "Pending Start": "warn" };
+    body.innerHTML = rows.map(r => `<tr>
+        <td><strong>${safeText(r.funderName)}</strong><span class="sub-info">${safeText(r.funderId)}</span></td>
+        <td><span class="status-pill ${cls[r.contractStatus] || "neutral"}">${safeText(r.received ? r.contractStatus : "Not received yet")}</span></td>
+        <td>${safeText(shortDate(r.date))}</td>
+        <td class="num"><strong>${pesoExact(r.amount)}</strong></td>
+      </tr>`).join("");
+  }
+
+  function toggleFunderPaid(funderId, undo) {
+    const adminUser = SESSION.name ? `ADMIN (${SESSION.name})` : "ADMIN (Limuel)";
+    const m = accMonth();
+    const res = undo ? db.undoFunderPaid(funderId, m, { adminUser }) : db.markFunderPaid(funderId, m, { adminUser });
+    if (!res || res.success === false) {
+      showToast((res && res.error) || "Could not update this payment.", "danger", "⚠");
+      return;
+    }
+    showToast(undo ? `Payment undone · ${accMonthLabel(m)}` : `${safeText(res.payment.funderName)} marked as paid · ${accMonthLabel(m)}`, "success", "✓");
+    renderMoneyOverview();
+    renderFunderSchedule();
+  }
+
+  // Plain names shown for the revenue channels (the stored channel names stay the same)
+  const ACC_CHANNEL_LABEL = { "Solar Financing Review": "Installment Payments", "Solar Kit Revenue": "Full Payment Sales", "Solar Installation Revenue": "Site Visit Fees" };
+  const ACC_CHANNEL_COLOR = { "Solar Financing Review": "#2563EB", "Solar Kit Revenue": "#F59E0B", "Solar Installation Revenue": "#16A34A" };
+  const ACC_CHANNEL_DESC = {
+    "Solar Financing Review": "Installment customers · ₱10,000 down payments and monthly installments",
+    "Solar Kit Revenue": "Full Payment customers · ₱500 down payments and full payments",
+    "Solar Installation Revenue": "₱1,000 site visit fees (site assessment)"
+  };
+  const shortDate = d => d ? svDate(String(d).slice(0, 10)) : "—";
+
+  function renderRevenueChannels() {
+    const wrap = $("#accChannels");
+    if (!wrap || !db.getRevenueChannels) return;
+    const { channels, total } = db.getRevenueChannels();
+    if ($("#accChannelsTotal")) $("#accChannelsTotal").textContent = pesoExact(total);
+    wrap.innerHTML = channels.map(c => {
+      const share = total > 0 ? Math.round((c.total / total) * 100) : 0;
+      const color = ACC_CHANNEL_COLOR[c.name] || "var(--orange)";
+      const breakdown = Object.entries(c.byType).map(([t, v]) => `<div class="acc-channel-break"><span>${safeText(t)}</span><strong>${pesoExact(v)}</strong></div>`).join("");
+      return `<div class="acc-channel">
+          <div class="acc-channel-name"><span class="acc-channel-dot" style="background:${color}"></span>${safeText(c.name)}</div>
+          <div class="acc-channel-total">${pesoExact(c.total)}</div>
+          <div class="acc-channel-meta">${c.count} payment${c.count === 1 ? "" : "s"} verified · ${share}% of total</div>
+          <div class="acc-channel-bar"><span style="width:${share}%; background:${color}"></span></div>
+          ${breakdown || `<div class="acc-channel-meta">${safeText(ACC_CHANNEL_DESC[c.name] || "")}</div>`}
+          ${c.pendingCount ? `<div class="acc-channel-meta" style="color:#C2410C;">${c.pendingCount} to verify · ${pesoExact(c.pending)}</div>` : ""}
+        </div>`;
+    }).join("");
+  }
+
+  // ---- Payments Received (all payments, verify) ----
+  const LEDGER_STATUS_CLASS = { Verified: "success", "Pending Verification": "warn", "Not Submitted": "neutral" };
+  function renderPaymentsLedger() {
+    const body = $("#accLedgerBody");
+    if (!body || !db.getAllPayments) return;
+    const all = db.getAllPayments().filter(r => r.status !== "Not Submitted");
+    const pending = all.filter(r => r.status === "Pending Verification");
+    if ($("#accPendingCount")) { $("#accPendingCount").textContent = pending.length; $("#accPendingCount").style.display = pending.length ? "" : "none"; }
+    if ($("#accLedgerPending")) $("#accLedgerPending").textContent = `${pending.length} · ${pesoExact(pending.reduce((x, r) => x + r.amount, 0))}`;
+    if ($("#accLedgerVerified")) $("#accLedgerVerified").textContent = pesoExact(all.filter(r => r.status === "Verified").reduce((x, r) => x + r.amount, 0));
+    $$("#accLedgerTabs .chip-btn").forEach(b => b.classList.toggle("active", b.dataset.ledgerStatus === state.accLedgerStatus));
+    const channel = $("#accLedgerChannel")?.value || "All";
+    const q = ($("#accLedgerSearch")?.value || "").trim().toLowerCase();
+    const rows = all.filter(r => (state.accLedgerStatus === "All" || r.status === state.accLedgerStatus) &&
+      (channel === "All" || r.channel === channel) &&
+      (!q || [r.ref, r.client, r.reference, r.type, r.period].some(x => String(x || "").toLowerCase().includes(q))));
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="6" class="sa-empty" style="text-align:center; padding:22px; color:var(--muted);">No payments match.</td></tr>`;
+      return;
+    }
+    const PAY_FOR = { "Monthly Installment": "Monthly Payment" };
+    const STATUS_LABEL = { "Pending Verification": "To Check", Verified: "Verified" };
+    body.innerHTML = rows.map(r => {
+      const refHtml = r.appId
+        ? `<button type="button" class="link-btn" style="margin:0;" data-view-app="${safeText(r.appId)}">${safeText(r.ref)}</button>`
+        : safeText(r.ref);
+      const receipt = r.hasReceipt ? `<button type="button" class="btn btn-secondary btn-sm" data-ledger-receipt="${safeText(r.key)}">View</button>` : "";
+      const action = r.canVerify
+        ? `${receipt} <button class="btn btn-primary btn-sm" data-ledger-verify="${safeText(r.key)}">Verify</button>`
+        : (receipt || `<span class="sub-info" style="margin:0;">Received</span>`);
+      return `<tr>
+          <td><strong>${safeText(r.client || "—")}</strong><span class="sub-info">${refHtml}${r.reference ? ` · ${safeText(r.reference)}` : ""}</span></td>
+          <td>${safeText(PAY_FOR[r.type] || r.type)}${r.period ? `<span class="sub-info">${safeText(r.period)}</span>` : ""}<span class="sub-info">${safeText(ACC_CHANNEL_LABEL[r.channel] || r.channel)}</span></td>
+          <td class="num"><strong>${pesoExact(r.amount)}</strong></td>
+          <td>${safeText(shortDate(r.date))}</td>
+          <td><span class="status-pill ${LEDGER_STATUS_CLASS[r.status] || "neutral"}">${safeText(STATUS_LABEL[r.status] || r.status)}</span></td>
+          <td style="text-align:right; white-space:nowrap;">${action}</td>
+        </tr>`;
+    }).join("");
+  }
+
+  function verifyLedgerRow(key) {
+    const adminUser = SESSION.name ? `ADMIN (${SESSION.name})` : "ADMIN (Limuel)";
+    const res = db.verifyPaymentRow(key, { adminUser });
+    if (!res || res.success === false) {
+      showToast((res && (res.error || res.message)) || "Could not verify this payment.", "danger", "⚠");
+      return;
+    }
+    showToast(`Payment verified · ${safeText(key.split(":")[1])}`, "success", "✓");
+    renderCurrentPage();
+  }
+
+  function openLedgerReceipt(key) {
+    const [kind, id] = key.split(":");
+    if (kind === "dp") {
+      const app = db.data.applications.find(a => a.id === id);
+      return openStoredFile(app && app.downPaymentProof && app.downPaymentProof.dataUrl, { fileName: app && app.downPaymentProof && app.downPaymentProof.fileName, title: `Down payment · ${id}` });
+    }
+    if (kind === "sv") {
+      const v = db.getSiteVisits().find(x => x.id === id);
+      return openStoredFile(v && v.feeProof && v.feeProof.dataUrl, { fileName: v && v.feeProof && v.feeProof.fileName, title: `Site visit fee · ${id}` });
+    }
+    if (kind === "full") return openReviewReceiptModal(id);
+  }
+
+  // ---- Payment Schedule for Funders ----
+  function renderFunderSchedule() {
+    const body = $("#accFunderBody");
+    if (!body || !db.getFunderSchedule) return;
+    if (!db.getFunderPaymentsDue) return;
+    renderAccMonthNav();
+    const m = accMonth();
+    const due = db.getFunderPaymentsDue(m);
+    const rows = due.rows;
+    if ($("#accFunderMonthHead")) $("#accFunderMonthHead").textContent = accMonthLabel(m, "short");
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:22px; color:var(--muted);">No funders with a loan yet.</td></tr>`;
+      if ($("#accFunderFoot")) $("#accFunderFoot").innerHTML = "";
+      return;
+    }
+    const contractCls = { Active: "success", Expired: "neutral", Terminated: "danger", "Pending Start": "warn", "No Contract": "neutral" };
+    // Active funders first, then the ones not paid this month (expired / not started)
+    const sorted = rows.slice().sort((a, b) => (b.due - a.due));
+    body.innerHTML = sorted.map(r => {
+      let monthCell;
+      if (r.payment) {
+        monthCell = `<span class="status-pill success">✓ Paid</span><span class="sub-info">${safeText(shortDate(r.payment.paidAt))} · <button type="button" class="link-btn" style="margin:0;" data-funder-undo="${safeText(r.funderId)}">Undo</button></span>`;
+      } else if (r.due) {
+        monthCell = `<button type="button" class="btn btn-primary btn-sm" data-funder-paid="${safeText(r.funderId)}">Mark as Paid</button>`;
+      } else {
+        monthCell = `<span class="sub-info" style="margin:0;">Not counted</span>`;
+      }
+      return `<tr class="${r.due ? "" : "acc-row-muted"}">
+        <td><strong>${safeText(r.funderName)}</strong><span class="sub-info">${safeText(r.funderId)} · <span class="status-pill ${contractCls[r.contractStatus] || "neutral"}" style="font-size:10px; padding:1px 7px;">${safeText(r.contractStatus)}</span></span></td>
+        <td class="num">${pesoExact(r.fund)}</td>
+        <td class="num">${r.annualRate != null ? `${Number(r.annualRate).toFixed(2)}%` : "—"}</td>
+        <td>${r.contractStatus === "Expired" ? `Ended ${safeText(shortDate(r.endDate))}` : safeText(shortDate(r.endDate))}${r.termMonths ? `<span class="sub-info">${r.termMonths} months · from ${safeText(shortDate(r.startDate))}</span>` : ""}</td>
+        <td class="num"><strong>${r.termMonths ? pesoExact(r.totalMonthly) : "—"}</strong>${r.termMonths ? `<span class="sub-info">${pesoExact(r.monthlyInterest)} interest + ${pesoExact(r.monthlyPrincipal)} loan</span>` : ""}</td>
+        <td style="text-align:right; white-space:nowrap;">${monthCell}</td>
+      </tr>`;
+    }).join("");
+    const activeCount = rows.filter(r => r.due).length;
+    if ($("#accFunderFoot")) $("#accFunderFoot").innerHTML = `<tr>
+        <td colspan="4">We pay every month (${activeCount} active funder${activeCount === 1 ? "" : "s"})</td>
+        <td class="num">${pesoExact(due.totalDue)}</td>
+        <td style="text-align:right; white-space:normal;"><span class="sub-info" style="margin:0;">Paid ${pesoExact(due.paidTotal)}</span>${due.unpaidCount ? `<span class="sub-info" style="margin:0; color:#B91C1C;">Still to pay ${pesoExact(due.unpaidTotal)}</span>` : ""}</td>
+      </tr>`;
+  }
+
+  // ---- Customers Payment Schedule (tabs per funder) ----
+  function renderCustomerSchedule() {
+    const body = $("#accCustSchedBody");
+    if (!body || !db.getCustomerPaymentSchedule) return;
+    const { rows, funders, totalMonthly } = db.getCustomerPaymentSchedule();
+    if (state.accFunderFilter !== "All" && !funders.some(f => f.name === state.accFunderFilter)) state.accFunderFilter = "All";
+    const tabs = $("#accFunderTabs");
+    if (tabs) {
+      tabs.innerHTML = [`<button class="acc-funder-tab ${state.accFunderFilter === "All" ? "active" : ""}" data-acc-funder="All">All Funders <small>${rows.length}</small></button>`]
+        .concat(funders.map(f => `<button class="acc-funder-tab ${state.accFunderFilter === f.name ? "active" : ""}" data-acc-funder="${safeText(f.name)}">${safeText(f.name)} <small>${f.clients}</small></button>`)).join("");
+    }
+    const selected = funders.find(f => f.name === state.accFunderFilter);
+    if ($("#accFunderTotalLabel")) $("#accFunderTotalLabel").textContent = selected
+      ? `Total Monthly Fixed · ${selected.name} (${selected.clients} client${selected.clients === 1 ? "" : "s"})`
+      : `Total Monthly Fixed · All Funders (${rows.length} client${rows.length === 1 ? "" : "s"})`;
+    if ($("#accFunderTotalValue")) $("#accFunderTotalValue").textContent = pesoExact(selected ? selected.totalMonthly : totalMonthly);
+
+    const q = ($("#accCustSchedSearch")?.value || "").trim().toLowerCase();
+    const list = rows.filter(r => (state.accFunderFilter === "All" || r.funderName === state.accFunderFilter) &&
+      (!q || [r.client, r.appId].some(x => String(x || "").toLowerCase().includes(q))));
+    if (!list.length) {
+      body.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:22px; color:var(--muted);">No customers paying monthly${selected ? ` under ${safeText(selected.name)}` : ""}.</td></tr>`;
+      if ($("#accCustSchedFoot")) $("#accCustSchedFoot").innerHTML = "";
+      return;
+    }
+    body.innerHTML = list.map(r => `<tr>
+        <td><strong>${safeText(r.client)}</strong><span class="sub-info"><button type="button" class="link-btn" style="margin:0;" data-view-app="${safeText(r.appId)}">${safeText(r.appId)}</button></span></td>
+        <td>${safeText(r.funderName || "—")}${r.ownedByHelloSolar ? `<span class="sub-info">Now owned by Hello Solar · contract ended</span>` : ""}</td>
+        <td class="num">${pesoExact(r.amount)}</td>
+        <td class="num">${r.annualRate != null ? `${Number(r.annualRate).toFixed(2)}%` : "—"}</td>
+        <td>${safeText(shortDate(r.endDate))}${r.termMonths ? `<span class="sub-info">${r.termMonths} months · from ${safeText(shortDate(r.startDate))}</span>` : ""}</td>
+        <td class="num"><strong>${pesoExact(r.monthlyFixed)}</strong></td>
+      </tr>`).join("");
+    const sumAmt = list.reduce((x, r) => x + r.amount, 0);
+    const sumMonthly = Math.round(list.reduce((x, r) => x + r.monthlyFixed, 0) * 100) / 100;
+    if ($("#accCustSchedFoot")) $("#accCustSchedFoot").innerHTML = `<tr>
+        <td colspan="2">We should collect every month (${list.length} customer${list.length === 1 ? "" : "s"})</td>
+        <td class="num">${pesoExact(sumAmt)}</td><td></td><td></td>
+        <td class="num">${pesoExact(sumMonthly)}</td>
+      </tr>`;
   }
 
   // ---- Installation Cost (Hello Solar Direct projects only, per APP ID) ----
@@ -3674,7 +4301,7 @@
     const q = ($("#accInstCostSearch")?.value || "").toLowerCase().trim();
     const filtered = rows.filter(r => !q || [r.appId, r.hsId, r.customer, r.location].some(v => String(v || "").toLowerCase().includes(q)));
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="7" class="sa-empty">${rows.length ? "No Hello Solar Direct projects match your search." : "No Hello Solar Direct projects yet."}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="sa-empty">${rows.length ? "No Hello Solar Installation projects match your search." : "No Hello Solar Installation projects yet."}</td></tr>`;
       return;
     }
     const cell = (v, isSet) => isSet ? pesoExact(v) : `<span class="sa-dim">—</span>`;
@@ -3701,7 +4328,7 @@
     if (IS_ENGINEER) return;
     const row = (db.getDirectInstallationCosts ? db.getDirectInstallationCosts() : []).find(r => r.appId === appId);
     if (!row) {
-      showToast(`${safeText(appId)} is not a Hello Solar Direct project.`, "danger", "⚠");
+      showToast(`${safeText(appId)} is not a Hello Solar Installation project.`, "danger", "⚠");
       return;
     }
     $("#icAppId").value = row.appId;
@@ -4441,8 +5068,8 @@
               <span class="sub-info">${t.accountName}</span>
             </div>
           </td>
-          <td><span style="font-weight:600;" title="${safeText(t.concern)}">${t.concern}</span></td>
-          <td><span class="status-pill ${priorityClass}">${t.priority}</span></td>
+          <td><span style="font-weight:600;" title="${safeText(t.concern)}">${t.concern}</span>${t.topic && t.topic !== t.concern ? `<span class="sub-info">${safeText(t.topic)}</span>` : ""}</td>
+          <td><span class="status-pill ${priorityClass}">${t.priority}</span>${t.urgency ? `<span class="sub-info" title="What the customer picked">${safeText(t.urgency)}</span>` : ""}</td>
           <td><span class="status-pill ${getStatusClass(t.status)}">${t.status}</span></td>
           <td><span class="sub-info" style="margin:0;">${t.created}</span></td>
           <td style="text-align: right;">
@@ -4479,7 +5106,7 @@
     if ($("#smPriorityBadge")) {
       const pClass = t.priority === "High" ? "danger" : (t.priority === "Medium" ? "warn" : "neutral");
       $("#smPriorityBadge").className = `status-pill ${pClass}`;
-      $("#smPriorityBadge").textContent = `${t.priority} Priority`;
+      $("#smPriorityBadge").textContent = t.urgency ? `${t.priority} · ${t.urgency}` : `${t.priority} Priority`;
     }
 
     // Tab 1: Overview
@@ -5018,7 +5645,12 @@
     if ($("#inqDetailModel")) $("#inqDetailModel").textContent = inq.selectedSolarModel || inq.package || "Custom Solar Package";
     if ($("#inqDetailPackage")) $("#inqDetailPackage").textContent = inq.selectedSolarModel || inq.package || "Custom Solar Package";
     if ($("#inqDetailElectricBill")) $("#inqDetailElectricBill").textContent = inq.electricBill || (inq.monthlyBill || "₱10,000 - ₱15,000");
-    if ($("#inqDetailPaymentPreference")) $("#inqDetailPaymentPreference").textContent = inq.paymentPreference === "Not specified" ? "—" : (inq.paymentPreference || "Full Payment");
+    if ($("#inqDetailPaymentPreference")) {
+      const pref = inq.paymentPreference === "Not specified" ? "—" : (inq.paymentPreference || "Full Payment");
+      // Installment: show the term the customer picked on Buy Now (e.g. "Installment · 3 years")
+      const picked = /installment/i.test(pref) && inq.requestType === "Buy Now" && Number(inq.termMonths) > 0 ? ` · ${termText(Number(inq.termMonths))}` : "";
+      $("#inqDetailPaymentPreference").textContent = pref + picked;
+    }
     // Landing page request type (Buy Now / Site Assessment) and the uploaded payment proof
     if ($("#inqDetailRequestRow")) {
       $("#inqDetailRequestRow").style.display = inq.requestType ? "" : "none";
@@ -5374,6 +6006,7 @@
       newAccSystem: inquiry.selectedSolarModel || inquiry.purchasedModel || inquiry.package,
       newAccProjectType: inquiry.projectType || (/Residential Solar|Commercial Solar|Battery Storage/.test(inquiry.category) ? inquiry.category : ''),
       newAccPaymentType: inquiry.paymentPreference === 'Not specified' ? '' : (inquiry.paymentPreference || inquiry.paymentType || ''),
+      newAccTerm: String([6, 36, 72].includes(Number(inquiry.termMonths)) ? Number(inquiry.termMonths) : 72),
       newAccNotes: [inquiry.subject, inquiry.message].filter(Boolean).join('\n\n')
     };
     Object.entries(values).forEach(([field, value]) => {
@@ -5384,6 +6017,15 @@
     });
     const inqSelect = document.getElementById('newAccInquiry');
     if (inqSelect) inqSelect.value = id;
+    // Installment Term row follows the prefilled payment type
+    const termWrap = document.getElementById('newAccTermWrap');
+    const payType = document.getElementById('newAccPaymentType');
+    if (termWrap) termWrap.style.display = payType && payType.value === 'Installment' ? '' : 'none';
+  }
+  // Installment Term shows only for Installment (Full Payment has no term)
+  function syncNewAccTerm() {
+    const wrap = document.getElementById('newAccTermWrap');
+    if (wrap) wrap.style.display = ($('#newAccPaymentType')?.value === 'Installment') ? '' : 'none';
   }
 
   function renderCreateAccount() {
@@ -5431,8 +6073,8 @@
         sectionTitle: "Business & Supply Category"
       },
       Engineer: {
-        title: "Create Direct Installation Engineer",
-        badge: "Direct Installation",
+        title: "Create Installation Engineer",
+        badge: "Hello Solar Installation",
         desc: "",
         sectionTitle: "Engineer Details"
       },
@@ -5520,6 +6162,12 @@
             <option value="Installment">Installment</option>
           </select>
         </div>
+        <div class="form-group" id="newAccTermWrap" style="margin-bottom:0; display:none;">
+          <label class="form-label" for="newAccTerm">Installment Term</label>
+          <select class="input-field" id="newAccTerm" style="width:100%;">
+            ${installmentTermOptions().map(t => `<option value="${t}" ${t === 72 ? "selected" : ""}>${safeText(termText(t))}</option>`).join("")}
+          </select>
+        </div>
         <div class="form-group" style="margin-bottom:0;">
           <label class="form-label" for="newAccSystem">Solar Model <span style="color:var(--primary);">*</span></label>
           <select class="input-field" id="newAccSystem" style="width:100%;">
@@ -5539,6 +6187,8 @@
           <input type="text" class="input-field" id="newAccLocation" placeholder="e.g. Cebu City, Mandaue City" style="width:100%;" />
         </div>
       `;
+      $('#newAccPaymentType')?.addEventListener('change', syncNewAccTerm);
+      syncNewAccTerm();
       $('#newAccInquiry').addEventListener('change', e => {
         state.createInquiryId = e.target.value || null;
         if (state.createInquiryId) prefillInquiry(state.createInquiryId);
@@ -5550,6 +6200,7 @@
           if (input.tagName === 'SELECT' && value && ![...input.options].some(o => o.value === value)) input.add(new Option(value, value));
           input.value = value;
         });
+        syncNewAccTerm();
       } else if (state.createInquiryId) prefillInquiry(state.createInquiryId);
     } else if (role === "Installer") {
       grid.innerHTML = `
@@ -5562,7 +6213,7 @@
           <label class="form-label" for="newAccInstallerType">Installer Type</label>
           <select class="input-field" id="newAccInstallerType" style="width:100%;">
             <option value="Partner" selected>Partner Installer</option>
-            <option value="Internal">Hello Solar Direct</option>
+            <option value="Internal">Hello Solar Installation</option>
           </select>
         </div>
         <div class="form-group" style="margin-bottom:0; grid-column:1 / -1;">
@@ -5644,6 +6295,7 @@
     const location = ($("#newAccLocation")?.value || "").trim();
     const system = $("#newAccSystem")?.value || "";
     const paymentType = $("#newAccPaymentType")?.value || "";
+    const termMonths = paymentType === "Installment" ? (Number($("#newAccTerm")?.value) || null) : null;
     const installerType = $("#newAccInstallerType")?.value || "Partner";
     const category = $("#newAccCategory")?.value || "";
     const notes = role === "Engineer" ? "" : ($("#newAccNotes")?.value || "").trim();
@@ -5714,6 +6366,7 @@
       location,
       system,
       paymentType,
+      termMonths,
       installerType,
       category,
       notes,
@@ -5740,7 +6393,7 @@
     }
 
     // Toast notification
-    const roleLabel = role === "Engineer" ? "Direct Installation Engineer" : role;
+    const roleLabel = role === "Engineer" ? "Installation Engineer" : role;
     showToast(role === "Customer"
       ? `Customer account ${res.id} created · Pending Activation`
       : `${roleLabel} account ${res.id} created`, "success", "✓");
@@ -6253,7 +6906,7 @@
     setSelectValueSafely($("#setTimezone"), s.timezone, "Philippine Standard Time (GMT+8)");
     setSelectValueSafely($("#setCurrency"), s.currency, "PHP (₱)");
     if ($("#setEmail")) $("#setEmail").value = s.contactEmail || "admin@hellosolar.ph";
-    if ($("#setDirectTeam")) $("#setDirectTeam").value = s.directInstallTeam || "Hello Solar Central Operations (Team Alpha)";
+    if ($("#setDirectTeam")) $("#setDirectTeam").value = s.directInstallTeam || "Hello Solar Internal Team";
     if ($("#setMaxDirect")) $("#setMaxDirect").value = (s.maxDirectProjects !== undefined) ? s.maxDirectProjects : 12;
     if ($("#setDirectConfirm")) $("#setDirectConfirm").checked = s.directInstallConfirmation !== false;
     if ($("#setOverdueDays")) $("#setOverdueDays").value = (s.overdueThresholdDays !== undefined) ? s.overdueThresholdDays : 5;
@@ -6313,7 +6966,7 @@
         contactEmail: "Alert / Escalation Email",
         directInstallTeam: "Designated Internal Engineering Unit",
         maxDirectProjects: "Maximum Concurrent Direct Projects",
-        directInstallConfirmation: "Require Confirmation for Direct Installation Acceptance",
+        directInstallConfirmation: "Require Confirmation for Hello Solar Installation Acceptance",
         overdueThresholdDays: "Mark Payment Overdue After (Days)",
         installationDelayThresholdDays: "Mark Installation Delayed After (Days)",
         docReviewEscalationHours: "Flag Document Review After (Hours)"
@@ -6819,6 +7472,38 @@
 
     // Direct Install Confirmation Modal Confirm
     $("#btnConfirmDirectInstall")?.addEventListener("click", confirmDirectInstall);
+    // Hello Solar Funding
+    document.addEventListener("click", e => {
+      const fundBtn = e.target.closest("[data-hs-funding]");
+      if (fundBtn) openHsFundingModal(fundBtn.dataset.hsFunding);
+      if (e.target.closest("#btnDrawerHsFunding, #btnDrawerFootHsFunding") && state.selectedAppId) openHsFundingModal(state.selectedAppId);
+    });
+    $("#btnConfirmHsFunding")?.addEventListener("click", confirmHsFunding);
+    // Signed agreement uploaded by the customer (Documents page): view the file, accept it or ask for a re-upload
+    document.addEventListener("click", e => {
+      const t = e.target.closest("[data-agreement-view],[data-agreement-accept],[data-agreement-reupload]");
+      if (!t || !window.HSShared) return;
+      const appId = t.dataset.agreementView || t.dataset.agreementAccept || t.dataset.agreementReupload;
+      const ag = window.HSShared.agreementFor(appId);
+      if (!ag) return;
+      if (t.dataset.agreementView) {
+        const f = window.HSShared.agreementFileFor(appId);
+        openStoredFile(f && f.fileData, { fileName: ag.fileName, eyebrow: "SIGNED AGREEMENT",
+          title: `${ag.title} · ${appId}${ag.uploadedAt ? ` · uploaded ${svDate(String(ag.uploadedAt).slice(0, 10))}` : ""}` });
+        return;
+      }
+      const accept = !!t.dataset.agreementAccept;
+      let note = "";
+      if (!accept) {
+        note = window.prompt("Why should the customer upload the agreement again?", "Please upload a clear copy with your full name, contact number, date and signature.");
+        if (note === null) return;
+      }
+      const res = window.HSShared.reviewAgreement(appId, accept ? "ACCEPTED" : "REUPLOAD_REQUIRED", note, SESSION.name ? `ADMIN (${SESSION.name})` : "ADMIN (Limuel)");
+      if (!res.ok) { showToast(res.error, "danger", "⚠"); return; }
+      db.data = db.load();
+      showToast(accept ? `Signed ${ag.title} accepted for ${appId}.` : `Customer asked to upload the ${ag.title} again.`, "success", "✓");
+      openAppDrawer(appId);
+    });
 
     // Drawer handlers
     $("#drawerCloseBtn")?.addEventListener("click", () => $("#appDrawerOverlay")?.classList.remove("open"));
@@ -6845,6 +7530,20 @@
       }
     });
 
+    // Request a document / mark one not required / require it again
+    document.addEventListener("click", e => {
+      const reqBtn = e.target.closest("[data-doc-request]");
+      if (reqBtn) { openDocRequestModal("request", reqBtn.dataset.docRequest); return; }
+      const waiveBtn = e.target.closest("[data-doc-waive]");
+      if (waiveBtn && state.selectedAppId) { openDocRequestModal("waive", state.selectedAppId, waiveBtn.dataset.docWaive, waiveBtn.dataset.docLabel); return; }
+      const reqAgain = e.target.closest("[data-doc-require]");
+      if (reqAgain && state.selectedAppId) requireDocumentAgain(state.selectedAppId, reqAgain.dataset.docRequire);
+    });
+    $("#btnConfirmDocRequest")?.addEventListener("click", confirmDocRequest);
+    $("#docRequestModal")?.addEventListener("keydown", e => {
+      if (e.key === "Enter" && e.target.matches("input")) { e.preventDefault(); confirmDocRequest(); }
+    });
+
     // Document Preview
     document.addEventListener("click", e => {
       const prevBtn = e.target.closest("[data-preview-doc]");
@@ -6857,10 +7556,10 @@
     // Verify document from preview modal
     $("#btnDpmVerify")?.addEventListener("click", () => {
       if (state.selectedAppId) {
-        const docTitle = $("#dpmTitle")?.textContent;
+        const docTitle = state.dpmDocName || $("#dpmTitle")?.textContent;
         db.updateDocumentStatus(state.selectedAppId, docTitle, "Verified");
         $("#docPreviewModal")?.classList.remove("open");
-        showToast(`Document "${docTitle}" marked as Verified.`, "success", "✓");
+        showToast(`Document "${$("#dpmTitle")?.textContent || docTitle}" marked as Accepted.`, "success", "✓");
         renderCurrentPage();
         if ($("#appDrawerOverlay")?.classList.contains("open")) {
           openAppDrawer(state.selectedAppId);
@@ -7080,6 +7779,43 @@
 
     $("#btnConfirmSystemDisconnect")?.addEventListener("click", submitSystemDisconnect);
     $("#accSystemSearch")?.addEventListener("input", renderSystemConnectionTable);
+    // Accounting tabs, ledger and funder filters
+    document.addEventListener("click", e => {
+      const tab = e.target.closest("[data-acc-tab]");
+      if (tab) { state.accTab = tab.dataset.accTab; renderAccountingTabs(); return; }
+      const sub = e.target.closest("[data-acc-sub]");
+      if (sub) { state.accSub[state.accTab] = sub.dataset.accSub; renderAccountingTabs(); return; }
+      const go = e.target.closest("[data-acc-go]");
+      if (go) {
+        const [t, s, filter] = go.dataset.accGo.split(":");
+        state.accTab = t;
+        if (s) state.accSub[t] = s;
+        if (filter === "check") { state.accLedgerStatus = "Pending Verification"; renderPaymentsLedger(); }
+        renderAccountingTabs();
+        return;
+      }
+      const mn = e.target.closest("[data-acc-month]");
+      if (mn) {
+        const next = accShiftMonth(accMonth(), Number(mn.dataset.accMonth));
+        if (next <= accThisMonth()) { state.accMonth = next; renderMoneyOverview(); renderFunderSchedule(); }
+        return;
+      }
+      const fp = e.target.closest("[data-funder-paid]");
+      if (fp) { toggleFunderPaid(fp.dataset.funderPaid, false); return; }
+      const fu = e.target.closest("[data-funder-undo]");
+      if (fu) { toggleFunderPaid(fu.dataset.funderUndo, true); return; }
+      const ls = e.target.closest("[data-ledger-status]");
+      if (ls) { state.accLedgerStatus = ls.dataset.ledgerStatus; renderPaymentsLedger(); return; }
+      const lv = e.target.closest("[data-ledger-verify]");
+      if (lv) { verifyLedgerRow(lv.dataset.ledgerVerify); return; }
+      const lr = e.target.closest("[data-ledger-receipt]");
+      if (lr) { openLedgerReceipt(lr.dataset.ledgerReceipt); return; }
+      const ft = e.target.closest("[data-acc-funder]");
+      if (ft) { state.accFunderFilter = ft.dataset.accFunder; renderCustomerSchedule(); return; }
+    });
+    $("#accLedgerSearch")?.addEventListener("input", renderPaymentsLedger);
+    $("#accLedgerChannel")?.addEventListener("change", renderPaymentsLedger);
+    $("#accCustSchedSearch")?.addEventListener("input", renderCustomerSchedule);
     $("#accInstCostSearch")?.addEventListener("input", renderInstallationCostTable);
     ["#icMaterialsInput", "#icLaborInput", "#icTransportInput"].forEach(id => $(id)?.addEventListener("input", updateInstallationCostTotal));
     $("#btnSaveInstallationCost")?.addEventListener("click", saveInstallationCost);
@@ -7608,26 +8344,17 @@
         return;
       }
 
-      db.logActivity(
-        "Admin",
-        "ADMIN (Limuel)",
-        "ADMIN executed developer reset of prototype demo data",
-        "SETTINGS",
-        {
-          actorId: "ADMIN-01",
-          recordType: "System Settings",
-          details: { action: "RESET DEMO DATA", triggeredBy: "Developer Tools" }
-        }
-      );
-
-      db.reset();
-      $("#resetModal")?.classList.remove("open");
-      if (input) input.value = "";
+      // Local demo: clear every Hello Solar record kept in this browser (applications, documents, agreements,
+      // payments, inquiries, notifications, portal data), then reload so every portal starts from the clean
+      // sample data. The Super Admin sign-in (session storage) stays.
+      if (window.HS_CONFIG && window.HS_CONFIG.isApi) {
+        showToast("Demo reset is available in local demo mode only.", "warn", "⚠️");
+        return;
+      }
+      try { localStorage.clear(); } catch (err) { db.reset(); }
       $("#btnConfirmReset").disabled = true;
-
-      showToast("Prototype demo data successfully reset to initial state.", "success", "↺");
-      renderSettings();
-      renderCurrentPage();
+      showToast("Demo data reset. Loading fresh sample data…", "success", "↺");
+      setTimeout(() => window.location.reload(), 600);
     });
 
     // 17. Exports for Directory & Tickets
@@ -7735,8 +8462,8 @@
     const initials = ENGINEER.name.replace(/^Engr\.\s*/i, "").split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
     $$(".user-avatar").forEach(el => { el.textContent = initials || "DE"; });
     $$(".user-name, .user-dropdown-name").forEach(el => { el.textContent = ENGINEER.name; });
-    $$(".user-role, .user-dropdown-role").forEach(el => { el.textContent = "Direct Installation Engineer"; });
-    $("#userProfileBtn")?.setAttribute("title", "Direct Installation Engineer Account");
+    $$(".user-role, .user-dropdown-role").forEach(el => { el.textContent = "Installation Engineer"; });
+    $("#userProfileBtn")?.setAttribute("title", "Installation Engineer Account");
   }
 
   const DE_STATE_LABEL = {

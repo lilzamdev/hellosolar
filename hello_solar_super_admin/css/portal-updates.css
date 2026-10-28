@@ -1,0 +1,258 @@
+/* Super Admin updates: lifecycle summary, Hello Solar Funding, site visit lifecycle, accounting tabs */
+
+/* 10-step lifecycle stepper fits the drawer */
+.stepper .step-item { min-width: 0; }
+.stepper .step-label { font-size: 9.5px; }
+
+/* Project strip above the Application Summary */
+.lc-strip {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px;
+}
+.lc-strip-item {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 0;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.lc-strip-item span { font-size: 11px; color: var(--muted); font-weight: 600; }
+.lc-strip-item strong { font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
+
+/* Application Summary rows, one per lifecycle step */
+.lc-summary { display: flex; flex-direction: column; }
+.lc-row {
+  display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 12px; align-items: start;
+  padding: 10px 0; border-bottom: 1px solid var(--line-light, #EFECE6);
+}
+.lc-row:last-child { border-bottom: 0; }
+.lc-num {
+  width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; border: 2px solid var(--line); color: var(--muted); background: var(--surface);
+}
+.lc-row.is-done .lc-num { background: var(--green, #16A34A); border-color: var(--green, #16A34A); color: #fff; }
+.lc-row.is-current .lc-num { background: var(--orange, #FF8400); border-color: var(--orange, #FF8400); color: #000; }
+.lc-title { font-size: 12.5px; font-weight: 800; color: var(--ink); margin-bottom: 2px; }
+.lc-row.is-upcoming .lc-title { color: var(--muted); }
+.lc-detail { font-size: 12.5px; color: var(--ink-secondary); line-height: 1.45; overflow-wrap: anywhere; }
+.lc-row.is-upcoming .lc-detail { color: var(--muted); }
+.lc-detail .sub-info { display: block; margin-top: 2px; }
+.lc-badge {
+  font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+  background: var(--bg); color: var(--muted); border: 1px solid var(--line);
+}
+.lc-badge.done { background: #ECFDF5; color: #047857; border-color: #A7F3D0; }
+.lc-badge.current { background: #FFF7ED; color: #C2410C; border-color: #FED7AA; }
+@media (max-width: 720px) { .lc-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Hello Solar Funding */
+.hs-funding-box .box-icon { font-weight: 800; font-size: 18px; }
+.btn-hs-funding {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 8px;
+  border: 1px solid #A7F3D0; background: #ECFDF5; color: #047857; font-size: 12px; font-weight: 800; cursor: pointer;
+  white-space: nowrap; font-family: inherit;
+}
+.btn-hs-funding:hover { background: #D1FAE5; }
+.badge-hs-funded {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 800; color: #047857;
+  background: #ECFDF5; border: 1px solid #A7F3D0; padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+}
+
+/* Site visit lifecycle */
+.sv-lifecycle { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; max-width: 260px; }
+.sv-step {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 800; white-space: nowrap;
+  padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); background: var(--surface);
+}
+.sv-step.done { background: #ECFDF5; color: #047857; border-color: #A7F3D0; }
+.sv-step.current { background: #FFF7ED; color: #C2410C; border-color: #FED7AA; }
+.sv-step-sep { color: var(--line); font-size: 10px; }
+.sv-continue { margin-top: 6px; font-size: 11.5px; color: var(--muted); }
+.sv-continue strong { color: var(--ink); }
+
+/* Payments: down payment line under the payment type */
+.pay-dp-line { display: block; margin-top: 4px; font-size: 11.5px; color: var(--muted); }
+.pay-dp-line strong { color: var(--ink); }
+
+/* Accounting tabs */
+.acc-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 18px; border-bottom: 1px solid var(--line); }
+.acc-tab {
+  border: 0; background: transparent; padding: 10px 14px; font-size: 13px; font-weight: 700; color: var(--muted);
+  border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; font-family: inherit; display: inline-flex; gap: 6px; align-items: center;
+}
+.acc-tab:hover { color: var(--ink); }
+.acc-tab.active { color: var(--ink); border-bottom-color: var(--orange, #FF8400); }
+.acc-tab .count-pill { font-size: 10.5px; }
+.acc-panel { display: none; }
+.acc-panel.active { display: block; }
+
+.acc-channels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
+.acc-channel {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 6px;
+}
+.acc-channel-name { font-size: 12.5px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+.acc-channel-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.acc-channel-total { font-size: 22px; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; }
+.acc-channel-meta { font-size: 11.5px; color: var(--muted); }
+.acc-channel-bar { height: 6px; border-radius: 999px; background: var(--bg); overflow: hidden; margin-top: 4px; }
+.acc-channel-bar span { display: block; height: 100%; border-radius: 999px; }
+.acc-channel-break { font-size: 11.5px; color: var(--ink-secondary); display: flex; justify-content: space-between; gap: 8px; }
+
+.acc-funder-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.acc-funder-tab {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 14px; cursor: pointer;
+  font-size: 12.5px; font-weight: 700; color: var(--ink-secondary); font-family: inherit; display: inline-flex; gap: 6px; align-items: center;
+}
+.acc-funder-tab small { font-weight: 800; color: var(--muted); }
+.acc-funder-tab.active { background: #FFF7ED; border-color: #FDBA74; color: #9A3412; }
+.acc-funder-total {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: #FFF7ED; border: 1px solid #FED7AA; border-radius: 12px; padding: 12px 16px; margin-bottom: 14px;
+}
+.acc-funder-total span { font-size: 12.5px; color: #9A3412; font-weight: 700; }
+.acc-funder-total strong { font-size: 18px; color: #7C2D12; }
+.acc-foot-note { font-size: 11.5px; color: var(--muted); margin: 8px 2px 0; line-height: 1.5; }
+.sa-table tfoot td { font-weight: 800; background: var(--surface-subtle, #FDFBF7); border-top: 1px solid var(--line); }
+.acc-type-pill { font-size: 11px; font-weight: 700; color: var(--ink-secondary); }
+.acc-channel-tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+@media (max-width: 1100px) { .acc-channels { grid-template-columns: 1fr; } }
+.acc-sched-table { overflow-x: auto; }
+.acc-sched-table table { font-size: 12.5px; }
+.acc-sched-table th { white-space: normal; line-height: 1.25; vertical-align: bottom; padding-left: 10px; padding-right: 10px; }
+.acc-sched-table td { padding-left: 10px; padding-right: 10px; white-space: nowrap; }
+.acc-sched-table td:first-child { white-space: normal; min-width: 170px; }
+#hsFundingModal { z-index: 1010; }
+
+/* Application Summary: detailed information, grouped in lifecycle order */
+.as-section { padding: 12px 0; border-bottom: 1px solid var(--line-light, #EFECE6); }
+.as-section:first-child { padding-top: 0; }
+.as-section:last-child { border-bottom: 0; padding-bottom: 0; }
+.as-section-title {
+  font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--orange, #E07500); margin-bottom: 10px;
+}
+.as-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; }
+.as-item { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.as-item span { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.as-item strong { font-size: 13px; color: var(--ink); font-weight: 700; overflow-wrap: anywhere; }
+.as-item strong .sub-info { display: block; font-weight: 500; }
+@media (max-width: 600px) { .as-grid { grid-template-columns: 1fr; } }
+
+/* Application Summary (compact): one row per group */
+.as-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--line-light, #EFECE6); }
+.as-row:first-child { padding-top: 0; }
+.as-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.as-row-title { font-size: 12px; font-weight: 700; color: var(--muted); }
+.as-row-body { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 13px; font-weight: 700; color: var(--ink); min-width: 0; }
+.as-kv { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; overflow-wrap: anywhere; }
+.as-kv em { font-style: normal; font-weight: 600; color: var(--muted); font-size: 12px; }
+.as-kv .sub-info { display: inline; margin: 0 0 0 4px; }
+.as-dot { color: #C9C2B8; font-weight: 400; }
+
+/* Applications table: every cell on one line, fits the table (long text ends with "…", full text on hover) */
+.apps-table { table-layout: fixed; width: 100%; }
+.apps-table th, .apps-table td {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 8px; padding-right: 8px;
+}
+.apps-table th { font-size: 10.5px; letter-spacing: 0.03em; }
+.apps-table .status-pill { padding-left: 9px; padding-right: 9px; }
+.apps-table td > strong, .apps-table td > .sub-info, .apps-table .app-cust-name {
+  display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.apps-table .status-pill, .apps-table .badge-hs-funded {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle;
+}
+.apps-table td.apps-action-cell { text-align: right; overflow: visible; }
+.apps-mini-btn { height: 28px; padding: 0 9px !important; font-size: 12px !important; margin-left: 6px; vertical-align: middle; display: inline-flex; align-items: center; gap: 4px; }
+.apps-mini-btn:first-child { margin-left: 0; }
+.apps-table .btn-home-direct.apps-mini-btn { border-radius: 8px; }
+
+.badge-hs-install {
+  display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;
+  font-size: 13px; font-weight: 800; color: #C2410C;
+}
+
+/* Details › Documents: signed agreement card + real file preview */
+.agreement-doc-card { border-color: #FED7AA; background: #FFFDF8; }
+.agreement-doc-card.missing { background: #FFF7ED; }
+.dpm-file-preview { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; margin-bottom: 16px; }
+.dpm-file-preview img { max-width: 100%; max-height: 420px; border-radius: 10px; border: 1px solid var(--line); }
+.dpm-file-preview iframe { width: 100%; height: 420px; border: 1px solid var(--line); border-radius: 10px; }
+
+/* Details › Documents grouped like the customer's Documents page */
+.doc-group-title { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 16px 2px 8px; }
+.doc-group-title:first-child { margin-top: 4px; }
+.doc-group-note { font-size: 12.5px; color: var(--muted); margin: 10px 2px 0; }
+.doc-optional-tag { font-size: 10.5px; font-weight: 700; color: var(--muted); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; margin-left: 4px; vertical-align: middle; }
+.doc-badge.optional { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+
+/* Accounting — Overview / Money In / Money Out */
+.acc-tab { font-size: 14px; padding: 10px 16px; }
+.acc-seg { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: #EFE9E0; border-radius: 11px; margin: 0 0 18px; }
+.acc-seg[hidden] { display: none; }
+.acc-seg button { border: 0; background: transparent; padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 13px; font-family: inherit; color: var(--muted); cursor: pointer; }
+.acc-seg button:hover { color: var(--ink); }
+.acc-seg button.active { background: var(--surface, #fff); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 8%); }
+.acc-month-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+.acc-month-help { margin: 0; font-size: 12.5px; color: var(--muted); }
+.acc-month-nav { display: inline-flex; align-items: center; gap: 4px; background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.acc-month-nav span { min-width: 128px; text-align: center; font-size: 13.5px; font-weight: 800; color: var(--ink); }
+.acc-month-nav button { width: 30px; height: 30px; border: 0; border-radius: 7px; background: transparent; font-size: 18px; line-height: 1; color: var(--ink); cursor: pointer; font-family: inherit; }
+.acc-month-nav button:hover:not(:disabled) { background: var(--bg); }
+.acc-month-nav button:disabled { color: #D6D3D1; cursor: default; }
+.acc-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 18px; }
+.acc-card { text-align: left; font-family: inherit; cursor: pointer; background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 16px; padding: 20px 22px; display: flex; flex-direction: column; gap: 4px; transition: border-color .15s, box-shadow .15s; }
+.acc-card:hover { border-color: #F6C38E; box-shadow: 0 4px 14px rgb(28 25 23 / 6%); }
+.acc-card-label { font-size: 13px; font-weight: 700; color: var(--muted); }
+.acc-card-value { font-size: 28px; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; margin-top: 4px; }
+.acc-card.is-in .acc-card-value { color: #15803D; }
+.acc-card.is-out .acc-card-value { color: #B91C1C; }
+.acc-card-hint { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.acc-card-note { margin-top: 6px; font-size: 12px; font-weight: 700; color: #B91C1C; background: #FEF2F2; border-radius: 8px; padding: 5px 9px; align-self: flex-start; }
+.acc-card-note.is-done { color: #15803D; background: #ECFDF3; }
+.acc-check-box { background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 16px; padding: 18px 22px; }
+.acc-check-box h3 { margin: 0 0 6px; font-size: 15px; }
+.acc-check-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.acc-check-row:first-child { border-top: 0; }
+.acc-check-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.acc-check-who strong { font-size: 13.5px; color: var(--ink); }
+.acc-check-who span { font-size: 12px; color: var(--muted); }
+.acc-check-amt { font-size: 14px; color: var(--ink); white-space: nowrap; }
+.acc-check-empty { margin: 6px 0 2px; font-size: 13px; color: var(--muted); }
+.acc-check-more { margin-top: 8px; }
+.acc-row-muted td, .acc-row-muted td strong { color: #A8A29E; }
+@media (max-width: 900px) {
+  .acc-cards { grid-template-columns: 1fr; }
+  .acc-check-row { flex-wrap: wrap; }
+}
+
+/* Phone / tablet: page titles keep their natural height; wide tables scroll sideways instead of squeezing */
+@media (max-width: 640px) {
+  .page-head > div:first-child { flex: 0 0 auto; }
+  .acc-month-nav span { min-width: 112px; }
+}
+@media (max-width: 900px) {
+  .table-container > table { min-width: 760px; }
+  .table-container > table.apps-table { min-width: 980px; }
+}
+
+/* Lifecycle: a step that was passed without being complete (e.g. documents still missing) */
+.step-item.warn .step-bubble { background: #FFF7ED; border-color: #F59E0B; color: #B45309; font-weight: 800; }
+.step-item.warn .step-label { color: #B45309; }
+
+/* Details › Documents: request a document / mark not required */
+.doc-group-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.doc-group-title-row .btn { text-transform: none; letter-spacing: 0; }
+.doc-mini-action { margin: 0; font-size: 12px; white-space: nowrap; color: var(--muted); }
+.doc-mini-action:hover { color: var(--ink); }
+#docRequestModal { z-index: 1010; }
+.doc-badge { white-space: nowrap; }
+
+/* Phone: the filter chips scroll sideways instead of widening the page */
+@media (max-width: 760px) {
+  .filter-tabs {
+    max-width: 100%;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .filter-tabs::-webkit-scrollbar { display: none; }
+  .filter-tabs .chip-btn { flex: 0 0 auto; }
+}

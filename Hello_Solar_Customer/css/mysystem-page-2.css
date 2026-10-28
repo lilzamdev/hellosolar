@@ -893,3 +893,28 @@
     }
 }
 }
+
+/* --------------------------------------------------------------------------
+   My System on phones / tablets is a normal page (top of the page is the system view, the bottom
+   navigation stays). The old full-screen rules made the content area its own scroll box that could
+   not pass the scroll to the page — undo them so the page scrolls with the finger.
+   -------------------------------------------------------------------------- */
+@layer dashboard-legacy {
+@media (max-width: 768px) {
+    #systemDetailView.active:not(.mobile-fullscreen) {
+        position: static !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+    #systemDetailView:not(.mobile-fullscreen) .system-detail-content {
+        flex: 0 0 auto !important;
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        overscroll-behavior: auto !important;
+        touch-action: auto !important;
+        padding: 0 0 calc(var(--bottom-nav-height, 64px) + 24px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+}
+}

@@ -855,7 +855,7 @@
                                 ? `Receipt uploaded at ${pendingProof.timestamp} (Pending Verification)`
                                 : "Receipt uploaded · Pending Verification";
                         } else if (hasUnpaid) {
-                            paymentNextDueMeta.innerHTML = `<span style="color: #dc2626; font-weight: 700;">Missed: ${firstUnpaid.period}</span> (Due ${firstUnpaid.due})`;
+                            paymentNextDueMeta.innerHTML = `<span style="color: #dc2626; font-weight: 700;">Past due since ${firstUnpaid.due}</span> · ${firstUnpaid.period} bill`;
                         } else {
                             paymentNextDueMeta.textContent = nextDueDate ? `Due on ${nextDueDate}` : "No payment due";
                         }
@@ -863,7 +863,7 @@
 
                     // 2. Payment Status Card
                     // Rules: "If any installment is Unpaid, main Payment Status = Overdue"
-                    // "Show missed billing period and unpaid amount"
+                    // Show the unpaid billing period and amount
                     if (paymentStandingVal) {
                         if (pendingProof || pkg.paymentStatus === "Payment Under Review") {
                             paymentStandingVal.textContent = "Payment Under Review";
@@ -880,7 +880,7 @@
                         if (pendingProof || pkg.paymentStatus === "Payment Under Review") {
                             paymentStandingMeta.innerHTML = `<span class="status-dot warning"></span>Proof under review`;
                         } else if (hasUnpaid) {
-                            paymentStandingMeta.innerHTML = `<span class="status-dot error" style="background:#dc2626;"></span>Missed payment: ${firstUnpaid.period} (${firstUnpaid.amount || monthlyAmt})`;
+                            paymentStandingMeta.innerHTML = `<span class="status-dot error" style="background:#dc2626;"></span>Unpaid bill: ${firstUnpaid.period} (${firstUnpaid.amount || monthlyAmt})`;
                         } else {
                             const isDueSoon = (pkg.paymentStatus === "Due Soon" || p.standing === "Due Soon");
                             const dotClass = isDueSoon ? "status-dot warning" : "status-dot";

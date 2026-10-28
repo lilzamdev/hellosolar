@@ -11,7 +11,7 @@
     }
   </style>
   <script src="../shared/hello-solar-config.js"></script>
-  <script src="js/auth.js"></script>
+  <script src="js/auth.js?v=20261027b"></script>
   <link rel="icon" type="image/png" href="assets/images/logofortab.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,6 +19,7 @@
     rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css?v=20261016a" />
   <link rel="stylesheet" href="css/clean-fixes.css?v=20261016e" />
+  <link rel="stylesheet" href="css/portal-updates.css?v=20261028d" />
 </head>
 
 <body>
@@ -431,7 +432,7 @@
                   <div class="ops-title">Customers</div>
                 </div>
                 <div class="ops-metric">
-                  <span>Active Accounts</span>
+                  <span>Active Customers</span>
                   <strong id="opsCustomerTotal">8</strong>
                 </div>
                 <div class="ops-metric">
@@ -459,11 +460,11 @@
                   <div class="ops-title">Financing &amp; Credit</div>
                 </div>
                 <div class="ops-metric">
-                  <span>Active Accounts</span>
+                  <span>Approved Financing</span>
                   <strong id="opsFinancerReview">2</strong>
                 </div>
                 <div class="ops-metric">
-                  <span>Pending Accounts</span>
+                  <span>Waiting for Financing</span>
                   <strong id="opsFinancerPending">3</strong>
                 </div>
               </div>
@@ -482,11 +483,11 @@
                   <div class="ops-title">Installation Works</div>
                 </div>
                 <div class="ops-metric">
-                  <span>Active Jobs</span>
+                  <span>Ongoing Installations</span>
                   <strong id="opsInstallerActive">4</strong>
                 </div>
                 <div class="ops-metric">
-                  <span>Pending Jobs</span>
+                  <span>Waiting to Install</span>
                   <strong id="opsInstallerMaint">1</strong>
                 </div>
               </div>
@@ -629,7 +630,7 @@
                   <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                   <polyline points="9 22 9 12 15 12 15 22"></polyline>
                 </svg>
-                <span>Direct Install available for internal execution</span>
+                <span>Hello Solar Installation available</span>
               </span>
             </div>
           </div>
@@ -660,13 +661,18 @@
                 <option value="BDO Green Energy Financing">BDO</option>
                 <option value="UnionBank Solar Loan Program">UnionBank</option>
                 <option value="Maya Bank Sustainable Energy">Maya Bank</option>
+                <option value="Hello Solar Funding">Hello Solar Funding</option>
               </select>
             </div>
           </div>
 
           <!-- Applications Table -->
           <div class="table-container">
-            <table>
+            <table class="apps-table">
+              <colgroup>
+                <col style="width:10%"><col style="width:10%"><col style="width:15%"><col style="width:10%">
+                <col style="width:14%"><col style="width:10%"><col style="width:11%"><col style="width:8%"><col style="width:12%">
+              </colgroup>
               <thead>
                 <tr>
                   <th>Application ID</th>
@@ -697,9 +703,9 @@
           <div class="toolbar-wrap">
             <div class="filter-tabs" id="siteVisitFilterTabs">
               <button class="chip-btn active" data-status="All">All</button>
-              <button class="chip-btn" data-status="Pending Assignment">To Assign</button>
-              <button class="chip-btn" data-status="Scheduled">Scheduled</button>
-              <button class="chip-btn" data-status="Completed">Completed</button>
+              <button class="chip-btn" data-status="Site Visit Payment">Site Visit Payment</button>
+              <button class="chip-btn" data-status="Pending Visit">Pending Visit</button>
+              <button class="chip-btn" data-status="Visit Confirmed">Visit Confirmed</button>
               <button class="chip-btn" data-status="Cancelled">Cancelled</button>
             </div>
             <div class="filter-group">
@@ -716,7 +722,7 @@
                   <th>Schedule</th>
                   <th>Site Visit Fee</th>
                   <th style="min-width:210px;">Assigned To</th>
-                  <th>Status</th>
+                  <th>Lifecycle Progression</th>
                   <th style="text-align: right;">Action</th>
                 </tr>
               </thead>
@@ -951,7 +957,7 @@
                       d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z">
                     </path>
                   </svg>
-                  <span>Direct Install Engineer</span>
+                  <span>Installation Engineer</span>
                 </button>
                 <button type="button" class="role-selector-btn" data-role="Accounting">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -996,7 +1002,7 @@
                       <option value="Installer">Installer (Field &amp; Contractor Portal)</option>
                       <option value="Financer">Financer (Lending &amp; Credit Portal)</option>
                       <option value="Merchant">Merchant (Supplier &amp; Hardware Portal)</option>
-                      <option value="Engineer">Direct Installation Engineer</option>
+                      <option value="Engineer">Installation Engineer</option>
                       <option value="Accounting">Accounting</option>
                     </select>
                   </div>
@@ -1189,56 +1195,185 @@
             </div>
           </div>
 
-          <div class="ops-grid sa-kpi-compact" style="margin-bottom: 20px;">
-            <div class="ops-card">
-              <div class="ops-head">
-                <div class="ops-title">Portfolio &amp; Revenue</div>
-              </div>
-              <div class="ops-metric"><span>Total Portfolio</span><strong id="accTotalPortfolio">—</strong></div>
-              <div class="ops-metric"><span>Expected Revenue (<span id="accPeriod">—</span>)</span><strong
-                  id="accExpectedRevenue" style="color:var(--brand);">—</strong></div>
-              <div class="ops-metric"><span>Collected Revenue (to date)</span><strong id="accCollectedRevenue"
-                  style="color:var(--success);">—</strong></div>
-              <div class="ops-metric"><span>Collected this period</span><strong id="accCollectedPeriod">—</strong></div>
-            </div>
+          <div class="acc-tabs" id="accTabs" role="tablist" aria-label="Accounting sections">
+            <button class="acc-tab active" data-acc-tab="overview" role="tab">Overview</button>
+            <button class="acc-tab" data-acc-tab="in" role="tab">Money In <span class="count-pill" id="accPendingCount">0</span></button>
+            <button class="acc-tab" data-acc-tab="out" role="tab">Money Out</button>
+            <button class="acc-tab" data-acc-tab="system" role="tab">System Control</button>
+          </div>
+          <!-- Sub-tabs of Money In / Money Out (filled by renderAccountingTabs) -->
+          <div class="acc-seg" id="accSubTabs" role="tablist" aria-label="Section" hidden></div>
 
-            <div class="ops-card">
-              <div class="ops-head">
-                <div class="ops-title">HS vs Financer Revenue</div>
-              </div>
-              <div class="ops-metric"><span>HS Revenue</span><strong id="accHsRevenue">—</strong></div>
-              <div class="ops-metric"><span>Financer Revenue</span><strong id="accThirdPartyRevenue">—</strong></div>
-              <div class="acc-split-bar" aria-hidden="true"><span id="accHsBar"></span></div>
-              <div class="ops-metric" style="border-top:none; padding-top:4px;"><span id="accSplitLabel"
-                  style="font-size:11.5px;">—</span></div>
+          <!-- OVERVIEW: this month's money in, money out and payments to check -->
+          <div class="acc-panel active" data-acc-panel="overview">
+            <div class="acc-month-row">
+              <div class="acc-month-slot"></div>
+              <p class="acc-month-help">Money in and out for the month you pick.</p>
             </div>
-
-            <div class="ops-card">
-              <div class="ops-head">
-                <div class="ops-title" style="color:var(--danger);">Overdue</div>
-              </div>
-              <div class="ops-metric"><span>Overdue Amount</span><strong id="accOverdueAmount"
-                  style="color:var(--danger);">—</strong></div>
-              <div class="ops-metric"><span>Overdue Accounts</span><strong id="accOverdueAccounts">—</strong></div>
+            <div class="acc-cards">
+              <button type="button" class="acc-card is-in" data-acc-go="in:received">
+                <span class="acc-card-label">Money In</span>
+                <strong class="acc-card-value" id="accInTotal">—</strong>
+                <span class="acc-card-hint" id="accInHint">—</span>
+              </button>
+              <button type="button" class="acc-card is-out" data-acc-go="out:funders">
+                <span class="acc-card-label">Money Out</span>
+                <strong class="acc-card-value" id="accOutTotal">—</strong>
+                <span class="acc-card-hint" id="accOutHint">—</span>
+                <span class="acc-card-note" id="accOutStill"></span>
+              </button>
+              <button type="button" class="acc-card" data-acc-go="in:received:check">
+                <span class="acc-card-label">To Check</span>
+                <strong class="acc-card-value" id="accCheckCount">—</strong>
+                <span class="acc-card-hint" id="accCheckHint">—</span>
+              </button>
             </div>
-
-            <div class="ops-card">
-              <div class="ops-head">
-                <div class="ops-title">Financer Contracts</div>
-              </div>
-              <div class="ops-metric"><span>Active</span><strong id="accContractsActive"
-                  style="color:var(--success);">—</strong></div>
-              <div class="ops-metric"><span>Expired</span><strong id="accContractsExpired">—</strong></div>
-              <div class="ops-metric"><span>Terminated / Pending Start</span><strong id="accContractsOther">—</strong>
-              </div>
+            <div class="acc-check-box">
+              <h3>Payments to Check</h3>
+              <div id="accCheckList"></div>
             </div>
           </div>
 
+          <!-- MONEY IN › PAYMENTS RECEIVED: every payment in one list, verify here -->
+          <div class="acc-panel" data-acc-panel="payments">
+            <div class="sa-section-head">
+              <div>
+                <h3>Payments Received</h3>
+                <p>Every payment from customers. Check that the money is in our GCash or bank account, then press Verify.</p>
+              </div>
+              <div class="sa-section-tools">
+                <div class="sa-stat"><span>To Check</span><strong id="accLedgerPending">—</strong></div>
+                <div class="sa-stat"><span>Verified</span><strong id="accLedgerVerified">—</strong></div>
+              </div>
+            </div>
+            <div class="toolbar-wrap" style="margin-bottom:12px;">
+              <div class="filter-tabs" id="accLedgerTabs">
+                <button class="chip-btn active" data-ledger-status="All">All</button>
+                <button class="chip-btn" data-ledger-status="Pending Verification">To Check</button>
+                <button class="chip-btn" data-ledger-status="Verified">Verified</button>
+              </div>
+              <div class="filter-group">
+                <select class="input-field" id="accLedgerChannel" aria-label="Payment type">
+                  <option value="All">All Payment Types</option>
+                  <option value="Solar Financing Review">Installment Payments</option>
+                  <option value="Solar Kit Revenue">Full Payment Sales</option>
+                  <option value="Solar Installation Revenue">Site Visit Fees</option>
+                </select>
+                <input type="search" class="input-field" id="accLedgerSearch" placeholder="Search customer, APP ID, reference..." aria-label="Search payments" />
+              </div>
+            </div>
+            <div class="table-container sa-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th>Payment For</th>
+                    <th class="num">Amount</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="accLedgerBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- MONEY OUT › FUNDERS: what Hello Solar pays each funder every month -->
+          <div class="acc-panel" data-acc-panel="funders">
+            <div class="sa-section-head">
+              <div>
+                <h3>Funders</h3>
+                <p>What Hello Solar pays each funder every month. Press <strong>Mark as Paid</strong> after you pay them.</p>
+              </div>
+              <div class="sa-section-tools">
+                <div class="acc-month-slot"></div>
+              </div>
+            </div>
+            <div class="table-container sa-table acc-sched-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Funder</th>
+                    <th class="num">Loan We Got</th>
+                    <th class="num">Interest Rate</th>
+                    <th>Paying Until</th>
+                    <th class="num">We Pay Every Month</th>
+                    <th style="text-align: right;" id="accFunderMonthHead">This Month</th>
+                  </tr>
+                </thead>
+                <tbody id="accFunderBody"></tbody>
+                <tfoot id="accFunderFoot"></tfoot>
+              </table>
+            </div>
+            <p class="acc-foot-note">Monthly payment = interest (loan × interest rate ÷ 12) + loan payment (loan ÷ months to pay).
+              Expired funders are shown in gray and are not counted.</p>
+          </div>
+
+          <!-- MONEY IN › MONTHLY PAYMENTS (filter by funder) -->
+          <div class="acc-panel" data-acc-panel="customers">
+            <div class="sa-section-head">
+              <div>
+                <h3>Monthly Payments</h3>
+                <p>Customers who pay every month and who funded them. Pick a funder to see only its customers.</p>
+              </div>
+              <div class="sa-section-tools">
+                <input type="search" class="input-field" id="accCustSchedSearch" placeholder="Search customer or APP ID..." aria-label="Search customers" />
+              </div>
+            </div>
+            <div class="acc-funder-tabs" id="accFunderTabs" role="tablist" aria-label="Funders"></div>
+            <div class="table-container sa-table acc-sched-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th>Funded By</th>
+                    <th class="num">Loan Amount</th>
+                    <th class="num">Interest Rate</th>
+                    <th>Paying Until</th>
+                    <th class="num">Monthly Payment</th>
+                  </tr>
+                </thead>
+                <tbody id="accCustSchedBody"></tbody>
+                <tfoot id="accCustSchedFoot"></tfoot>
+              </table>
+            </div>
+          </div>
+
+          <!-- MONEY IN › FROM FUNDERS: loans Hello Solar received -->
+          <div class="acc-panel" data-acc-panel="loans">
+            <div class="sa-section-head">
+              <div>
+                <h3>From Funders</h3>
+                <p>Loans Hello Solar received from funders. We pay them back every month in Money Out › Funders.</p>
+              </div>
+              <div class="sa-section-tools">
+                <div class="sa-stat"><span>Total Received</span><strong id="accLoansTotal">—</strong></div>
+              </div>
+            </div>
+            <div class="table-container sa-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Funder</th>
+                    <th>Status</th>
+                    <th>Date Received</th>
+                    <th class="num">Amount</th>
+                  </tr>
+                </thead>
+                <tbody id="accLoansBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- MONEY OUT › REFUNDS & REIMBURSEMENTS -->
+          <div class="acc-panel" data-acc-panel="refunds">
           <!-- Client Payments: down payments & site visit fees (refund policy) -->
           <div class="sa-section-head">
             <div>
-              <h3>Client Payments</h3>
-              <p>Refundable if the client proceeds with the installation; non-refundable if not.</p>
+              <h3>Deposits &amp; Site Visit Fees</h3>
+              <p>Deposit: refunded if the client does not proceed, deducted from the system price if they do.
+                Site visit fee: deducted from the price if they proceed, non-refundable if not.</p>
             </div>
             <div class="sa-section-tools">
               <div class="sa-stat"><span>Collected</span><strong id="accClientPaid">—</strong></div>
@@ -1289,11 +1424,15 @@
             </table>
           </div>
 
+          </div>
+
+          <!-- COSTS & SYSTEMS -->
+          <div class="acc-panel" data-acc-panel="operations">
           <!-- Installation Cost (Hello Solar Direct projects only) -->
           <div class="sa-section-head">
             <div>
-              <h3>Installation Cost <span class="status-pill direct">Hello Solar Direct</span></h3>
-              <p>Materials, labor and transport/misc per APP ID. Partner-installed projects are excluded.</p>
+              <h3>Installation Costs <span class="status-pill direct">Hello Solar Installation</span></h3>
+              <p>What Hello Solar spends on the projects we install ourselves. Partner-installed projects are not listed.</p>
             </div>
             <div class="sa-section-tools">
               <div class="sa-stat"><span>Projects</span><strong id="accInstCostProjects">—</strong></div>
@@ -1318,7 +1457,10 @@
               <tbody id="accInstCostTableBody"></tbody>
             </table>
           </div>
+          </div>
 
+          <!-- SYSTEM CONTROL -->
+          <div class="acc-panel" data-acc-panel="system">
           <!-- System Connection Control (Immediate System Disconnect — Super Admin only) -->
           <div class="sa-section-head">
             <div>
@@ -1345,6 +1487,7 @@
               </thead>
               <tbody id="accSystemsTableBody"></tbody>
             </table>
+          </div>
           </div>
         </section>
 
@@ -1376,18 +1519,18 @@
                   <div class="ops-subtext" id="payPortfolioAsOf">as of —</div>
                 </div>
                 <button type="button" class="kpi-info" aria-label="About Total Portfolio Value"
-                  data-tip="Total amount of all applications. HS Funded is what Hello Solar carries (full payments and accounts with no active financer contract). Financer Funded is the loan amount of accounts funded by a financer with an active contract."></button>
+                  data-tip="Total amount of all applications. Owned by Hello Solar: full payments, Hello Solar Funding and accounts whose funder contract has ended. Owned by Funders: loans of funders with an active contract."></button>
               </div>
               <div class="ops-metric">
                 <span>Total Portfolio</span>
                 <strong id="payTotalPortfolioValue">—</strong>
               </div>
               <div class="ops-metric">
-                <span>HS Funded</span>
+                <span>Owned by Hello Solar</span>
                 <strong id="payHsFunded">—</strong>
               </div>
               <div class="ops-metric">
-                <span>Financer Funded</span>
+                <span>Owned by Funders</span>
                 <strong id="payThirdPartyFunded">—</strong>
               </div>
             </div>
@@ -1403,22 +1546,22 @@
                   </svg>
                 </div>
                 <div>
-                  <div class="ops-title">Financing Revenue</div>
+                  <div class="ops-title">Payments Received</div>
                   <div class="ops-subtext" id="payRevenueSince">Since —</div>
                 </div>
-                <button type="button" class="kpi-info" aria-label="About Financing Revenue"
-                  data-tip="All payments customers have made from the first payment until today. Financer Revenue is the financer's share of each payment made while its contract is active (payment × the financer's contract rate). After a contract ends, new payments go to Hello Solar. HS Revenue is the rest."></button>
+                <button type="button" class="kpi-info" aria-label="About Payments Received"
+                  data-tip="All verified customer payments (down payments, full payments and monthly payments) until today. Funders' Share is each funder's part of the payments made while its contract is active (payment × the funder's contract rate). After a contract ends, new payments go to Hello Solar. Hello Solar's Share is the rest."></button>
               </div>
               <div class="ops-metric">
-                <span>Total Revenue</span>
+                <span>Total Received</span>
                 <strong id="payExpectedRevenue" style="color:var(--brand);">—</strong>
               </div>
               <div class="ops-metric">
-                <span>HS Revenue</span>
+                <span>Hello Solar's Share</span>
                 <strong id="payHsRevenue">—</strong>
               </div>
               <div class="ops-metric">
-                <span>Financer Revenue</span>
+                <span>Funders' Share</span>
                 <strong id="payThirdPartyRevenue">—</strong>
               </div>
             </div>
@@ -1800,14 +1943,14 @@
             <div class="panel">
               <div class="panel-head">
                 <div>
-                  <h2>Hello Solar Direct Installation</h2>
+                  <h2>Hello Solar Installation</h2>
 
                 </div>
               </div>
               <div class="form-group">
                 <label class="form-label" for="setDirectTeam">Internal Installation Team</label>
                 <input class="input-field" style="width:100%;" id="setDirectTeam"
-                  value="Hello Solar Central Operations (Team Alpha)" />
+                  value="Hello Solar Internal Team" />
                 <div class="form-error" id="errSetDirectTeam"></div>
               </div>
               <div class="form-group">
@@ -1820,7 +1963,7 @@
               <div class="form-group" style="margin-bottom:0;">
                 <label class="settings-confirm" for="setDirectConfirm">
                   <input type="checkbox" id="setDirectConfirm" checked />
-                  <span>Confirm Before Accepting Direct Installations</span>
+                  <span>Confirm Before Accepting Hello Solar Installations</span>
                 </label>
 
               </div>
@@ -1881,7 +2024,7 @@
                 <div>
                   <div style="font-weight: 600; font-size: 13px; color: var(--ink);">Reset Prototype Demo Data</div>
                   <p style="font-size: 12px; color: var(--muted); margin: 2px 0 0;">
-                    Development utility to restore local sample data. Destructive confirmation is strictly required.
+                    Clears everything saved in this browser (applications, documents, payments, inquiries, notifications) and loads fresh sample data for a clean demo.
                   </p>
                 </div>
                 <button type="button" class="btn btn-secondary btn-sm" id="btnResetDataModalOpen"
@@ -1905,7 +2048,7 @@
       <div class="modal-head">
         <div>
           <div class="eyebrow" id="deEyebrow">DIRECT INSTALLATION</div>
-          <h2 id="deTitle">Direct Installation</h2>
+          <h2 id="deTitle">Hello Solar Installation</h2>
         </div>
         <button class="modal-close-btn" data-close-modal="directEngineerModal" aria-label="Close">×</button>
       </div>
@@ -2031,12 +2174,77 @@
   </div>
 
   <!-- 1. HELLO SOLAR DIRECT INSTALLATION CONFIRMATION MODAL -->
+  <!-- HELLO SOLAR FUNDING CONFIRMATION (Super Admin accepts the financing directly) -->
+  <div class="modal-overlay" id="hsFundingModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow" style="color:#047857;">HELLO SOLAR FUNDING</div>
+          <h2>Accept Financing</h2>
+        </div>
+        <button class="modal-close-btn" data-close-modal="hsFundingModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="direct-info-box hs-funding-box">
+          <div class="box-icon">₱</div>
+          <div>
+            <h4>Fund this installment with Hello Solar</h4>
+            <p>Hello Solar becomes the funder of this application instead of a partner financer. Financing is approved
+              right away and the project moves to <strong>Pending Installer</strong>. Monthly payments are Hello Solar
+              revenue.</p>
+          </div>
+        </div>
+        <div class="detail-grid">
+          <div class="detail-item"><span>Application ID</span><strong id="hsfAppId">—</strong></div>
+          <div class="detail-item"><span>Customer</span><strong id="hsfCustomer">—</strong></div>
+          <div class="detail-item"><span>System</span><strong id="hsfSystem">—</strong></div>
+          <div class="detail-item"><span>Amount to Fund</span><strong id="hsfAmount">—</strong></div>
+          <div class="detail-item"><span>Monthly Payment</span><strong id="hsfMonthly">—</strong></div>
+          <div class="detail-item"><span>Current Financer</span><strong id="hsfFinancer">—</strong></div>
+        </div>
+        <p id="hsfDocsWarn" style="display:none; margin:10px 0 0; font-size:12.5px; color:#C2410C; background:#FFF7ED; border:1px solid #FED7AA; border-radius:10px; padding:8px 12px;"></p>
+        <p class="sa-error" id="hsfError" style="display:none; color:var(--danger); font-size:12.5px; margin:10px 0 0;"></p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" data-close-modal="hsFundingModal">Cancel</button>
+        <button class="btn btn-primary" id="btnConfirmHsFunding">Accept Hello Solar Funding</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Request a document / mark a document not required (Details › Documents) -->
+  <div class="modal-overlay" id="docRequestModal">
+    <div class="modal-card" style="max-width:520px;">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow">DOCUMENTS</div>
+          <h2 id="drqTitle">Request a Document</h2>
+        </div>
+        <button class="modal-close-btn" data-close-modal="docRequestModal" aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <p id="drqSub" style="margin:0 0 14px; font-size:13px; color:var(--muted);"></p>
+        <div id="drqNameWrap" style="margin-bottom:12px;">
+          <label class="form-label" for="drqName">Document name</label>
+          <input type="text" class="input-field" id="drqName" maxlength="120" placeholder="e.g. Certificate of Employment" style="width:100%;" />
+        </div>
+        <label class="form-label" for="drqNote" id="drqNoteLabel">What should the customer upload? (optional)</label>
+        <textarea class="input-field" id="drqNote" rows="3" maxlength="300" style="width:100%; resize:vertical;"></textarea>
+        <p class="sa-error" id="drqError" style="display:none; color:var(--danger); font-size:12.5px; margin:10px 0 0;"></p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" data-close-modal="docRequestModal">Cancel</button>
+        <button class="btn btn-primary" id="btnConfirmDocRequest">Send Request</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="directInstallModal">
     <div class="modal-card">
       <div class="modal-head">
         <div>
           <div class="eyebrow" style="color:var(--accent);">HELLO SOLAR DIRECT INSTALL</div>
-          <h2>Confirm Direct Installation</h2>
+          <h2>Confirm Hello Solar Installation</h2>
         </div>
         <button class="modal-close-btn" data-close-modal="directInstallModal">×</button>
       </div>
@@ -2050,10 +2258,10 @@
             </svg>
           </div>
           <div>
-            <h4>Accept for Hello Solar Direct Installation</h4>
+            <h4>Accept for Hello Solar Installation</h4>
             <p>This solar project will be executed directly by the <strong>Hello Solar Internal Engineering
                 Team</strong>, bypassing partner installer dispatch. The project will automatically be scheduled under
-              Hello Solar Direct operations.</p>
+              Hello Solar Installation team.</p>
           </div>
         </div>
 
@@ -2085,14 +2293,14 @@
         </div>
 
         <p style="color:var(--muted); font-size:12px; margin:0;">
-          Upon confirmation, the installation type will be set to <em>Hello Solar Direct</em>, installer assigned as
+          Upon confirmation, the installation type will be set to <em>Hello Solar Installation</em>, installer assigned as
           <em>Hello Solar Internal Team</em>, and stage moved to <em>Ready for Installation</em>.
         </p>
       </div>
       <div class="modal-foot">
         <button class="btn btn-secondary" data-close-modal="directInstallModal">Cancel</button>
         <button class="btn btn-primary" id="btnConfirmDirectInstall">
-          Accept for Hello Solar Direct Installation
+          Accept for Hello Solar Installation
         </button>
       </div>
     </div>
@@ -2326,81 +2534,37 @@
                 </svg>
               </div>
               <div>
-                <h4>Eligible for Direct Installation</h4>
+                <h4>Eligible for Hello Solar Installation</h4>
                 <p>This application is Ready for Installation, currently has no installer assigned, and can be directly
                   installed by the
                   Hello Solar internal team.</p>
                 <button class="btn btn-primary btn-sm" id="btnDrawerDirectAccept" style="margin-top:8px;">
-                  Accept for Hello Solar Direct Install
+                  Accept for Hello Solar Installation
                 </button>
               </div>
             </div>
           </div>
 
-          <!-- Important Application Information Panel -->
-          <div class="panel" style="margin-bottom:14px; padding:16px;">
-            <div style="font-weight:700; font-size:13px; margin-bottom:10px;">Application Summary</div>
-            <div class="detail-grid" style="margin:0; background:transparent; padding:0; border:none;">
-              <div class="detail-item">
-                <span>Application ID</span>
-                <strong id="drawerOverviewAppId">APP-1024</strong>
-              </div>
-              <div class="detail-item">
-                <span>Customer Name</span>
-                <strong id="drawerOverviewCustomer">Maria Elena Cruz</strong>
-              </div>
-              <div class="detail-item">
-                <span>Payment Type</span>
-                <strong id="drawerPaymentType">Full Payment</strong>
-              </div>
-              <div class="detail-item">
-                <span>Project Location</span>
-                <strong id="drawerLocation">Cebu City</strong>
-              </div>
-              <div class="detail-item">
-                <span>System Size</span>
-                <strong id="drawerSystem">6 kW</strong>
-              </div>
-              <div class="detail-item">
-                <span>Funded Amount</span>
-                <strong id="drawerAmount">₱315,000</strong>
-              </div>
-              <div class="detail-item">
-                <span>Current Stage</span>
-                <strong id="drawerOverviewStage">Approved</strong>
-              </div>
-              <div class="detail-item">
-                <span>Assigned Financer</span>
-                <strong id="drawerFinancer">SunFund Philippines</strong>
-              </div>
-              <div class="detail-item">
-                <span>Down Payment</span>
-                <strong id="drawerDownPayment">₱10,000 · Verified</strong>
-              </div>
-              <div class="detail-item">
-                <span>Installer / Type</span>
-                <strong id="drawerInstallerSummary">Hello Solar Internal Team</strong>
+          <!-- Hello Solar Funding callout (installment applications waiting for financing) -->
+          <div id="drawerHsFundingCallout" style="display:none; margin-bottom:18px;">
+            <div class="direct-info-box hs-funding-box">
+              <div class="box-icon">₱</div>
+              <div>
+                <h4>Fund with Hello Solar</h4>
+                <p>This installment application is waiting for financing. Hello Solar can fund it directly instead of a
+                  partner financer.</p>
+                <button class="btn btn-primary btn-sm" id="btnDrawerHsFunding" style="margin-top:8px;">
+                  Accept Hello Solar Funding
+                </button>
               </div>
             </div>
           </div>
 
-          <!-- Technical Specs -->
+          <!-- Project strip + Application Summary (follows the Lifecycle Progression steps) -->
+          <div class="lc-strip" id="drawerProjectStrip"></div>
           <div class="panel" style="margin-bottom:14px; padding:16px;">
-            <div style="font-weight:700; font-size:13px; margin-bottom:10px;">Technical Equipment</div>
-            <div class="detail-grid" style="margin:0; background:transparent; padding:0; border:none;">
-              <div class="detail-item">
-                <span>Solar Panels</span>
-                <strong id="drawerPanels">12x Canadian Solar 500W</strong>
-              </div>
-              <div class="detail-item">
-                <span>Inverter Model</span>
-                <strong id="drawerInverter">Huawei SUN2000-5KTL</strong>
-              </div>
-              <div class="detail-item">
-                <span>Battery</span>
-                <strong id="drawerBattery">—</strong>
-              </div>
-            </div>
+            <div style="font-weight:700; font-size:13px; margin-bottom:10px;">Application Summary</div>
+            <div class="lc-summary" id="drawerLifecycleSummary"></div>
           </div>
 
           <!-- Administrative Notes -->
@@ -2476,7 +2640,7 @@
             <div class="detail-grid" style="margin:0; background:transparent; padding:0; border:none;">
               <div class="detail-item">
                 <span>Installation Model</span>
-                <strong id="drawerInstallerType">Hello Solar Direct</strong>
+                <strong id="drawerInstallerType">Hello Solar Installation</strong>
               </div>
               <div class="detail-item">
                 <span>Assigned Installer</span>
@@ -2512,7 +2676,7 @@
                 style="display:inline-block; vertical-align:-2px; margin-right:4px;">
                 <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                 <polyline points="9 22 9 12 15 12 15 22"></polyline>
-              </svg>Reassign to Hello Solar Direct...
+              </svg>Reassign to Hello Solar Installation...
             </button>
           </div>
         </div>
@@ -2777,7 +2941,7 @@
             </div>
             <div class="detail-item">
               <span>Installation Type</span>
-              <strong id="imOverviewType">Hello Solar Direct</strong>
+              <strong id="imOverviewType">Hello Solar Installation</strong>
             </div>
             <div class="detail-item">
               <span>Assigned Installer / Team</span>
@@ -4223,9 +4387,9 @@
     </div>
   </div>
 
-  <script src="../shared/hello-solar-store.js?v=20261016b"></script>
-  <script src="../shared/hello-solar-shared.js"></script>
-  <script src="js/app.js?v=20261016g"></script>
+  <script src="../shared/hello-solar-store.js?v=20261028d"></script>
+  <script src="../shared/hello-solar-shared.js?v=20261028d"></script>
+  <script src="js/app.js?v=20261028d"></script>
 </body>
 
 </html>

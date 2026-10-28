@@ -10,8 +10,8 @@
 
     <!-- Immediate Authentication Guard -->
     <script src="../shared/hello-solar-config.js"></script>
-    <script src="../shared/hello-solar-store.js"></script>
-    <script src="../shared/hello-solar-shared.js"></script>
+    <script src="../shared/hello-solar-store.js?v=20261028d"></script>
+    <script src="../shared/hello-solar-shared.js?v=20261028d"></script>
     <script src="js/page-guard.js"></script>
 
     <!-- Google Fonts -->
@@ -27,9 +27,9 @@
     <link rel="stylesheet" href="css/dashboard-theme.css">
 
     <link rel="stylesheet" href="css/mysystem-page.css">
-    <link rel="stylesheet" href="css/mysystem-page-2.css">
+    <link rel="stylesheet" href="css/mysystem-page-2.css?v=20261028e">
     <link rel="stylesheet" href="css/telemetry-ui.css">
-    <link rel="stylesheet" href="css/customer-polish.css">
+    <link rel="stylesheet" href="css/customer-polish.css?v=20261028f">
 </head>
 
 <body>
@@ -133,13 +133,6 @@
                     <!-- Top Navigation Bar with Back Action, Model Info & Status Action Buttons -->
                     <div class="system-detail-header-row">
                         <div class="system-detail-topbar">
-                            <button type="button" class="btn-back-systems" id="backToSystemsBtn"
-                                aria-label="Back to My Systems">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M19 12H5M12 19l-7-7 7-7" />
-                                </svg>
-                            </button>
 
                             <div class="system-detail-title-block">
                                 <div class="system-detail-title-row">
@@ -153,6 +146,7 @@
 
                         <!-- System Status & Payment Status Quick Action Buttons Aligned to the Right -->
                         <div class="detail-summary-row">
+                            <div class="package-selector-slot" id="pagePackageSelector"></div>
                             <a href="energy.html" class="detail-summary-btn" id="detailSystemStatusCard">
                                 <span class="summary-btn-label">System Status</span>
                                 <span class="summary-status-value" id="systemStatusValue" data-status="pending">
@@ -673,7 +667,7 @@
     <script src="js/portal.js"></script>
 
     <!-- Consolidated Overview Controller & Decoupled Data Store -->
-    <script src="js/mysystem.js"></script>
+    <script src="js/mysystem.js?v=20261028f"></script>
     <script src="js/notifications.js"></script>
 </body>
 

@@ -248,8 +248,10 @@ function updateCarouselPosition(animated = true) {
     const track = document.getElementById('optionsCarouselTrack');
     if (!track) return;
 
-    const step = getCarouselStepWidth();
-    const offset = carouselTrackIndex * step;
+    // Offset of the current card from the first one (exact, whatever the card width and gap are right now)
+    const target = track.children[carouselTrackIndex];
+    const first = track.children[0];
+    const offset = target && first ? target.offsetLeft - first.offsetLeft : carouselTrackIndex * getCarouselStepWidth();
 
     if (animated) {
         track.style.transition = 'transform 500ms cubic-bezier(0.16, 1, 0.3, 1)';
@@ -309,8 +311,36 @@ function initCarousel() {
         track.insertBefore(clone, track.firstChild);
     }
 
-    // Position at initial real card (Package 1)
+    // Phones show one card: start on the Most Popular package (HS 6 PRO). Tablets and computers start on
+    // package 1 so HS 6 PRO is already in view (2nd of 2, or in the middle of 3).
+    if (window.innerWidth < 768) {
+        carouselCurrentPackage = 2;
+        carouselTrackIndex = CLONE_COUNT + 1;
+        updateCarouselPagination();
+    }
     updateCarouselPosition(false);
+
+    // Keep the card aligned whenever the carousel width changes (styles loading, rotation, browser resize)
+    const viewport = track.parentElement;
+    if (viewport && typeof ResizeObserver === 'function') {
+        new ResizeObserver(() => { if (!carouselIsTransitioning) updateCarouselPosition(false); }).observe(viewport);
+    }
+
+    // Older browsers without overflow: clip: undo any scroll a tapped / focused card causes
+    if (viewport) viewport.addEventListener('scroll', () => { if (viewport.scrollLeft) viewport.scrollLeft = 0; }, { passive: true });
+
+    // Swipe left / right on touch screens
+    if (viewport) {
+        let startX = null, startY = null;
+        viewport.addEventListener('touchstart', (e) => { const t = e.touches[0]; startX = t.clientX; startY = t.clientY; }, { passive: true });
+        viewport.addEventListener('touchend', (e) => {
+            if (startX === null) return;
+            const t = e.changedTouches[0];
+            const dx = t.clientX - startX, dy = t.clientY - startY;
+            startX = null;
+            if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) { if (dx < 0) nextPackage(); else prevPackage(); }
+        }, { passive: true });
+    }
 
     // Handle seamless jump when transition ends
     track.addEventListener('transitionend', (e) => {
@@ -742,8 +772,8 @@ function renderWizard() {
                         </div>
                         <div class="text-right">
                             <div class="text-[10px] font-black uppercase tracking-wider text-stone-500">Installment</div>
-                            <div class="text-base sm:text-lg font-black text-amber-700">${rec.monthly} <span class="text-xs font-bold text-stone-500">/mo</span></div>
-                            <div class="text-[10px] font-bold text-stone-500">6 yrs · ₱10k DP</div>
+                            <div class="text-base sm:text-lg font-black text-amber-700">${termMonthlyText(recommendedId, selectedTerm)} <span class="text-xs font-bold text-stone-500">/mo</span></div>
+                            <div class="text-[10px] font-bold text-stone-500">${termShort(selectedTerm)} · ₱10k DP</div>
                         </div>
                     </div>
                     <div class="text-xs font-bold text-emerald-700">Est. bill savings: ${rec.estSavings}/mo</div>
@@ -861,8 +891,8 @@ function viewProductDetails(productId) {
                 </div>
                 <div class="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-200/70 rounded-xl sm:rounded-2xl p-3 sm:p-4">
                     <div class="text-[10px] sm:text-[11px] font-black text-stone-500 uppercase tracking-wider">Installment</div>
-                    <div class="text-lg sm:text-xl font-black text-amber-600 mt-0.5">${product.monthly}<span class="text-xs font-bold text-stone-500">/mo</span></div>
-                    <div class="text-[10px] sm:text-[11px] font-bold text-stone-500">6 yrs · ₱10k down payment</div>
+                    <div class="text-lg sm:text-xl font-black text-amber-600 mt-0.5">${termMonthlyText(product.id, selectedTerm)}<span class="text-xs font-bold text-stone-500">/mo</span></div>
+                    <div class="text-[10px] sm:text-[11px] font-bold text-stone-500">${termShort(selectedTerm)} · ₱10k down payment</div>
                 </div>
             </div>
             <div class="text-[11px] sm:text-xs font-bold text-emerald-700 -mt-1">Est. bill savings: ${product.estSavings}/mo</div>
@@ -895,7 +925,8 @@ function viewProductDetails(productId) {
     openModal('productDetailModal');
 }
 
-// BUY NOW (package, payment type & contact details → Terms → Payment modal for the ₱10,000 down payment)
+// BUY NOW (package, payment type & contact details → Terms → Payment modal for the down payment:
+// ₱500 Full Payment / ₱10,000 Installment)
 function startInquiry(productId) {
     closeModal('recommendationModal');
     closeModal('productDetailModal');
@@ -914,6 +945,9 @@ function startInquiry(productId) {
         setCustomDropdownValue('leadBill', wizardState.bill);
     }
 
+    // Installment term picked on the pricing cards is pre-selected (Installment only)
+    setLeadTerm(selectedTerm);
+
     // Sync payment dropdown
     const paymentInput = document.getElementById('leadPayment');
     if (paymentInput && paymentInput.value) {
@@ -922,6 +956,68 @@ function startInquiry(productId) {
     renderPaymentOptions();
 
     openModal('inquiryModal');
+}
+
+// INSTALLMENT TERMS (Installment only): 6 months · 3 years · 6 years. Monthly prices come from the shared
+// package list (shared/hello-solar-store.js → HELLO_SOLAR_PACKAGES), so every portal shows the same amounts.
+const TERM_OPTIONS = [6, 36, 72];
+const DEFAULT_TERM = 72;
+let selectedTerm = DEFAULT_TERM; // term picked on the pricing cards / Buy Now
+function termName(months) { return months === 6 ? '6 months' : `${months / 12} year${months === 12 ? '' : 's'}`; }
+function termShort(months) { return months === 6 ? '6 mos' : `${months / 12} yrs`; }
+function termMonthlyValue(productId, months) {
+    const P = window.HELLO_SOLAR_PACKAGES;
+    const fromList = P && P.monthlyForTerm ? P.monthlyForTerm(productId, months) : null;
+    if (fromList) return fromList;
+    const product = PRODUCTS[productId];
+    return months === DEFAULT_TERM && product ? parsePeso(product.monthly) : null;
+}
+function termMonthlyText(productId, months) {
+    const v = termMonthlyValue(productId, months);
+    return v ? '₱' + Math.round(v).toLocaleString('en-PH') : (PRODUCTS[productId] || {}).monthly || '';
+}
+function normalizeTerm(months) {
+    const m = Number(months);
+    return TERM_OPTIONS.includes(m) ? m : DEFAULT_TERM;
+}
+// Pricing cards ("Explore other options") follow the selected term; Full Payment line stays the same
+function renderTermPrices() {
+    document.querySelectorAll('[data-card-monthly]').forEach(el => {
+        el.textContent = termMonthlyText(el.getAttribute('data-card-monthly'), selectedTerm);
+    });
+    document.querySelectorAll('[data-card-term]').forEach(el => {
+        el.textContent = `${termName(selectedTerm)}, 10k DP`;
+    });
+    document.querySelectorAll('#termSwitch [data-term]').forEach(btn => {
+        const active = Number(btn.getAttribute('data-term')) === selectedTerm;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-checked', active ? 'true' : 'false');
+        btn.tabIndex = active ? 0 : -1;
+    });
+}
+function setSelectedTerm(months) {
+    selectedTerm = normalizeTerm(months);
+    renderTermPrices();
+}
+function initTermSwitch() {
+    const group = document.getElementById('termSwitch');
+    if (!group) return;
+    group.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-term]');
+        if (!btn) return;
+        e.stopPropagation();
+        setSelectedTerm(btn.getAttribute('data-term'));
+    });
+    group.addEventListener('keydown', (e) => {
+        if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+        e.preventDefault();
+        const i = TERM_OPTIONS.indexOf(selectedTerm);
+        const next = TERM_OPTIONS[(i + (e.key === 'ArrowRight' ? 1 : TERM_OPTIONS.length - 1)) % TERM_OPTIONS.length];
+        setSelectedTerm(next);
+        const btn = group.querySelector(`[data-term="${next}"]`);
+        if (btn) btn.focus();
+    });
+    renderTermPrices();
 }
 
 // CUSTOM DROPDOWN ENGINE
@@ -968,7 +1064,8 @@ function setCustomDropdownValue(inputId, value) {
                 if (customLabel) {
                     labelEl.textContent = customLabel;
                 } else if (inputId === 'leadPackage' && PKG_LABELS[value]) {
-                    labelEl.textContent = PKG_LABELS[value];
+                    // Chosen system shows its name only (specs stay in the option list)
+                    labelEl.textContent = PKG_LABELS[value].split(' \u2014 ')[0];
                 } else {
                     const mainText = opt.querySelector('.hs-dd-opt-main');
                     labelEl.textContent = mainText ? mainText.textContent : value;
@@ -979,7 +1076,7 @@ function setCustomDropdownValue(inputId, value) {
         }
     });
 
-    if (inputId === 'leadPackage') renderPaymentOptions();
+    if (inputId === 'leadPackage' || inputId === 'leadTerm') renderPaymentOptions();
 }
 
 // PAYMENT TYPE (Full Payment vs Installment) — stored in #leadPayment as "Full Payment" / "Installment"
@@ -997,7 +1094,21 @@ function setLeadPayment(value) {
         btn.setAttribute('aria-checked', active ? 'true' : 'false');
         btn.tabIndex = active ? 0 : -1;
     });
+    // Installment Term shows only for Installment
+    const termWrap = document.getElementById('leadTermWrap');
+    if (termWrap) termWrap.hidden = val !== 'Installment';
     renderSubmitLabel();
+}
+
+// Installment term in Buy Now (#leadTerm, months)
+function getLeadTerm() {
+    const input = document.getElementById('leadTerm');
+    return normalizeTerm(input && input.value);
+}
+function setLeadTerm(months) {
+    const input = document.getElementById('leadTerm');
+    if (input) input.value = String(normalizeTerm(months));
+    renderPaymentOptions();
 }
 
 // Main button label follows the payment type and the selected package price (label only)
@@ -1016,8 +1127,26 @@ function renderPaymentOptions() {
     const product = PRODUCTS[pkgInput && pkgInput.value] || PRODUCTS['hs6-lite'];
     const full = document.querySelector('[data-pay-price="full"]');
     const inst = document.querySelector('[data-pay-price="installment"]');
+    const term = getLeadTerm();
     if (full) full.textContent = product.cashPrice;
-    if (inst) inst.innerHTML = `${product.monthly}<small>/mo</small>`;
+    if (inst) inst.innerHTML = `${termMonthlyText(product.id, term)}<small>/mo</small>`;
+    const instTerm = document.querySelector('[data-pay-term]');
+    if (instTerm) instTerm.textContent = termShort(term);
+    // Term dropdown: each option shows this package's monthly price for that term
+    const list = document.querySelector('[data-term-options]');
+    if (list) {
+        list.innerHTML = TERM_OPTIONS.map(m => `
+            <button type="button" class="hs-dropdown-option${m === term ? ' is-active' : ''}" role="option" data-value="${m}" data-label="${termName(m)}">
+                <div>
+                    <div class="hs-dd-opt-main">${termName(m)}</div>
+                    <div class="hs-dd-opt-sub">${m} monthly payments</div>
+                </div>
+                <span class="hs-dd-term-price">${termMonthlyText(product.id, m)}<small>/mo</small></span>
+                <span class="hs-dd-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5" /></svg></span>
+            </button>`).join('');
+    }
+    const termLabel = document.querySelector('.hs-dropdown[data-dropdown="leadTerm"] .hs-dd-label');
+    if (termLabel) termLabel.textContent = termName(term);
     renderSubmitLabel();
 }
 
@@ -1176,7 +1305,7 @@ function initCustomDropdowns() {
                 if (customLabel) {
                     labelEl.textContent = customLabel;
                 } else if (inputId === 'leadPackage' && PKG_LABELS[val]) {
-                    labelEl.textContent = PKG_LABELS[val];
+                    labelEl.textContent = PKG_LABELS[val].split(' \u2014 ')[0];
                 } else {
                     const mainText = opt.querySelector('.hs-dd-opt-main');
                     labelEl.textContent = mainText ? mainText.textContent : val;
@@ -1187,6 +1316,7 @@ function initCustomDropdowns() {
             getOptions().forEach(o => o.classList.remove('is-active'));
             opt.classList.add('is-active');
             if (inputId === 'leadPackage') renderPaymentOptions();
+            if (inputId === 'leadTerm') { setSelectedTerm(val); renderPaymentOptions(); }
 
             // Close dropdown
             closeAllDropdowns();
@@ -1294,9 +1424,11 @@ function initLeadValidation() {
 // Customer inquiry → Super Admin → Contact Inquiries (shared queue, imported once by id).
 // Backend-ready: POST the same record to an API later.
 const CUSTOMER_INQUIRY_KEY = 'HELLO_SOLAR_CUSTOMER_INQUIRIES';
-// Installment terms advertised on every package: 6 years, ₱10,000 down payment
+// Installment terms advertised on every package: 6 years, ₱10,000 down payment. Full Payment: ₱500 down payment.
 const INSTALLMENT_TERM_MONTHS = 72;
 const INSTALLMENT_DOWN_PAYMENT = 10000;
+const FULL_PAYMENT_DOWN_PAYMENT = 500;
+const downPaymentFor = payment => (payment === 'Installment' ? INSTALLMENT_DOWN_PAYMENT : FULL_PAYMENT_DOWN_PAYMENT);
 function parsePeso(text) {
     const n = parseFloat(String(text || '').replace(/[^0-9.]/g, ''));
     return Number.isFinite(n) ? n : null;
@@ -1370,21 +1502,27 @@ function handleLeadSubmit(e) {
     const ts = new Date();
     const leadId = 'lead_' + ts.getTime();
     const nameParts = name.split(/\s+/);
-    const planText = payment === 'Installment' ? `Installment · ${pkg.monthly}/mo, 6 yrs` : `Full Payment · ${pkg.cashPrice}`;
+    // Installment term (months) — Installment only; Full Payment has no term
+    const termMonths = payment === 'Installment' ? getLeadTerm() : null;
+    const monthlyText = termMonths ? termMonthlyText(packageId, termMonths) : '';
+    const planText = payment === 'Installment' ? `Installment · ${monthlyText}/mo, ${termName(termMonths)}` : `Full Payment · ${pkg.cashPrice}`;
+    const dpAmount = downPaymentFor(payment);
+    // Came from the "continue after site visit" link → link the purchase to that site visit
+    const fromVisit = window.__hsContinueVisit || null;
 
     openPaymentModal({
         kind: 'purchase',
         returnModal: 'inquiryModal',
-        amount: DOWN_PAYMENT_AMOUNT,
+        amount: dpAmount,
         purpose: 'Down Payment',
         packageId,
         name,
         summary: [
             ['System', pkg.name || packageId],
             ['Payment Plan', planText],
-            ['Down Payment', formatPeso(DOWN_PAYMENT_AMOUNT)]
+            ['Reservation Deposit', formatPeso(dpAmount)]
         ],
-        lead: { id: leadId, timestamp: ts.toISOString(), packageId, packageName: pkg.name || packageId, name, phone, email, location, bill, payment },
+        lead: { id: leadId, timestamp: ts.toISOString(), packageId, packageName: pkg.name || packageId, name, phone, email, location, bill, payment, termMonths },
         // Super Admin → Contact Inquiries (customer inquiry); queued after the proof of payment is uploaded
         record: {
             id: 'INQ-' + leadId.replace('lead_', 'LP'),
@@ -1408,11 +1546,12 @@ function handleLeadSubmit(e) {
             paymentType: payment,
             // Selected package pricing (shared application uses these exact values)
             packagePrice: parsePeso(pkg.cashPrice),
-            monthlyPayment: parsePeso(pkg.monthly),
-            termMonths: INSTALLMENT_TERM_MONTHS,
-            downPayment: INSTALLMENT_DOWN_PAYMENT,
+            monthlyPayment: termMonths ? termMonthlyValue(packageId, termMonths) : null,
+            termMonths,
+            downPayment: dpAmount,
+            siteVisitId: fromVisit ? fromVisit.id : undefined,
             subject: `${pkg.name || 'Solar'} Purchase Request`,
-            message: `Buy Now request for ${pkg.name || packageId} (${planText}). Monthly bill: ${bill}. ₱10,000 down payment proof submitted for verification.`,
+            message: `Buy Now request for ${pkg.name || packageId} (${planText}). Monthly bill: ${bill}. ${formatPeso(dpAmount)} down payment proof submitted for verification.${fromVisit ? ` Continued after site visit ${fromVisit.id}.` : ''}`,
             termsAcceptedAt: ts.toISOString(),
             status: 'Unread',
             inquiryStatus: 'Not Sent',
@@ -1433,47 +1572,51 @@ const HS_BANK_DETAILS = {
     accountNumber: '0000 0000 0000'
 };
 const SITE_VISIT_FEE = 1000;
-const DOWN_PAYMENT_AMOUNT = INSTALLMENT_DOWN_PAYMENT;
-const REFUND_POLICY = 'Refundable should you proceed with the installation; non-refundable should you decide not to proceed.';
+const DOWN_PAYMENT_AMOUNT = INSTALLMENT_DOWN_PAYMENT; // Installment; Full Payment uses FULL_PAYMENT_DOWN_PAYMENT
+// Short policy line shown in the Payment modal (matches the Terms & Conditions below)
 const PAYMENT_POLICY = {
-    assessment: `<strong>Refund Policy:</strong> ${REFUND_POLICY}`,
-    purchase: `<strong>Refund Policy:</strong> ${REFUND_POLICY}`
+    assessment: '<strong>Site Visit Fee:</strong> Deducted from your total system price if you purchase; non-refundable if you decide not to proceed.',
+    full: '<strong>Reservation Deposit:</strong> Refundable if you decide not to proceed; deducted from your total system price if you purchase.',
+    installment: '<strong>Reservation Deposit:</strong> Fully refundable if you decide not to proceed; serves as your down payment if you proceed with installment.'
 };
 
 // Terms & Conditions per request type (shown in the Terms modal)
 const TERMS = {
     assessment: {
-        badge: 'Site Assessment',
+        badge: 'Site Visit',
+        title: '₱1,000 Site Visit Fee — Terms & Conditions',
         items: [
-            'A site visit fee of <strong>₱1,000</strong> covers the technical inspection of your roof and electrical setup.',
-            'Your preferred date is subject to availability. We will contact you to confirm the schedule.',
-            'Your booking is confirmed once your payment has been verified.',
-            'An adult representative must be present, with the roof and electrical panel accessible.',
-            '<strong>Refund Policy:</strong> The site visit fee is refundable should you proceed with the installation, and non-refundable should you decide not to proceed.',
-            'Your personal information is used only to process your request, in line with the Data Privacy Act of 2012.'
+            '<strong>Site Visit Fee.</strong> A ₱1,000 payment is required to confirm and schedule a site visit for your solar installation.',
+            '<strong>Scheduling.</strong> Your site visit will be scheduled upon confirmation and verification of payment. Your preferred schedule is subject to availability. Hello Solar will coordinate to confirm.',
+            '<strong>If You Purchase a Solar System.</strong> If you proceed with purchasing a solar system from Hello Solar, the ₱1,000 site visit fee will be deducted from the total system price.',
+            '<strong>If You Do Not Proceed.</strong> If you decide not to purchase a solar system after the site visit, the ₱1,000 fee is non-refundable and will cover the site visit and assessment.',
+            '<strong>Personal Information.</strong> Used only to process your request, in line with the Data Privacy Act of 2012.'
         ]
     },
     full: {
         badge: 'Full Payment',
+        title: '₱500 System Reservation Deposit — Terms & Conditions',
         items: [
-            'A <strong>₱10,000</strong> down payment is required to process your order.',
-            'The down payment is deducted from your total system price.',
-            'The remaining balance must be paid in full before installation.',
-            'A site assessment is conducted before installation to confirm the final system design.',
-            '<strong>Refund Policy:</strong> The down payment is refundable should you proceed with the installation, and non-refundable should you decide not to proceed.',
-            'Your personal information is used only to process your request, in line with the Data Privacy Act of 2012.'
+            '<strong>Reservation Deposit.</strong> A ₱500 deposit is required to reserve your selected solar system.',
+            '<strong>Refundable Deposit.</strong> The ₱500 reservation deposit is refundable if you decide not to proceed with the purchase.',
+            '<strong>Deduction from System Price.</strong> If you proceed with the purchase, the ₱500 deposit will be deducted from the total system price.',
+            '<strong>Remaining Balance.</strong> Must be paid in full before installation.',
+            '<strong>Final Pricing and Approval.</strong> Your final system price, payment schedule, and applicable terms will be confirmed in your sales agreement before the transaction is finalized.',
+            '<strong>Site Assessment.</strong> Conducted before installation to confirm the final system design.',
+            '<strong>Personal Information.</strong> Used only to process your request, in line with the Data Privacy Act of 2012.'
         ]
     },
     installment: {
         badge: 'Installment',
+        title: '₱10,000 System Reservation Deposit — Terms & Conditions',
         items: [
-            'A <strong>₱10,000</strong> down payment is required to process your application.',
-            'The remaining balance is payable in <strong>72 monthly installments</strong> (6 years).',
-            'Installment plans are subject to approval by Hello Solar\'s financing partners. Supporting documents may be requested.',
-            'Payment terms are governed by the financing agreement you sign upon approval.',
-            'A site assessment is conducted before installation to confirm the final system design.',
-            '<strong>Refund Policy:</strong> The down payment is refundable should you proceed with the installation, and non-refundable should you decide not to proceed.',
-            'Your personal information is used only to process your request, in line with the Data Privacy Act of 2012.'
+            '<strong>Reservation Deposit.</strong> A ₱10,000 deposit is required to reserve your selected solar system for installment.',
+            '<strong>Refundable Deposit.</strong> The ₱10,000 deposit is fully refundable if you decide not to proceed with the purchase.',
+            '<strong>Installment Payment.</strong> If you proceed with installment payments, the ₱10,000 deposit will serve as your down payment and will be deducted from the total system price.',
+            '<strong>Remaining Balance.</strong> Payable in {TERM}.',
+            '<strong>Final Pricing and Approval.</strong> Your final system price, payment schedule, and applicable terms will be confirmed in your sales agreement before the transaction is finalized. Supporting documents will be requested.',
+            '<strong>Site Assessment.</strong> Conducted before installation to confirm the final system design.',
+            '<strong>Personal Information.</strong> Used only to process your request, in line with the Data Privacy Act of 2012.'
         ]
     }
 };
@@ -1487,7 +1630,9 @@ function openTerms(kind) {
     const t = TERMS[kind] || TERMS.assessment;
     termsTarget = kind === 'assessment' ? 'assess' : 'lead';
     document.getElementById('termsBadge').textContent = t.badge;
-    document.getElementById('termsList').innerHTML = t.items.map(i => `<li>${i}</li>`).join('');
+    document.getElementById('termsTitle').textContent = t.title || 'Terms & Conditions';
+    const termText = kind === 'installment' ? `${getLeadTerm()} monthly installments (${termName(getLeadTerm())})` : '';
+    document.getElementById('termsList').innerHTML = t.items.map(i => `<li>${i.replace('{TERM}', termText)}</li>`).join('');
     openModal('termsModal');
 }
 
@@ -1885,7 +2030,9 @@ function openPaymentModal(payment) {
     document.getElementById('payBankName').textContent = HS_BANK_DETAILS.bankName;
     document.getElementById('payAccountName').textContent = HS_BANK_DETAILS.accountName;
     document.getElementById('payAccountNumber').textContent = HS_BANK_DETAILS.accountNumber;
-    document.getElementById('payPolicy').innerHTML = PAYMENT_POLICY[payment.kind];
+    document.getElementById('payPolicy').innerHTML = payment.kind === 'purchase'
+        ? PAYMENT_POLICY[leadTermsKind()]
+        : PAYMENT_POLICY.assessment;
     document.getElementById('payReference').value = '';
     resetProofUpload();
     document.getElementById('payFormView').classList.remove('hidden');
@@ -2195,6 +2342,7 @@ function initPageInteractions() {
     // 8b. Custom Dropdown Components
     initCustomDropdowns();
     initPaymentOptions();
+    initTermSwitch();
     initLeadValidation();
     initAssessmentForm();
     initPaymentModal();
@@ -2379,7 +2527,7 @@ function initPageInteractions() {
         const setFinalValues = () => {
             if (dpEl) dpEl.textContent = '₱10,000';
             if (billsEl) {
-                billsEl.textContent = '5 Years';
+                billsEl.textContent = '6 Years';
                 billsEl.style.opacity = '1';
                 billsEl.style.transform = 'translateY(0)';
             }
@@ -2411,8 +2559,8 @@ function initPageInteractions() {
             const startDp = 50000;
             const endDp = 10000;
 
-            // Monthly Bills sequence: 6 Months -> 1 Year -> 2 Years -> 3 Years -> 4 Years -> 5 Years
-            const billStages = ['6 Months', '1 Year', '2 Years', '3 Years', '4 Years', '5 Years'];
+            // Monthly Bills sequence: 6 Months -> 1 Year -> 2 Years -> 3 Years -> 4 Years -> 5 Years -> 6 Years
+            const billStages = ['6 Months', '1 Year', '2 Years', '3 Years', '4 Years', '5 Years', '6 Years'];
             let currentStageIndex = 0;
 
             // Brownouts: 100% -> 0%
@@ -2489,6 +2637,41 @@ function initPageInteractions() {
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initPageInteractions);
+    document.addEventListener('DOMContentLoaded', () => setTimeout(openContinueFromSiteVisit, 350));
 } else {
     initPageInteractions();
+    setTimeout(openContinueFromSiteVisit, 350);
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTINUE AFTER SITE VISIT (continue.html → Yes): open Buy Now with the client's details so they only
+// choose the payment method (Full Payment or Installment) and pay the down payment.
+// ─────────────────────────────────────────────────────────────────────────────
+function openContinueFromSiteVisit() {
+    const params = new URLSearchParams(window.location.search);
+    const visitId = params.get('visit');
+    const token = params.get('t');
+    const db = window.HELLO_SOLAR_DB;
+    if (!visitId || !token || !db || typeof db.getSiteVisits !== 'function') return;
+    try {
+        db.data = db.load();
+        const v = (db.getSiteVisits() || []).find(x => x.id === visitId && x.continueToken === token);
+        if (!v) return;
+        window.__hsContinueVisit = v;
+        startInquiry(v.packageId || undefined);
+        const set = (id, val) => { const el = document.getElementById(id); if (el && val) { el.value = val; el.dispatchEvent(new Event('input', { bubbles: true })); } };
+        set('leadName', v.customer);
+        set('leadPhone', v.phone);
+        set('leadEmail', v.email);
+        if (v.address && v.address.cityCode) {
+            set('leadLocation', v.address.city);
+            set('leadCityCode', v.address.cityCode);
+        }
+        clearLeadErrors();
+        const group = document.getElementById('leadPaymentOptions');
+        if (group) group.scrollIntoView({ block: 'center' });
+    } catch (err) {
+        console.warn('Could not open checkout from the site visit link:', err);
+    }
 }

@@ -10,8 +10,8 @@
 
     <!-- Immediate Authentication Guard -->
     <script src="../shared/hello-solar-config.js"></script>
-    <script src="../shared/hello-solar-store.js"></script>
-    <script src="../shared/hello-solar-shared.js"></script>
+    <script src="../shared/hello-solar-store.js?v=20261028d"></script>
+    <script src="../shared/hello-solar-shared.js?v=20261028d"></script>
     <script src="js/page-guard.js"></script>
 
     <!-- Google Fonts -->
@@ -29,7 +29,7 @@
     <link rel="stylesheet" href="css/payments-page.css">
 
     <link rel="stylesheet" href="css/payments-page-2.css">
-    <link rel="stylesheet" href="css/customer-polish.css">
+    <link rel="stylesheet" href="css/customer-polish.css?v=20261028f">
     <link rel="stylesheet" href="css/down-payment.css">
 </head>
 
@@ -350,7 +350,7 @@
                                 <div class="dp-row"><span>Amount</span><strong class="dp-amount" id="dpAmount">₱10,000</strong></div>
                                 <div class="dp-row"><span>Status</span><span id="dpStatus"></span></div>
                                 <div class="dp-row"><span>Refund</span><strong id="dpRefundInfo">—</strong></div>
-                                <p class="dp-policy">Refundable should you proceed with the installation; non-refundable should you decide not to proceed.</p>
+                                <p class="dp-policy" id="dpPolicy">Refundable if you decide not to proceed; deducted from your system price if you proceed with the installation.</p>
                                 <ul class="dp-requests" id="dpRequests" hidden></ul>
                                 <button type="button" class="btn btn-outline" id="openReimbursementBtn">Request Reimbursement</button>
                             </div>
@@ -383,7 +383,6 @@
                 <label class="proof-field-label" for="rmType">Type <span class="required-star">*</span></label>
                 <select id="rmType" class="proof-field-select">
                     <option value="Down Payment">Down Payment</option>
-                    <option value="Site Visit Fee">Site Visit Fee</option>
                     <option value="Other">Other</option>
                 </select>
             </div>

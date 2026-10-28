@@ -8,7 +8,8 @@ const root = path.resolve(__dirname, '..');
 
 function environment() {
   const storage = new Map();
-  const context = { console, crypto, location: { protocol: 'file:' },
+  const context = {
+    HS_TODAY: '2026-09-25', /* tests run on the sample data date */ console, crypto, location: { protocol: 'file:' },
     localStorage: { getItem: k => storage.get(k) || null, setItem: (k, v) => storage.set(k, String(v)) },
     addEventListener() {} };
   context.window = context;
@@ -77,6 +78,9 @@ test('installer can decline, another can accept, only assignee can start, comple
   db.data = db.load();
   db.uploadCustomerReceipt(id);
   db.verifyPaymentReceipt(id);
+  // Paid, but offered to installers only once the customer's documents are complete
+  assert.ok(!installer.getJobsByCategory('new').some(j => j.id === id));
+  require('../../shared/tests/helpers.cjs').completeDocuments(c.HSShared, id);
   assert.ok(installer.getJobsByCategory('new').some(j => j.id === id));
   assert.equal(installer.activateModel(id).success, false);
   assert.equal(installer.declineJob(id).success, true);

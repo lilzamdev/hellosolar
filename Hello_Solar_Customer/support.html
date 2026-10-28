@@ -10,8 +10,8 @@
 
     <!-- Immediate Authentication Guard -->
     <script src="../shared/hello-solar-config.js"></script>
-    <script src="../shared/hello-solar-store.js"></script>
-    <script src="../shared/hello-solar-shared.js"></script>
+    <script src="../shared/hello-solar-store.js?v=20261028d"></script>
+    <script src="../shared/hello-solar-shared.js?v=20261028d"></script>
     <script src="js/page-guard.js"></script>
 
     <!-- Google Fonts -->
@@ -28,7 +28,8 @@
 
     <link rel="stylesheet" href="css/support-page.css">
     <link rel="stylesheet" href="css/support.css">
-    <link rel="stylesheet" href="css/customer-polish.css">
+    <link rel="stylesheet" href="css/customer-polish.css?v=20261028f">
+    <link rel="stylesheet" href="css/support-refresh.css">
 </head>
 
 <body>
@@ -151,42 +152,56 @@
                                                 </svg>
                                             </li>
                                             <li class="custom-dropdown-item" role="option" aria-selected="false" data-value="inverter" tabindex="0">
-                                                <span class="custom-dropdown-item-text">Inverter or error code</span>
+                                                <span class="custom-dropdown-item-text">Inverter</span>
                                                 <svg class="custom-dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                                     <polyline points="20 6 9 17 4 12"></polyline>
                                                 </svg>
                                             </li>
                                             <li class="custom-dropdown-item" role="option" aria-selected="false" data-value="app" tabindex="0">
-                                                <span class="custom-dropdown-item-text">App or monitoring</span>
+                                                <span class="custom-dropdown-item-text">App and Monitoring</span>
                                                 <svg class="custom-dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                                     <polyline points="20 6 9 17 4 12"></polyline>
                                                 </svg>
                                             </li>
                                             <li class="custom-dropdown-item" role="option" aria-selected="false" data-value="battery" tabindex="0">
-                                                <span class="custom-dropdown-item-text">Battery or backup power</span>
+                                                <span class="custom-dropdown-item-text">Battery and Storage</span>
                                                 <svg class="custom-dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                                     <polyline points="20 6 9 17 4 12"></polyline>
                                                 </svg>
                                             </li>
                                             <li class="custom-dropdown-item" role="option" aria-selected="false" data-value="cleaning" tabindex="0">
-                                                <span class="custom-dropdown-item-text">Panel cleaning or inspection</span>
+                                                <span class="custom-dropdown-item-text">Panel Cleaning or Inspection</span>
                                                 <svg class="custom-dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                                     <polyline points="20 6 9 17 4 12"></polyline>
                                                 </svg>
                                             </li>
                                             <li class="custom-dropdown-item" role="option" aria-selected="false" data-value="billing" tabindex="0">
-                                                <span class="custom-dropdown-item-text">Billing or net metering</span>
+                                                <span class="custom-dropdown-item-text">Payments &amp; Billing</span>
+                                                <svg class="custom-dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                                </svg>
+                                            </li>
+                                            <li class="custom-dropdown-item" role="option" aria-selected="false" data-value="upgrade" tabindex="0">
+                                                <span class="custom-dropdown-item-text">System Upgrade</span>
+                                                <svg class="custom-dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                                </svg>
+                                            </li>
+                                            <li class="custom-dropdown-item" role="option" aria-selected="false" data-value="warranty" tabindex="0">
+                                                <span class="custom-dropdown-item-text">Equipment Warranty</span>
                                                 <svg class="custom-dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                                     <polyline points="20 6 9 17 4 12"></polyline>
                                                 </svg>
                                             </li>
                                             <li class="custom-dropdown-item" role="option" aria-selected="false" data-value="other" tabindex="0">
-                                                <span class="custom-dropdown-item-text">General inquiry / Other</span>
+                                                <span class="custom-dropdown-item-text">Others</span>
                                                 <svg class="custom-dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                                     <polyline points="20 6 9 17 4 12"></polyline>
@@ -195,37 +210,60 @@
                                         </ul>
                                         <select id="categorySelect" name="categorySelect" class="support-native-select-hidden" tabindex="-1" aria-hidden="true">
                                             <option value="" selected>Choose a topic</option>
-                                            <option value="inverter">Inverter or error code</option>
-                                            <option value="app">App or monitoring</option>
-                                            <option value="battery">Battery or backup power</option>
-                                            <option value="cleaning">Panel cleaning or inspection</option>
-                                            <option value="billing">Billing or net metering</option>
-                                            <option value="other">General inquiry / Other</option>
+                                            <option value="inverter">Inverter</option>
+                                            <option value="app">App and Monitoring</option>
+                                            <option value="battery">Battery and Storage</option>
+                                            <option value="cleaning">Panel Cleaning or Inspection</option>
+                                            <option value="billing">Payments &amp; Billing</option>
+                                            <option value="upgrade">System Upgrade</option>
+                                            <option value="warranty">Equipment Warranty</option>
+                                            <option value="other">Others</option>
                                         </select>
                                     </div>
                                 </div>
 
                                 <div class="form-group">
-                                    <label class="form-label" for="priorityTrigger" id="priorityLabel">Priority</label>
+                                    <label class="form-label" for="priorityTrigger" id="priorityLabel">Status</label>
                                     <div class="custom-dropdown" id="priorityDropdown">
                                         <button type="button" class="custom-dropdown-trigger" id="priorityTrigger"
                                             aria-haspopup="listbox" aria-expanded="false" aria-labelledby="priorityLabel prioritySelected">
-                                            <span class="custom-dropdown-selected" id="prioritySelected">General inquiry / Normal</span>
+                                            <span class="custom-dropdown-selected" id="prioritySelected">General Inquiry</span>
                                             <svg class="custom-dropdown-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                                 <polyline points="6 9 12 15 18 9"></polyline>
                                             </svg>
                                         </button>
                                         <ul class="custom-dropdown-menu" id="priorityMenu" role="listbox" aria-labelledby="priorityLabel" tabindex="-1">
-                                            <li class="custom-dropdown-item active" role="option" aria-selected="true" data-value="normal" tabindex="0">
-                                                <span class="custom-dropdown-item-text">General inquiry / Normal</span>
+                                            <li class="custom-dropdown-item active" role="option" aria-selected="true" data-value="general" tabindex="0">
+                                                <span class="custom-dropdown-item-text">General Inquiry</span>
                                                 <svg class="custom-dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                                     <polyline points="20 6 9 17 4 12"></polyline>
                                                 </svg>
                                             </li>
-                                            <li class="custom-dropdown-item" role="option" aria-selected="false" data-value="urgent" tabindex="0">
-                                                <span class="custom-dropdown-item-text">Urgent — Inverter offline / No power</span>
+                                            <li class="custom-dropdown-item" role="option" aria-selected="false" data-value="normal" tabindex="0">
+                                                <span class="custom-dropdown-item-text">Normal</span>
+                                                <svg class="custom-dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                                </svg>
+                                            </li>
+                                            <li class="custom-dropdown-item" role="option" aria-selected="false" data-value="urgent_offline" tabindex="0">
+                                                <span class="custom-dropdown-item-text">Urgent - Inverter is offline/no power</span>
+                                                <svg class="custom-dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                                </svg>
+                                            </li>
+                                            <li class="custom-dropdown-item" role="option" aria-selected="false" data-value="urgent_alarm" tabindex="0">
+                                                <span class="custom-dropdown-item-text">Urgent - System is Alarming</span>
+                                                <svg class="custom-dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                                </svg>
+                                            </li>
+                                            <li class="custom-dropdown-item" role="option" aria-selected="false" data-value="urgent_abnormal" tabindex="0">
+                                                <span class="custom-dropdown-item-text">Urgent - System is behaving abnormally</span>
                                                 <svg class="custom-dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                                     <polyline points="20 6 9 17 4 12"></polyline>
@@ -233,8 +271,11 @@
                                             </li>
                                         </ul>
                                         <select id="prioritySelect" name="prioritySelect" class="support-native-select-hidden" tabindex="-1" aria-hidden="true">
-                                            <option value="normal" selected>General inquiry / Normal</option>
-                                            <option value="urgent">Urgent — Inverter offline / No power</option>
+                                            <option value="general" selected>General Inquiry</option>
+                                            <option value="normal">Normal</option>
+                                            <option value="urgent_offline">Urgent - Inverter is offline/no power</option>
+                                            <option value="urgent_alarm">Urgent - System is Alarming</option>
+                                            <option value="urgent_abnormal">Urgent - System is behaving abnormally</option>
                                         </select>
                                     </div>
                                 </div>
@@ -287,28 +328,34 @@
                     </section>
 
                     <aside class="support-side-stack" aria-label="Contact information">
-                        <section class="support-summary-card" id="supportContactSummary"
+                        <section class="support-callerid-card" id="supportContactSummary"
                             aria-labelledby="supportContactHeading">
-                            <div class="support-summary-top">
-                                <h2 id="supportContactHeading">Your Support Contact</h2>
-                                <svg class="support-contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                    <path
-                                        d="M3 12a9 9 0 0 1 18 0M3 12v5h4v-6H5a2 2 0 0 0-2 2M21 12v5h-4v-6h2a2 2 0 0 1 2 2M17 17c0 3-2 4-5 4" />
-                                </svg>
+                            <div class="callerid-top">
+                                <span class="callerid-eyebrow" id="supportContactHeading">
+                                    <span class="callerid-live" aria-hidden="true"></span>
+                                    Support Line
+                                </span>
+                                <span class="callerid-tag" id="sidebarContactRole">Hello Solar</span>
                             </div>
-                            <h3 id="routingLeadName">Hello Solar Support</h3>
-                            <p id="routingLeadRole">Support Specialist</p>
-                            <a href="mailto:support@hellosolarph.com" class="contact-phone-link"
-                                id="routingLeadPhoneLink">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                    <path
-                                        d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 2.09 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72l.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45l2.81.7A2 2 0 0 1 22 16.92Z" />
-                                </svg>
-                                <span id="routingLeadPhone">Contact support</span>
-                            </a>
-                            <p class="support-contact-availability" id="contactAvailability" hidden></p>
+                            <div class="callerid-main">
+                                <span class="callerid-avatar" id="routingLeadAvatar" aria-hidden="true">HS</span>
+                                <div class="callerid-id">
+                                    <h3 id="routingLeadName">Hello Solar Support</h3>
+                                    <p id="routingLeadRole">Support Specialist</p>
+                                </div>
+                            </div>
+                            <div class="callerid-number-row">
+                                <strong class="callerid-number" id="routingLeadNumber">—</strong>
+                                <a href="mailto:support@hellosolarph.com" class="callerid-call-btn" id="routingLeadPhoneLink">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                                        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path
+                                            d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 2.09 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72l.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45l2.81.7A2 2 0 0 1 22 16.92Z" />
+                                    </svg>
+                                    <span id="routingLeadPhone">Call now</span>
+                                </a>
+                            </div>
+                            <p class="callerid-note" id="contactAvailability" hidden></p>
                             <div id="installerContact" class="support-installer-contact" hidden>
                                 <span class="support-context-label">Installer</span>
                                 <strong id="installerContactName"></strong>
@@ -446,7 +493,7 @@
                 <div class="ticket-modal-val" id="modalTicketTechnician">—</div>
             </div>
             <div class="ticket-modal-row">
-                <div class="ticket-modal-label">Priority</div>
+                <div class="ticket-modal-label">Status</div>
                 <div class="ticket-modal-val" id="modalTicketPriority"></div>
             </div>
             <div class="ticket-modal-row" style="margin-bottom: 0;">

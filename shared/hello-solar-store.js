@@ -14,20 +14,84 @@
   const CUSTOMER_INQUIRY_KEY = "HELLO_SOLAR_CUSTOMER_INQUIRIES";
   const PARTNER_TYPES = ["Financer", "Installer", "Merchant"];
   // Hello Solar packages (same prices as the landing page). Installment: 72 months, ₱10,000 down payment.
+  // Full Payment: ₱500 down payment.
   const INSTALLMENT_TERM_MONTHS = 72;
   const INSTALLMENT_DOWN_PAYMENT = 10000;
+  const FULL_PAYMENT_DOWN_PAYMENT = 500;
+  const isFullPaymentType = ref => {
+    if (ref && typeof ref === "object") return /full/i.test(String(ref.paymentType || ref.paymentPreference || "")) || ref.financer === "Not Required";
+    return /full/i.test(String(ref || ""));
+  };
+  // Down payment owed for an application (or a payment type): ₱500 Full Payment, ₱10,000 Installment.
+  // A stored amount (downPaymentAmount) always wins so older records keep what the customer actually paid.
+  function downPaymentAmountFor(ref) {
+    if (ref && typeof ref === "object") {
+      const stored = Number(ref.downPaymentAmount);
+      if (Number.isFinite(stored) && stored > 0) return stored;
+    }
+    return isFullPaymentType(ref) ? FULL_PAYMENT_DOWN_PAYMENT : INSTALLMENT_DOWN_PAYMENT;
+  }
+  // Loan math for installment schedules. The monthly payment is fixed; the number of months follows from the
+  // loan amount and the yearly interest rate, and the last payment is only what is left (so totals add up).
+  const round2 = n => Math.round(n * 100) / 100;
+  const monthlyRateOf = annual => { const r = Number(annual); return Number.isFinite(r) && r > 0 ? r / 100 / 12 : 0; };
+  function loanTermMonths(principal, annualRate, monthly) {
+    const P = Number(principal) || 0, M = Number(monthly) || 0, r = monthlyRateOf(annualRate);
+    if (!(P > 0) || !(M > 0)) return 0;
+    if (!r) return Math.ceil(P / M - 1e-9);
+    const x = P * r / M;
+    if (x >= 1) return 0; // the monthly payment never covers the interest
+    return Math.ceil(-Math.log(1 - x) / Math.log(1 + r) - 1e-9);
+  }
+  // Dates (YYYY-MM-DD). The system uses the real date everywhere. Sample (seed) schedules were written for
+  // Sep 25, 2026 and are moved forward with the calendar (data.demoClock) so they always look current.
+  const DEMO_DATES_AUTHORED_FOR = "2026-09-25";
+  const isoLocal = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const isoToUTC = iso => { const [y, m, d] = String(iso).slice(0, 10).split("-").map(Number); return Date.UTC(y, (m || 1) - 1, d || 1); };
+  const daysBetweenISO = (from, to) => Math.round((isoToUTC(to) - isoToUTC(from)) / 86400000);
+  const shiftISO = (iso, days) => {
+    if (!/^\d{4}-\d{2}-\d{2}/.test(String(iso || ""))) return iso;
+    const d = new Date(isoToUTC(iso) + days * 86400000);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}` + String(iso).slice(10);
+  };
+  function loanLastPayment(principal, annualRate, monthly, months) {
+    const r = monthlyRateOf(annualRate);
+    let balance = Number(principal) || 0;
+    for (let i = 1; i < months; i++) balance = balance * (1 + r) - monthly;
+    return round2(Math.max(0, balance * (1 + r)));
+  }
+  // Installment terms: 6 months, 3 years or 6 years (the customer picks one on Buy Now). Every term has the same
+  // ₱10,000 down payment. terms = monthly payment per term (months → ₱/month).
+  // Source: HS Pricing 2026 (6 mos / 3 yrs option). Same total as the price list (6 months = price × 1.20,
+  // 3 years = price × 1.42) with the ₱10,000 down payment; the rest is split into equal monthly payments,
+  // rounded up to the whole peso like the 6-year price. Update prices here only; every portal reads this list.
+  const INSTALLMENT_TERM_OPTIONS = [6, 36, 72];
   const PACKAGE_CATALOG = [
-    { id: "hs6-lite", name: "HS 6 LITE", price: 285000, monthly: 7284, battery: "5kWh" },
-    { id: "hs6-pro", name: "HS 6 PRO", price: 340000, monthly: 8689, battery: "10kWh" },
-    { id: "hs6-max", name: "HS 6 MAX", price: 390000, monthly: 9967, battery: "16kWh" },
-    { id: "hs8-pro", name: "HS 8 PRO", price: 516000, monthly: 13187, battery: "16kWh" },
-    { id: "hs8-max", name: "HS 8 MAX", price: 614000, monthly: 15692, battery: "32kWh" },
-    { id: "hs12-pro", name: "HS 12 PRO", price: 572000, monthly: 15572, battery: "16kWh" },
-    { id: "hs12-max", name: "HS 12 MAX", price: 720000, monthly: 19600, battery: "32kWh" },
+    { id: "hs6-lite", name: "HS 6 LITE", price: 285000, monthly: 7284, battery: "5kWh", terms: { 6: 55334, 36: 10964, 72: 7284 } },
+    { id: "hs6-pro", name: "HS 6 PRO", price: 340000, monthly: 8689, battery: "10kWh", terms: { 6: 66334, 36: 13134, 72: 8689 } },
+    { id: "hs6-max", name: "HS 6 MAX", price: 390000, monthly: 9967, battery: "16kWh", terms: { 6: 76334, 36: 15106, 72: 9967 } },
+    { id: "hs8-pro", name: "HS 8 PRO", price: 516000, monthly: 13187, battery: "16kWh", terms: { 6: 101534, 36: 20076, 72: 13187 } },
+    { id: "hs8-max", name: "HS 8 MAX", price: 614000, monthly: 15692, battery: "32kWh", terms: { 6: 121134, 36: 23942, 72: 15692 } },
+    { id: "hs12-pro", name: "HS 12 PRO", price: 572000, monthly: 15572, battery: "16kWh", terms: { 6: 112734, 36: 22285, 72: 15572 } },
+    { id: "hs12-max", name: "HS 12 MAX", price: 720000, monthly: 19600, battery: "32kWh", terms: { 6: 142334, 36: 28123, 72: 19600 } },
     // HS 16 PRO MAX is listed before HS 16 PRO so findPackage() matches the longer name first
-    { id: "hs16-pro-max", name: "HS 16 PRO MAX", price: 975000, monthly: 26542, battery: "32kWh" },
-    { id: "hs16-pro", name: "HS 16 PRO", price: 780000, monthly: 21234, battery: "16kWh" }
+    { id: "hs16-pro-max", name: "HS 16 PRO MAX", price: 975000, monthly: 26542, battery: "32kWh", terms: { 6: 193334, 36: 38181, 72: 26542 } },
+    { id: "hs16-pro", name: "HS 16 PRO", price: 780000, monthly: 21234, battery: "16kWh", terms: { 6: 154334, 36: 30489, 72: 21234 } }
   ];
+  // Plain-language term: 6 → "6 months", 36 → "3 years", 72 → "6 years", 82 → "82 months"
+  function termLabel(months) {
+    const m = Number(months);
+    if (!(m > 0)) return "";
+    if (m >= 12 && m % 12 === 0) return `${m / 12} year${m === 12 ? "" : "s"}`;
+    return `${m} month${m === 1 ? "" : "s"}`;
+  }
+  // Monthly payment of a package for a term (falls back to the 6-year monthly)
+  function monthlyForTerm(pkgRef, months) {
+    const pkg = typeof pkgRef === "object" && pkgRef ? pkgRef : findPackage(pkgRef);
+    if (!pkg) return null;
+    const t = Number(months) || INSTALLMENT_TERM_MONTHS;
+    return (pkg.terms && pkg.terms[t]) || (t === INSTALLMENT_TERM_MONTHS ? pkg.monthly : null);
+  }
   function findPackage(ref) {
     const key = String(ref || "").trim().toLowerCase();
     if (!key) return null;
@@ -40,8 +104,14 @@
     const num = v => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
     const pkg = findPackage(inquiry?.packageId) || findPackage(payload.packageId) || findPackage(payload.system) || findPackage(inquiry?.selectedSolarModel);
     const price = num(inquiry?.packagePrice) || num(payload.amount) || (pkg ? pkg.price : null);
-    const monthly = num(inquiry?.monthlyPayment) || num(payload.monthly) || (pkg ? pkg.monthly : null);
-    const termMonths = num(inquiry?.termMonths) || num(payload.termMonths) || (pkg ? INSTALLMENT_TERM_MONTHS : null);
+    // Term: Super Admin's pick (create account) → the customer's pick on Buy Now (6, 36 or 72 months) → 6 years
+    const validTerm = t => t && (!pkg || INSTALLMENT_TERM_OPTIONS.includes(t)) ? t : null;
+    const adminTerm = validTerm(num(payload.termMonths));
+    const inquiryTerm = validTerm(num(inquiry?.termMonths));
+    const termMonths = adminTerm || inquiryTerm || (pkg ? INSTALLMENT_TERM_MONTHS : null);
+    // Monthly: the inquiry's amount when its term is used, else the catalog amount for the term
+    const changedTerm = adminTerm && adminTerm !== inquiryTerm;
+    const monthly = (!changedTerm && num(inquiry?.monthlyPayment)) || (pkg ? monthlyForTerm(pkg, termMonths) : null) || num(payload.monthly) || num(inquiry?.monthlyPayment);
     const dpRaw = inquiry?.downPayment ?? payload.downPayment;
     const downPayment = Number.isFinite(Number(dpRaw)) && dpRaw !== null && dpRaw !== "" ? Number(dpRaw) : (pkg ? INSTALLMENT_DOWN_PAYMENT : null);
     return {
@@ -67,7 +137,7 @@
   };
 
   const DEFAULT_DATA = {
-    schemaVersion: 5,
+    schemaVersion: 6,
     customers: [
       { id: "CUS-1001", name: "Maria Elena Cruz", email: "elena.cruz@gmail.com", phone: "+63 917 234 5678", location: "Cebu City", system: "6 kW", status: "Active", appId: "APP-1024", hsId: "HS-21024", invitationStatus: "Active", joined: "2026-03-12" },
       { id: "CUS-1002", name: "Ricardo Gomez", email: "rgomez.cebu@yahoo.com", phone: "+63 920 456 7890", location: "Mandaue City", system: "8 kW", status: "Active", appId: "APP-1048", hsId: "HS-21048", invitationStatus: "Active", joined: "2026-04-05" },
@@ -96,9 +166,17 @@
     ],
 
     // Direct Installation Engineer accounts (internal; separate from partner installers)
-    engineers: [],
+    // Demo internal accounts (same sign-in as the demo engineer / accounting logins)
+    engineers: [
+      { id: "ENG-DEMO", name: "Engr. Mark Dizon", email: "engineer@hellosolar.ph", phone: "0917 888 4100", role: "Direct Installation Engineer",
+        team: "Hello Solar Internal Team", status: "Active", joined: "2026-01-05", password: "engineer123", notes: "Lead engineer for Hello Solar installations." }
+    ],
+    accountants: [
+      { id: "ACC-DEMO", name: "Accounting Officer", email: "accounting@hellosolar.ph", phone: "0917 888 4200", role: "Accounting",
+        status: "Active", joined: "2026-01-05", password: "accounting123", notes: "" }
+    ],
     installers: [
-      { id: "INS-001", name: "Hello Solar Internal Team", type: "Internal", contact: "Engr. Limuel Brasona", email: "engineering@hellosolar.ph", phone: "+63 32 238 9001", activeJobs: 2, completedJobs: 28, rating: 4.9, status: "Active" },
+      { id: "INS-001", name: "Hello Solar Internal Team", type: "Internal", contact: "Engr. Mark Dizon", email: "engineering@hellosolar.ph", phone: "+63 32 238 9001", activeJobs: 2, completedJobs: 28, rating: 4.9, status: "Active" },
       { id: "INS-002", name: "SolarTech Visayas Solutions", type: "Partner", contact: "Dante Alcantara", email: "ops@solartechvisayas.com", phone: "+63 32 414 7712", activeJobs: 2, completedJobs: 19, rating: 4.8, status: "Active" },
       { id: "INS-003", name: "SunPower Masters Cebu", type: "Partner", contact: "Ramon Quisumbing", email: "info@sunpowermasters.ph", phone: "+63 32 340 5566", activeJobs: 2, completedJobs: 14, rating: 4.7, status: "Active" },
       { id: "INS-004", name: "GreenVolt Solutions Corp.", type: "Partner", contact: "Gilbert Soriano", email: "g.soriano@greenvolt.ph", phone: "+63 2 8721 9900", activeJobs: 1, completedJobs: 11, rating: 4.3, status: "Active" },
@@ -960,8 +1038,9 @@
         installer: "Hello Solar Internal Team",
         installerType: "Hello Solar Direct",
         status: "In Progress",
-        schedule: "Tomorrow, 8:30 AM",
-        leadTech: "Engr. Limuel Brasona",
+        schedule: "Oct 28, 2026 · 8:30 AM",
+        progress: 80,
+        leadTech: "Engr. Mark Dizon",
         notes: "Racking & DC trunking 80% completed. Battery bank installation scheduled."
       },
       {
@@ -988,7 +1067,7 @@
         status: "Completed",
         schedule: "Sep 14, 2026",
         completedDate: "Sep 14, 2026",
-        leadTech: "Engr. Limuel Brasona",
+        leadTech: "Engr. Mark Dizon",
         notes: "Fully commissioned and certified. Utility bi-directional meter energized."
       },
       {
@@ -1020,16 +1099,30 @@
       },
       {
         id: "JOB-306",
-        appId: "APP-1102",
-        customer: "Northern Coast Cold Storage",
+        appId: "APP-1070",
+        customer: "Roberto Santos",
         location: "Cebu City",
-        system: "30 kW",
+        system: "12 kW",
         installer: "Hello Solar Internal Team",
         installerType: "Maintenance",
         status: "In Progress",
         schedule: "Sep 28, 2026",
-        leadTech: "Engr. Limuel Brasona",
+        leadTech: "Engr. Mark Dizon",
         notes: "Periodic inverter firmware upgrade and DC string balance calibration."
+      },
+      {
+        id: "JOB-307",
+        appId: "APP-4085",
+        customer: "Juan Dela Cruz",
+        location: "Lipa, Batangas",
+        system: "3.6 kW",
+        installer: "SolarTech Installer",
+        installerId: "INS-006",
+        installerType: "Partner Installer",
+        status: "In Progress",
+        schedule: "Oct 20, 2026",
+        leadTech: "SolarTech Installer Team",
+        notes: "Panels mounted. Inverter and battery wiring in progress."
       }
     ],
 
@@ -1247,7 +1340,7 @@
             sender: "ADMIN (Limuel)",
             role: "Admin",
             time: "Yesterday at 04:15 PM",
-            text: "Good day Atty. Mendoza, our direct team lead Engr. Limuel Brasona has confirmed arrival between 8:30 AM and 9:00 AM."
+            text: "Good day Atty. Mendoza, our team lead Engr. Mark Dizon has confirmed arrival between 8:30 AM and 9:00 AM."
           }
         ],
         history: [
@@ -1664,7 +1757,7 @@
       timezone: "Philippine Standard Time (GMT+8)",
       currency: "PHP (₱)",
       contactEmail: "admin@hellosolar.ph",
-      directInstallTeam: "Hello Solar Central Operations (Team Alpha)",
+      directInstallTeam: "Hello Solar Internal Team",
       maxDirectProjects: 12,
       directInstallConfirmation: true,
       overdueThresholdDays: 5,
@@ -1708,16 +1801,28 @@
     return { appId, termMonths, seeded: true, installments, history };
   }
 
+  // Seeded systems: fixed monthly payment; the months to pay follow from the loan and the funder's yearly rate
+  function seedSchedule(appId, monthly, rows) {
+    const app = DEFAULT_DATA.applications.find(a => a.id === appId) || {};
+    const funder = DEFAULT_DATA.financers.find(f => f.id === app.financerId || f.name === app.financer) || {};
+    const rate = app.interestRate ?? funder.annualRate;
+    const term = loanTermMonths(app.amount, rate, monthly) || 60;
+    const sched = buildSeedSchedule(appId, monthly, term, rows);
+    const last = sched.installments[sched.installments.length - 1];
+    if (last && last.status !== "Paid") last.amount = loanLastPayment(app.amount, rate, monthly, term) || monthly;
+    return sched;
+  }
+
   DEFAULT_DATA.paymentSchedules = {
-    "APP-4091": buildSeedSchedule("APP-4091", 9066.67, 60, [
+    "APP-4091": seedSchedule("APP-4091", 9066.67, [
       ["2026-05-01", "Paid", "REC-88219-05"], ["2026-06-01", "Paid", "REC-88219-06"], ["2026-07-01", "Paid", "REC-88219-07"],
       ["2026-08-01", "Paid", "REC-88219-08"], ["2026-09-01", "Paid", "REC-88219-09"], ["2026-10-15", "Upcoming"]]),
-    "APP-4088": buildSeedSchedule("APP-4088", 17450, 84, [
+    "APP-4088": seedSchedule("APP-4088", 17450, [
       ["2026-06-20", "Paid", "REC-94021-06"], ["2026-07-20", "Paid", "REC-94021-07"], ["2026-08-20", "Paid", "REC-94021-08"],
       ["2026-09-20", "Paid", "REC-94021-09"], ["2026-10-20", "Upcoming"]]),
-    "APP-4085": buildSeedSchedule("APP-4085", 6200, 36, [
-      ["2026-07-30", "Paid", "REC-77310-07"], ["2026-08-30", "Paid", "REC-77310-08"], ["2026-09-30", "Overdue"], ["2026-10-30", "Upcoming"]]),
-    "APP-4072": buildSeedSchedule("APP-4072", 12800, 60, [
+    "APP-4085": seedSchedule("APP-4085", 6200, [
+      ["2026-06-30", "Paid", "REC-77310-06"], ["2026-07-30", "Paid", "REC-77310-07"], ["2026-08-30", "Overdue"], ["2026-09-30", "Upcoming"]]),
+    "APP-4072": seedSchedule("APP-4072", 12800, [
       ["2026-09-25", "Paid", "REC-55201-09"], ["2026-10-25", "Upcoming"]])
   };
 
@@ -1824,7 +1929,7 @@
   // Schema v5: applications a Financer approved while approval still set stage "Approved" move to
   // "Ready for Installation" (same as a new Financer approval). Only Financer decisions are moved, and only while
   // no installation has been assigned or started.
-  const SCHEMA_VERSION = 5;
+  const SCHEMA_VERSION = 7;
   // "Under Review" was renamed "Pending Finance" (Lifecycle Progression); older saved records still carry the old name
   function normalizeStageNames(data) {
     if (data && Array.isArray(data.applications)) {
@@ -1855,8 +1960,49 @@
         app.applicationStatus = "READY_FOR_INSTALLATION";
       }
     });
+    if (version < 6) migrateSeedFixesV6(parsed);
+    if (version < 7) {
+      // v7: APP-4085's sample overdue bill is a full month back (the sample stays overdue on any demo day)
+      const stored = parsed.paymentSchedules && parsed.paymentSchedules["APP-4085"];
+      const original = stored && stored.installments && stored.installments[0] && stored.installments[0].dueDate === "2026-07-30" && !stored.demoDates;
+      const touched = stored && (stored.installments || []).some(i => /Customer receipt/.test(i.notes || "") || (i.status === "Paid" && !/^REC-77310-/.test(i.reference || "")));
+      if (original && !touched) parsed.paymentSchedules["APP-4085"] = JSON.parse(JSON.stringify(DEFAULT_DATA.paymentSchedules["APP-4085"]));
+    }
     parsed.schemaVersion = SCHEMA_VERSION;
     return true;
+  }
+
+  // v6: seed data corrections (only records that still look like the original seed are touched)
+  function migrateSeedFixesV6(parsed) {
+    const jobs = Array.isArray(parsed.installations) ? parsed.installations : (parsed.installations = []);
+    const seedJob = id => DEFAULT_DATA.installations.find(j => j.id === id);
+    // Maintenance JOB-306 belonged to a system that was not installed yet → the completed APP-1070 system
+    const j306 = jobs.find(j => j.id === "JOB-306");
+    if (j306 && j306.appId === "APP-1102" && j306.installerType === "Maintenance") {
+      const s = seedJob("JOB-306");
+      Object.assign(j306, { appId: s.appId, customer: s.customer, location: s.location, system: s.system });
+    }
+    const j301 = jobs.find(j => j.id === "JOB-301");
+    if (j301 && /^Tomorrow/i.test(String(j301.schedule || ""))) j301.schedule = seedJob("JOB-301").schedule;
+    if (j301 && j301.progress === undefined && j301.status === "In Progress") j301.progress = seedJob("JOB-301").progress;
+    jobs.forEach(j => { if (j.leadTech === "Engr. Limuel Brasona") j.leadTech = "Engr. Mark Dizon"; });
+    (parsed.installers || []).forEach(i => { if (i.id === "INS-001" && i.contact === "Engr. Limuel Brasona") i.contact = "Engr. Mark Dizon"; });
+    // The partner installation of APP-4085 (already in progress) gets its job record
+    const app4085 = (parsed.applications || []).find(a => a.id === "APP-4085");
+    if (app4085 && app4085.stage === "Installation" && !jobs.some(j => j.appId === "APP-4085")) {
+      jobs.push(JSON.parse(JSON.stringify(seedJob("JOB-307"))));
+    }
+    if (parsed.settings && parsed.settings.directInstallTeam === "Hello Solar Central Operations (Team Alpha)") {
+      parsed.settings.directInstallTeam = "Hello Solar Internal Team";
+    }
+    // Demo engineer / accounting accounts appear in Portal Accounts
+    ["engineers", "accountants"].forEach(key => {
+      if (!Array.isArray(parsed[key])) parsed[key] = [];
+      DEFAULT_DATA[key].forEach(seed => {
+        const taken = parsed[key].some(r => r.id === seed.id || String(r.email || "").toLowerCase() === seed.email);
+        if (!taken) parsed[key].push(JSON.parse(JSON.stringify(seed)));
+      });
+    });
   }
 
   function migrateIdentityV3(parsed) {
@@ -1893,6 +2039,21 @@
       // Local mode: pick up Buy Now receipts on any page load so their accounts are created right away
       if (!IS_API && Array.isArray(this.data.inquiries)) {
         try { this.syncCustomerInquiries(); } catch (err) { console.warn("Could not import landing page inquiries:", err); }
+      }
+      if (!IS_API) {
+        // Keep records consistent for every portal: stages follow installation jobs, declined apps are not billed,
+        // funder loan counts are real and every installment schedule adds up to the loan plus interest.
+        try {
+          const snapshot = () => JSON.stringify([this.data.applications, this.data.paymentSchedules, this.data.financers, this.data.demoClock]);
+          const before = snapshot();
+          this._alignDemoDates();
+          this.getApplications();
+          Object.keys(this.data.paymentSchedules || {}).forEach(appId => {
+            const app = (this.data.applications || []).find(a => a.id === appId);
+            if (app) this._fitScheduleToLoan(app, this.data.paymentSchedules[appId]);
+          });
+          if (snapshot() !== before) this.save();
+        } catch (err) { console.warn("Could not reconcile records:", err); }
       }
     }
 
@@ -2136,13 +2297,33 @@
     }
 
     // --- HELLO SOLAR DIRECT INSTALLATION WORKFLOW ---
+    // Documents gate: financing approval and installer assignment need every required document and the
+    // Accepted signed agreement (checked by the shared data layer; skipped where it is not loaded)
+    documentsGate(app) {
+      const S = typeof window !== "undefined" ? window.HSShared : null;
+      if (!app || !S || typeof S.applicationDocsComplete !== "function") return { ok: true, missing: [], message: "" };
+      const res = S.applicationDocsComplete(app.id);
+      return { ...res, message: res.ok ? "" : `Complete the documents first. Still needed: ${res.missing.join(", ")}.` };
+    }
+
+    // Same gate for an installation job (maintenance jobs are not installations and are never blocked)
+    installationDocumentsGate(job) {
+      if (!job || job.installerType === "Maintenance") return { ok: true, missing: [], message: "" };
+      const app = (this.data.applications || []).find(a => a.id === job.appId);
+      if (!app) return { ok: true, missing: [], message: "" };
+      const gate = this.documentsGate(app);
+      return gate.ok ? gate : { ...gate, message: `${app.id} cannot be scheduled or installed yet. ${gate.message}` };
+    }
+
     acceptDirectInstallation(appId) {
       const app = this.data.applications.find(a => a.id === appId);
       if (!app) return { success: false, message: "Application not found" };
+      const docGate = this.documentsGate(app);
+      if (!docGate.ok) return { success: false, documentsMissing: docGate.missing, message: docGate.message, error: docGate.message };
 
       // Enforce configured Maximum Concurrent Direct Projects limit
       const limit = Number(this.data.settings?.maxDirectProjects) || 12;
-      const designatedTeam = this.data.settings?.directInstallTeam || "Hello Solar Central Operations (Team Alpha)";
+      const designatedTeam = this.data.settings?.directInstallTeam || "Hello Solar Internal Team";
 
       // Count currently active Direct projects
       const activeDirectCount = this.data.installations.filter(j => 
@@ -2272,6 +2453,8 @@
       const partner = (this.data.installers || []).find(i => i.id === installerRef)
         || (this.data.installers || []).find(i => i.name === installerRef);
       if (!partner) return { success: false, message: "Installer not found", error: "Installer account not found." };
+      const docGate = this.documentsGate(app);
+      if (!docGate.ok) return { success: false, documentsMissing: docGate.missing, message: docGate.message, error: docGate.message };
       if (!this.isAssignablePartnerInstaller(partner)) {
         const error = `${partner.name} (${partner.id}) is not an active partner installer and cannot be assigned.`;
         return { success: false, message: error, error };
@@ -2356,48 +2539,79 @@
       } catch (e) { return null; }
     }
 
+    // The documents listed in Super Admin › Details › Documents are exactly the ones on the customer's
+    // Documents page, with the same names, order and statuses:
+    //  - Full Payment: the signed Full Payment Agreement
+    //  - Installment: the signed Installment Agreement, then the Required Documents (shared APP document record,
+    //    the same record the Financer reviews). "If applicable" documents are listed but not counted.
+    // name = record name (used to review a document), label = the name the customer sees.
     getAppDocuments(appId) {
       const app = this.data.applications.find(a => a.id === appId);
       if (!app) return [];
-
-      // Installment applications: the shared APP document record (same record as Customer and Financer portals)
       const S = typeof window !== "undefined" ? window.HSShared : null;
-      const shared = S && !this.isFullPaymentApp(app) ? S.documentRecordFor(appId) : this.readSharedDocuments(appId);
-      if (!shared && app.documents && Array.isArray(app.documents)) return app.documents;
-      if (shared) {
-        const LABEL = { NOT_SUBMITTED: "Missing", SUBMITTED: "Submitted", UNDER_REVIEW: "Submitted", ACCEPTED: "Verified", REUPLOAD_REQUIRED: "Rejected" };
-        return shared.documents
-          .filter(d => !(d.optional && String(d.status).toUpperCase() === "NOT_SUBMITTED"))
-          .map(d => ({
-            name: d.name,
-            status: LABEL[String(d.status).toUpperCase()] || "Missing",
-            date: d.uploadedAt ? String(d.uploadedAt).slice(0, 10) : null,
-            file: d.fileName || null,
-            link: d.kind === "link" && /^https?:\/\//i.test(d.link || "") ? d.link : null
-          }));
-      }
-
-      // No uploads on record: show the required checklist from the recorded count only (no invented files/dates)
-      const names = [
-        "Government-Issued Photo ID",
-        "Latest 3-Month Electric Utility Statement",
-        "Proof of Income / Certificate of Employment",
-        "Roof & Property Ownership Authorization",
-        "Pre-Installation Solar Site Assessment",
-        "Site Photos — Roof & Neighborhood",
-        "Google Maps Link of House / Site"
-      ];
-      const match = String(app.docs || "").match(/^(\d+)\s*\/\s*(\d+)$/);
-      const verified = match ? Math.min(parseInt(match[1], 10), names.length) : 0;
-      // Full Payment needs no financing documents: only the number recorded for it (e.g. 1/1 = the valid ID)
-      const required = this.isFullPaymentApp(app) && match ? Math.max(1, Math.min(parseInt(match[2], 10), names.length)) : names.length;
-      return names.slice(0, required).map((name, i) => ({ name, status: i < verified ? "Verified" : "Missing", date: null, file: null }));
+      const ag = S && S.agreementFor ? S.agreementFor(app) : null;
+      const base = this._baseAppDocuments(appId);
+      if (!ag) return base;
+      const LABEL = { NOT_SUBMITTED: "Missing", SUBMITTED: "Submitted", ACCEPTED: "Verified", REUPLOAD_REQUIRED: "Rejected" };
+      const CUSTOMER_LABEL = { NOT_SUBMITTED: "Not Submitted", SUBMITTED: "Submitted", ACCEPTED: "Accepted", REUPLOAD_REQUIRED: "Re-upload Required" };
+      return [{
+        name: `Signed ${ag.title}`,
+        label: ag.title,
+        status: LABEL[ag.status] || "Missing",
+        statusLabel: CUSTOMER_LABEL[ag.status] || "Not Submitted",
+        date: ag.uploadedAt ? String(ag.uploadedAt).slice(0, 10) : null,
+        file: ag.fileName || null,
+        isAgreement: true
+      }].concat(base);
     }
 
-    // Document counts from the same list getAppDocuments returns (the shared APP record for installment
-    // applications), never from the stored app.docs string. submitted = Submitted + Verified.
+    _baseAppDocuments(appId) {
+      const app = this.data.applications.find(a => a.id === appId);
+      if (!app) return [];
+      const S = typeof window !== "undefined" ? window.HSShared : null;
+      // Full Payment and Installment customers send the same documents (shared record)
+      const shared = S ? S.documentRecordFor(appId) : this.readSharedDocuments(appId);
+      if (!shared) return S ? [] : (Array.isArray(app.documents) ? app.documents : []);
+      // Same short names the customer sees (Hello_Solar_Customer/js/required-documents.js)
+      const DISPLAY_NAME = {
+        valid_id_1: "Valid ID #1 (front & back)",
+        valid_id_2: "Valid ID #2 (front & back)",
+        income_proof: "Payslips (3 months) or Bank Statement",
+        residence_proof: "Proof of Home Ownership or Lease",
+        proof_of_billing: "Proof of Billing",
+        other_requested: "Other Document",
+        site_photos: "Site Photos (Roof & Neighborhood)",
+        site_map_link: "Google Maps Link of House / Site",
+        gov_id_back: "Government ID Back (older upload)",
+        proof_of_income: "Proof of Income (older upload)",
+        bank_statement: "Bank Statement (older upload)"
+      };
+      const LABEL = { NOT_SUBMITTED: "Missing", SUBMITTED: "Submitted", UNDER_REVIEW: "Submitted", ACCEPTED: "Verified", REUPLOAD_REQUIRED: "Rejected" };
+      const CUSTOMER_LABEL = { NOT_SUBMITTED: "Not Submitted", SUBMITTED: "Submitted", UNDER_REVIEW: "Under Review", ACCEPTED: "Accepted", REUPLOAD_REQUIRED: "Re-upload Required" };
+      return shared.documents.map(d => {
+        const st = String(d.status).toUpperCase();
+        return {
+          id: d.id,
+          name: d.name,
+          label: DISPLAY_NAME[d.id] || d.name,
+          optional: !!d.optional,
+          notRequired: !!d.notRequired,
+          waived: d.waived || null,
+          requested: !!d.requested,
+          requestNote: d.requestNote || "",
+          status: LABEL[st] || "Missing",
+          statusLabel: d.notRequired ? "Not Required" : (CUSTOMER_LABEL[st] || "Not Submitted"),
+          date: d.uploadedAt ? String(d.uploadedAt).slice(0, 10) : null,
+          file: d.fileName || null,
+          link: d.kind === "link" && /^https?:\/\//i.test(d.link || "") ? d.link : null,
+          note: d.note || ""
+        };
+      });
+    }
+
+    // Counts for required documents only ("If applicable" documents are not counted). submitted = Submitted + Verified.
     getAppDocumentCounts(appId) {
-      const docs = this.getAppDocuments(appId);
+      const docs = this.getAppDocuments(appId).filter(d => !d.optional);
       const submitted = docs.filter(d => d.status === "Verified" || d.status === "Submitted").length;
       const verified = docs.filter(d => d.status === "Verified").length;
       const missing = docs.filter(d => d.status === "Missing" || d.status === "Rejected");
@@ -2407,9 +2621,9 @@
     updateDocumentStatus(appId, docName, newStatus) {
       const app = this.data.applications.find(a => a.id === appId);
       if (!app) return false;
-      // Installment applications: the verdict is written only to the shared APP document record
+      // The verdict is written only to the shared APP document record (Full Payment and Installment)
       const S = typeof window !== "undefined" ? window.HSShared : null;
-      if (S && !this.isFullPaymentApp(app)) {
+      if (S) {
         const STATUS = { Verified: "ACCEPTED", Rejected: "REUPLOAD_REQUIRED", Missing: "NOT_SUBMITTED", Submitted: "SUBMITTED" };
         const before = (S.documentRecordFor(appId)?.documents || []).find(d => d.name === docName);
         if (!before || !STATUS[newStatus]) return false;
@@ -2426,7 +2640,7 @@
         return true;
       }
       if (!app.documents) {
-        app.documents = this.getAppDocuments(appId);
+        app.documents = this._baseAppDocuments(appId);
       }
       const doc = app.documents.find(d => d.name === docName);
       if (doc) {
@@ -2524,6 +2738,8 @@
       // Must not create a new installation record. Strictly update existing project.
       const job = this.data.installations.find(j => j.id === jobId || j.appId === jobId);
       if (!job) return { success: false, message: "Existing installation record not found." };
+      const gate = this.installationDocumentsGate(job);
+      if (!gate.ok) return { success: false, documentsMissing: gate.missing, message: gate.message, error: gate.message };
 
       let formattedDate = scheduleDate;
       if (scheduleDate) {
@@ -2591,6 +2807,11 @@
     updateInstallationStatus(jobId, newStatus, newSchedule, notes, delayReason, teamLead) {
       const job = this.data.installations.find(j => j.id === jobId);
       if (!job) return false;
+      // Scheduling or starting an installation that has not started yet needs complete documents
+      if (["Scheduled", "In Progress", "Testing", "Completed"].includes(newStatus) && ["Ready", "Pending", "Pending Schedule", "Scheduled"].includes(job.status) && newStatus !== job.status) {
+        const gate = this.installationDocumentsGate(job);
+        if (!gate.ok) return { success: false, documentsMissing: gate.missing, error: gate.message, message: gate.message };
+      }
       const prevStatus = job.status;
       job.status = newStatus;
       if (newSchedule) job.schedule = newSchedule.replace(/\s*\(Delayed\)/gi, "").trim();
@@ -2869,6 +3090,8 @@
       const job = this.data.installations.find(j => j.id === jobId);
       if (!job || job.installerType !== "Hello Solar Direct") return { success: false, message: "Direct installation job not found." };
       if (this.getDirectJobState(job) !== "pending") return { success: false, message: "Only pending direct installation jobs can be accepted." };
+      const gate = this.installationDocumentsGate(job);
+      if (!gate.ok) return { success: false, documentsMissing: gate.missing, message: gate.message, error: gate.message };
 
       job.engineerAcceptedAt = new Date().toISOString();
       job.leadTech = engineer.name;
@@ -3020,7 +3243,10 @@
       }
 
       if (this.data.paymentSchedules[appId]) {
-        return this.data.paymentSchedules[appId];
+        const stored = this.data.paymentSchedules[appId];
+        const owner = this.data.applications.find(a => a.id === appId);
+        if (owner && owner.createdAt && !this.isFullPaymentApp(owner)) this._redateUnpaidSchedule(owner, stored);
+        return stored;
       }
 
       const app = this.data.applications.find(a => a.id === appId);
@@ -3066,9 +3292,10 @@
         return fullSched;
       }
 
+      // Months to pay: the stored term, else what it takes to pay the loan plus interest at the fixed monthly
       const totalInstallments = Number(app.termMonths) > 0
         ? Number(app.termMonths)
-        : Math.max(12, Math.round(totalAmount / monthly));
+        : (loanTermMonths(totalAmount, this.appAnnualRate(app), monthly) || Math.max(12, Math.ceil(totalAmount / monthly)));
       
       const installments = [];
       const history = [];
@@ -3078,7 +3305,7 @@
         for (let i = 1; i <= totalInstallments; i++) {
           const installmentDate = new Date("2023-09-15T00:00:00");
           installmentDate.setMonth(installmentDate.getMonth() + i - 1);
-          const dateStr = installmentDate.toISOString().split("T")[0];
+          const dateStr = isoLocal(installmentDate);
           installments.push({
             no: i,
             dueDate: dateStr,
@@ -3168,7 +3395,7 @@
           upDate.setMonth(upDate.getMonth() + (i - 4));
           installments.push({
             no: i,
-            dueDate: upDate.toISOString().split("T")[0],
+            dueDate: isoLocal(upDate),
             amount: monthly,
             status: "Upcoming",
             paidDate: null,
@@ -3195,7 +3422,7 @@
           upDate.setMonth(upDate.getMonth() + (i - 1));
           installments.push({
             no: i,
-            dueDate: upDate.toISOString().split("T")[0],
+            dueDate: isoLocal(upDate),
             amount: monthly,
             status: "Upcoming",
             paidDate: null,
@@ -3205,12 +3432,15 @@
           });
         }
       } else {
-        // Standard active account (On Time or Due Soon)
-        let baseDate = new Date(app.nextDue && app.nextDue !== "N/A" ? (app.nextDue.includes("T") ? app.nextDue : app.nextDue + "T00:00:00") : "2026-10-15T00:00:00");
+        // Standard active account (On Time or Due Soon). Sample accounts use their written dates; real
+        // applications pay the first installment one month after financing is approved.
+        const realFirstDue = app.createdAt ? this._firstDueFor(app) : null;
+        let baseDate = new Date(realFirstDue ? realFirstDue + "T00:00:00"
+          : (app.nextDue && app.nextDue !== "N/A" ? (app.nextDue.includes("T") ? app.nextDue : app.nextDue + "T00:00:00") : "2026-10-15T00:00:00"));
         if (isNaN(baseDate.getTime())) {
           baseDate = new Date("2026-10-15T00:00:00");
         }
-        const nextDueStr = baseDate.toISOString().split("T")[0];
+        const nextDueStr = isoLocal(baseDate);
         const isDueSoon = app.paymentStatus === "Due Soon";
 
         const hasHistory = ["APP-1024", "APP-1048", "APP-1050", "APP-1062", "APP-1102"].includes(app.id);
@@ -3219,7 +3449,7 @@
         for (let i = 1; i <= pastCount; i++) {
           const pDate = new Date(baseDate.getTime());
           pDate.setMonth(pDate.getMonth() - (pastCount - i + 1));
-          const pDateStr = pDate.toISOString().split("T")[0];
+          const pDateStr = isoLocal(pDate);
           const ref = `REC-${app.id.replace('APP-', '')}-0${i}`;
           installments.push({
             no: i,
@@ -3262,7 +3492,7 @@
           upDate.setMonth(upDate.getMonth() + (i - pastCount - 1));
           installments.push({
             no: i,
-            dueDate: upDate.toISOString().split("T")[0],
+            dueDate: isoLocal(upDate),
             amount: monthly,
             status: "Upcoming",
             paidDate: null,
@@ -3279,9 +3509,138 @@
         installments,
         history
       };
+      if (!app.createdAt) {
+        // Sample account: written for Sep 25, 2026 → move to the current demo calendar
+        scheduleData.demoDates = true;
+        const clock = this.data.demoClock && this.data.demoClock.alignedTo ? this.data.demoClock.alignedTo : HelloSolarStore.todayISO();
+        this._shiftSchedule(scheduleData, daysBetweenISO(DEMO_DATES_AUTHORED_FOR, clock));
+      } else {
+        scheduleData.firstDue = installments[0] ? installments[0].dueDate : null;
+      }
+      this._fitScheduleToLoan(app, scheduleData);
 
       this.data.paymentSchedules[appId] = scheduleData;
       return scheduleData;
+    }
+
+    // Number of monthly installments of an application without creating its schedule: the saved schedule, else the
+    // chosen term, else what the loan needs at its interest rate (same rule the schedule uses).
+    scheduleTermFor(app) {
+      if (!app || this.isFullPaymentApp(app)) return null;
+      const S = typeof window !== "undefined" ? window.HSShared : null;
+      const shared = S && S.read ? S.read() : this.data;
+      const saved = (shared && shared.paymentSchedules && shared.paymentSchedules[app.id]) || (this.data.paymentSchedules || {})[app.id];
+      if (saved && Array.isArray(saved.installments) && saved.installments.length) return saved.installments.length;
+      if (Number(app.termMonths) > 0) return Number(app.termMonths);
+      const amount = Number(app.amount) || 0, monthly = Number(app.monthly) || 0;
+      if (!(amount > 0) || !(monthly > 0)) return null;
+      return loanTermMonths(amount, this.appAnnualRate(app), monthly) || Math.max(12, Math.ceil(amount / monthly));
+    }
+
+    // First installment of a real application: the date the financer set at approval, else one month after the
+    // financing decision (Hello Solar Funding), else one month from today (not approved yet — preview only).
+    _firstDueFor(app) {
+      if (app.nextDue && /^\d{4}-\d{2}-\d{2}$/.test(app.nextDue)) return app.nextDue;
+      const decided = app.financingDecision && app.financingDecision.decidedAt;
+      return HelloSolarStore.addMonthsISO(HelloSolarStore.todayISO(decided || undefined), 1);
+    }
+
+    // A real schedule with no payments yet follows the current first-due date (e.g. it was first opened before
+    // the financing was approved). Returns true when dates changed.
+    _redateUnpaidSchedule(app, sched) {
+      const list = sched && Array.isArray(sched.installments) ? sched.installments : [];
+      if (!list.length || list.some(i => i.status === "Paid" || Number(i.paidAmount) > 0 || i.receipt)) return false;
+      const first = this._firstDueFor(app);
+      if (!first || list[0].dueDate === first) return false;
+      list.forEach((inst, idx) => { inst.dueDate = HelloSolarStore.addMonthsISO(first, idx); });
+      sched.firstDue = first;
+      return true;
+    }
+
+    // Moves a schedule by a number of days, keeping one due day per month (the first due date moves by the
+    // days; the next ones follow monthly). Payments made on their due date move with it.
+    _shiftSchedule(sched, days) {
+      const list = sched && Array.isArray(sched.installments) ? sched.installments : [];
+      if (!list.length || !days) return;
+      const moved = {};
+      const first = shiftISO(list[0].dueDate, days);
+      list.forEach((inst, idx) => {
+        const old = inst.dueDate;
+        inst.dueDate = HelloSolarStore.addMonthsISO(first, idx) || shiftISO(old, days);
+        moved[old] = inst.dueDate;
+        if (inst.paidDate && inst.paidDate === old) inst.paidDate = inst.dueDate;
+      });
+      (sched.history || []).forEach(h => { if (h && moved[h.date]) h.date = moved[h.date]; });
+    }
+
+    // Sample schedules move with the calendar so due / overdue states look the same whatever day the demo runs.
+    // Returns true when anything changed.
+    _alignDemoDates() {
+      if (!DEMO_DATA || IS_API) return false;
+      const schedules = this.data.paymentSchedules;
+      if (!schedules || typeof schedules !== "object") return false;
+      let changed = false;
+      if (!this.data.demoClock || !this.data.demoClock.alignedTo) {
+        this.data.demoClock = { authoredFor: DEMO_DATES_AUTHORED_FOR, alignedTo: DEMO_DATES_AUTHORED_FOR };
+        changed = true;
+      }
+      Object.keys(schedules).forEach(appId => {
+        const sched = schedules[appId];
+        if (!sched || sched.demoDates !== undefined) return;
+        const app = (this.data.applications || []).find(a => a.id === appId);
+        sched.demoDates = !!(app && !app.createdAt);
+        changed = true;
+      });
+      const today = HelloSolarStore.todayISO();
+      const days = daysBetweenISO(this.data.demoClock.alignedTo, today);
+      if (days) {
+        Object.keys(schedules).forEach(appId => { if (schedules[appId] && schedules[appId].demoDates) this._shiftSchedule(schedules[appId], days); });
+        this.data.demoClock.alignedTo = today;
+        changed = true;
+      }
+      return changed;
+    }
+
+    // Yearly interest rate of a customer's loan: the application's own rate, else its funder's contract rate.
+    // Hello Solar Funding has no interest unless a rate is set on the application.
+    appAnnualRate(app) {
+      if (!app) return 0;
+      const own = app.interestRate ?? app.annualRate;
+      if (own !== undefined && own !== null && own !== "") return Number(own) || 0;
+      if (this.isHelloSolarFunded && this.isHelloSolarFunded(app)) return 0;
+      const funder = (this.data.financers || []).find(f => f.id === app.financerId || f.name === app.financer);
+      return funder && funder.annualRate != null ? Number(funder.annualRate) || 0 : 0;
+    }
+
+    // Makes an installment schedule add up: enough monthly payments to cover the loan plus interest, and a last
+    // payment of only what is left. Paid installments are never changed. Returns true when the schedule changed.
+    _fitScheduleToLoan(app, schedule) {
+      if (!app || !schedule || !Array.isArray(schedule.installments) || !schedule.installments.length) return false;
+      if (this.isFullPaymentApp(app) || Number(app.termMonths) > 0) return false;
+      const list = schedule.installments;
+      const monthly = Number(app.monthly) || Number(list[0].amount) || 0;
+      const principal = Number(app.amount) || 0;
+      const rate = this.appAnnualRate(app);
+      const months = loanTermMonths(principal, rate, monthly);
+      if (!months) return false;
+      let changed = false;
+      while (list.length < months) {
+        const prev = list[list.length - 1];
+        list.push({
+          no: (Number(prev.no) || list.length) + 1, dueDate: HelloSolarStore.addMonthsISO(prev.dueDate, 1) || prev.dueDate,
+          amount: monthly, status: "Upcoming", paidDate: null, paidAmount: 0, reference: null, notes: ""
+        });
+        changed = true;
+      }
+      while (list.length > months && list[list.length - 1].status !== "Paid") { list.pop(); changed = true; }
+      const last = list[list.length - 1];
+      const lastAmount = loanLastPayment(principal, rate, monthly, list.length);
+      if (last.status !== "Paid" && lastAmount > 0 && lastAmount <= monthly + 0.005 && Math.abs((Number(last.amount) || 0) - lastAmount) > 0.005) {
+        last.amount = lastAmount;
+        changed = true;
+      }
+      if (schedule.termMonths !== list.length) { schedule.termMonths = list.length; changed = true; }
+      return changed;
     }
 
     calculatePaymentStatus(app) {
@@ -3315,9 +3674,8 @@
       const installments = schedule.installments;
       const paidList = installments.filter(i => i.status === "Paid");
       const totalPaid = paidList.reduce((sum, i) => sum + (i.paidAmount || i.amount || 0), 0);
-      const remainingBalance = Math.max(0, (app.amount || 0) - totalPaid);
-
       const unpaid = installments.filter(i => i.status !== "Paid");
+      const remainingBalance = Math.round(unpaid.reduce((sum, i) => sum + (Number(i.amount) || 0), 0) * 100) / 100;
       if (unpaid.length === 0 || remainingBalance <= 0) {
         return {
           status: "Completed",
@@ -3333,8 +3691,8 @@
       // Sort unpaid installments chronologically
       unpaid.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
 
-      // Reference system date: Sep 25, 2026
-      const refDate = new Date("2026-09-25T00:00:00");
+      // Today (real date, same in every portal)
+      const refDate = new Date(HelloSolarStore.todayISO() + "T00:00:00");
 
       // Check for overdue installment: scheduled payment date has passed by configured overdueThresholdDays
       const overdueGraceDays = Number(this.data.settings?.overdueThresholdDays) || 5;
@@ -3518,6 +3876,9 @@
         .reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
       const financing = this.getFinancingRevenue(apps, options.asOf);
       const today = HelloSolarStore.todayISO(options.asOf);
+      // Verified down payments (reservation deposits) belong to Hello Solar
+      const deposits = Math.round(this.getAllPayments().filter(r => r.kind === "dp" && r.status === "Verified" && (!r.date || r.date <= today))
+        .reduce((sum, r) => sum + r.amount, 0) * 100) / 100;
       const asOfLabel = new Date(today + "T12:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
       return {
@@ -3535,6 +3896,10 @@
         portfolioHsFunded: Math.max(0, totalPortfolio - financerFunded),
         financingRevenue: financing.total,
         financingHsRevenue: financing.hsRevenue,
+        // Payments Received card = the same verified payments as Accounting (system payments + down payments)
+        depositsReceived: deposits,
+        paymentsReceived: Math.round((financing.total + deposits) * 100) / 100,
+        paymentsHsShare: Math.round((financing.hsRevenue + deposits) * 100) / 100,
         financerRevenue: financing.financerRevenue,
         revenueSince: financing.since,
         revenueTo: today
@@ -3664,6 +4029,396 @@
       };
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // HELLO SOLAR FUNDING — Super Admin accepts an installment application's financing directly
+    // (Hello Solar funds it instead of a partner financer), the same way Hello Solar Direct Installation works.
+    // ─────────────────────────────────────────────────────────────────────────
+    static get HELLO_SOLAR_FUNDING() { return { id: "FIN-HS", name: "Hello Solar Funding" }; }
+
+    isHelloSolarFunded(app) {
+      return !!app && (app.financerId === HelloSolarStore.HELLO_SOLAR_FUNDING.id || /hello solar funding/i.test(app.financer || ""));
+    }
+
+    isEligibleForHelloSolarFunding(app) {
+      if (!app || this.isFullPaymentApp(app) || this.isHelloSolarFunded(app)) return false;
+      return ["Submitted", "Financing Review", "Pending Finance", "Under Review"].includes(app.stage);
+    }
+
+    acceptHelloSolarFunding(appId, options = {}) {
+      this.data = this.load();
+      const app = this.data.applications.find(a => a.id === appId);
+      if (!app) return { success: false, error: "Application not found" };
+      if (this.isFullPaymentApp(app)) return { success: false, error: "Full payment applications do not need financing." };
+      if (this.isHelloSolarFunded(app)) return { success: false, error: `${appId} is already funded by Hello Solar.` };
+      if (!this.isEligibleForHelloSolarFunding(app)) return { success: false, error: `${appId} is not waiting for financing (stage: ${app.stage}).` };
+      const docGate = this.documentsGate(app);
+      if (!docGate.ok) return { success: false, documentsMissing: docGate.missing, error: docGate.message };
+      const fund = HelloSolarStore.HELLO_SOLAR_FUNDING;
+      const owner = HelloSolarStore.HELLO_SOLAR_OWNER;
+      const adminUser = options.adminUser || "ADMIN (Limuel)";
+      const previous = app.financerId && app.financer ? `${app.financer} (${app.financerId})` : null;
+      const now = new Date().toISOString();
+      app.previousFinancer = previous;
+      app.financerId = fund.id;
+      app.financer = fund.name;
+      app.fundingSource = fund.name;
+      app.fundingOwner = owner.name;
+      app.fundingOwnerId = owner.id;
+      app.stage = "Ready for Installation";
+      app.financingStatus = "APPROVED";
+      app.applicationStatus = "READY_FOR_INSTALLATION";
+      app.financingDecision = { decision: "Approved", by: adminUser, financerId: fund.id, decidedAt: now, note: "Accepted for Hello Solar Funding by Super Admin." };
+      app.nextDue = HelloSolarStore.addMonthsISO(HelloSolarStore.todayISO(now), 1);
+      app.updated = "Just now";
+      app.notes = (app.notes ? app.notes + " • " : "") + "Accepted for Hello Solar Funding by Super Admin.";
+      this.logActivity("Admin", adminUser,
+        `ADMIN accepted ${appId} (${app.customer}) for Hello Solar Funding · ₱${Number(app.amount || 0).toLocaleString("en-PH")}${previous ? ` — previously ${previous}` : ""}`,
+        appId, { actorId: "ADMIN-01", recordType: "Application", deferSave: true, details: { appId, financerId: fund.id, financer: fund.name, previous } });
+      this.save();
+      this._notifyCustomer(app, "Financing Approved", `Your installment plan for ${appId} is approved and funded by Hello Solar.`, "FINANCING_APPROVED");
+      return { success: true, app };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SITE VISIT LIFECYCLE: Site Visit Payment → Pending Visit → Visit Confirmed
+    // When the visit is confirmed the client gets a link: Yes → landing page Buy Now (they choose Full Payment
+    // or Installment), No → not continuing.
+    // ─────────────────────────────────────────────────────────────────────────
+    static get SITE_VISIT_LIFECYCLE() { return ["Site Visit Payment", "Pending Visit", "Visit Confirmed"]; }
+
+    siteVisitStage(v) {
+      if (!v) return "Site Visit Payment";
+      if (v.status === "Completed") return "Visit Confirmed";
+      if (v.feePaymentStatus === "Verified") return "Pending Visit";
+      return "Site Visit Payment";
+    }
+
+    _continueLinkFor(v) {
+      if (!v.continueToken) v.continueToken = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+      return `Hello_Solar/continue.html?visit=${encodeURIComponent(v.id)}&t=${encodeURIComponent(v.continueToken)}`;
+    }
+
+    // Sends (records) the "Do you want to continue?" link once the visit is confirmed
+    sendSiteVisitContinueLink(visitId, options = {}) {
+      const v = this._siteVisits().find(x => x.id === visitId);
+      if (!v) return { success: false, error: "Site visit not found." };
+      if (v.status !== "Completed") return { success: false, error: "Confirm the visit first." };
+      const link = this._continueLinkFor(v);
+      v.continueLink = link;
+      v.continueLinkSentAt = new Date().toISOString();
+      if (!v.continueResponse) v.continueResponse = "Awaiting Response";
+      this.logActivity("Admin", options.adminUser || "ADMIN (Limuel)", `Continue link for ${v.id} (${v.customer}) sent to ${v.email || v.phone || "the client"}`, v.id, {
+        actorId: "ADMIN-01", recordType: "Site Visit", deferSave: true, details: { visitId: v.id, link, email: v.email || "" }
+      });
+      this.save();
+      return { success: true, visit: v, link };
+    }
+
+    // Client answer from the continue link (Yes = Proceeding, No = Not Proceeding)
+    respondSiteVisitContinue(visitId, token, decision) {
+      this.data = this.load();
+      const v = this._siteVisits().find(x => x.id === visitId);
+      if (!v || !v.continueToken || v.continueToken !== token) return { success: false, error: "This link is not valid anymore. Please contact Hello Solar." };
+      const yes = /^(yes|proceed)/i.test(String(decision || ""));
+      v.continueResponse = yes ? "Yes — Continuing" : "No — Not Continuing";
+      v.continueRespondedAt = new Date().toISOString();
+      v.clientDecision = yes ? "Proceeding" : "Not Proceeding";
+      this.logActivity("Customer", v.customer || "Client", `${v.customer || "Client"} answered ${yes ? "YES" : "NO"} to continue after site visit ${v.id}`, v.id, {
+        recordType: "Site Visit", deferSave: true, details: { visitId: v.id, decision: v.clientDecision }
+      });
+      this.save();
+      return { success: true, visit: v, proceed: yes };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACCOUNTING VIEWS
+    // ─────────────────────────────────────────────────────────────────────────
+    // Revenue channel of a payment:
+    //  - Solar Financing Review    → Installment customers: ₱10,000 down payment + monthly installments
+    //  - Solar Kit Revenue         → Full Payment customers: ₱500 down payment + full payment
+    //  - Solar Installation Revenue→ ₱1,000 site visit fees (site assessment before installation)
+    static get REVENUE_CHANNELS() { return ["Solar Financing Review", "Solar Kit Revenue", "Solar Installation Revenue"]; }
+
+    // Every payment received (down payments, site visit fees, full payments, installment receipts) in one list
+    getAllPayments() {
+      const rows = [];
+      const apps = this.getApplications ? this.getApplications() : this.data.applications;
+      const isFull = app => this.isFullPaymentApp(app);
+      apps.forEach(app => {
+        const full = isFull(app);
+        const channel = full ? "Solar Kit Revenue" : "Solar Financing Review";
+        // Down payment (older applications without a down payment record count as received)
+        {
+          const st = this.downPaymentState(app);
+          rows.push({
+            key: `dp:${app.id}`, kind: "dp", ref: app.id, appId: app.id, client: app.customer, type: "Down Payment",
+            plan: full ? "Full Payment" : "Installment", channel, amount: this.downPaymentAmount(app),
+            date: String((app.downPaymentProof && (app.downPaymentProof.uploadedAt || app.downPaymentProof.date)) || app.downPaymentVerifiedAt || app.createdAt || this._firstActivityDate(app.id) || "").slice(0, 10),
+            reference: app.downPaymentProof ? app.downPaymentProof.referenceNo || "" : "",
+            status: st === "Verified" ? "Verified" : (st === "Pending Verification" ? "Pending Verification" : "Not Submitted"),
+            canVerify: st === "Pending Verification", hasReceipt: !!(app.downPaymentProof && app.downPaymentProof.dataUrl)
+          });
+        }
+        const sched = this.getPaymentSchedule(app.id);
+        if (full) {
+          // Full payment (single invoice): uploaded receipt → verify
+          const inst = sched && sched.installments && sched.installments[0];
+          const pending = app.receiptVerificationStatus === "Pending Verification" || app.paymentStatus === "Verification Required";
+          const paid = inst && inst.status === "Paid";
+          if (pending || paid) {
+            rows.push({
+              key: `full:${app.id}`, kind: "full", ref: app.id, appId: app.id, client: app.customer, type: "Full Payment",
+              plan: "Full Payment", channel, amount: Number(app.receiptAmount || (inst && inst.amount) || app.amount) || 0,
+              date: String(app.receiptUploadedAt || (inst && inst.paidDate) || "").slice(0, 10), reference: app.receiptReference || (inst && inst.reference) || "",
+              status: paid && !pending ? "Verified" : "Pending Verification", canVerify: pending && !paid, hasReceipt: !!app.uploadedReceipt
+            });
+          }
+        } else {
+          // Installment receipts waiting for verification
+          (app.receiptSubmissions || []).filter(s => s.status === "Pending Verification").forEach(sub => {
+            rows.push({
+              key: `inst:${app.id}:${sub.id}`, kind: "inst", ref: app.id, appId: app.id, submissionId: sub.id, client: app.customer,
+              type: "Monthly Installment", plan: "Installment", channel, amount: Number(sub.amount) || 0, date: String(sub.date || sub.submittedAt || "").slice(0, 10),
+              reference: sub.reference || "", status: "Pending Verification", canVerify: true, hasReceipt: false,
+              period: (sub.bills || []).map(b => b.period).filter(Boolean).join(", ")
+            });
+          });
+          // Installments already received
+          ((sched && sched.installments) || []).filter(i => i.status === "Paid" && i.paidDate).forEach(i => {
+            rows.push({
+              key: `paid:${app.id}:${i.no}`, kind: "paid", ref: app.id, appId: app.id, client: app.customer, type: "Monthly Installment",
+              plan: "Installment", channel, amount: Number(i.paidAmount || i.amount) || 0, date: String(i.paidDate).slice(0, 10),
+              reference: i.reference || "", status: "Verified", canVerify: false, hasReceipt: false, period: `#${i.no}`
+            });
+          });
+        }
+      });
+      this.getSiteVisits().forEach(v => {
+        rows.push({
+          key: `sv:${v.id}`, kind: "sv", ref: v.id, appId: null, client: v.customer, type: "Site Visit Fee", plan: "—",
+          channel: "Solar Installation Revenue", amount: Number(v.fee || 1000), date: String(v.createdAt || "").slice(0, 10),
+          reference: v.feeProof ? v.feeProof.referenceNo || "" : "",
+          status: v.feePaymentStatus === "Verified" ? "Verified" : (v.feePaymentStatus === "Pending Verification" ? "Pending Verification" : "Not Submitted"),
+          canVerify: v.feePaymentStatus === "Pending Verification", hasReceipt: !!(v.feeProof && v.feeProof.dataUrl)
+        });
+      });
+      const order = { "Pending Verification": 0, Verified: 1, "Not Submitted": 2 };
+      return rows.sort((a, b) => (order[a.status] - order[b.status]) || String(b.date).localeCompare(String(a.date)));
+    }
+
+    // Verify one row of getAllPayments()
+    verifyPaymentRow(key, options = {}) {
+      const [kind, id, sub] = String(key || "").split(":");
+      if (kind === "dp") return this.verifyDownPayment(id, options);
+      if (kind === "sv") return this.verifySiteVisitFee(id, options);
+      if (kind === "full") return this.verifyPaymentReceipt(id, options);
+      if (kind === "inst") return this.verifyInstallmentReceipt(id, sub, options);
+      return { success: false, error: "This payment is already verified." };
+    }
+
+    // Verified money received, grouped by revenue channel
+    getRevenueChannels() {
+      const channels = HelloSolarStore.REVENUE_CHANNELS.map(name => ({ name, total: 0, count: 0, pending: 0, pendingCount: 0, byType: {} }));
+      const byName = Object.fromEntries(channels.map(c => [c.name, c]));
+      this.getAllPayments().forEach(r => {
+        const c = byName[r.channel];
+        if (!c) return;
+        if (r.status === "Verified") {
+          c.total += r.amount;
+          c.count++;
+          c.byType[r.type] = (c.byType[r.type] || 0) + r.amount;
+        } else if (r.status === "Pending Verification") {
+          c.pending += r.amount;
+          c.pendingCount++;
+        }
+      });
+      channels.forEach(c => { c.total = Math.round(c.total * 100) / 100; c.pending = Math.round(c.pending * 100) / 100; });
+      const total = channels.reduce((s, c) => s + c.total, 0);
+      return { channels, total: Math.round(total * 100) / 100 };
+    }
+
+    // PAYMENT SCHEDULE FOR FUNDERS — what Hello Solar pays each funder every month on the fund it received.
+    // Fund = the funder's funded amount; Term = contract months; IR = annual rate.
+    // Monthly IR Payment = Fund × IR ÷ 12 (flat, on the original fund)
+    // Monthly Principal Payment = Fund ÷ Term
+    // Total Monthly Payment = Monthly IR Payment + Monthly Principal Payment
+    getFunderSchedule(asOf) {
+      const r2 = n => Math.round(n * 100) / 100;
+      const rows = (this.data.financers || []).filter(f => Number(f.fundAmount ?? f.totalFunded) > 0 || f.contractStartDate).map(f => {
+        const c = this.getFinancerContract(f, asOf);
+        const fund = Number(f.fundAmount ?? f.totalFunded) || 0;
+        const term = Number(f.contractTermMonths) || 0;
+        const rate = Number(f.annualRate) || 0;
+        const monthlyInterest = term ? r2(fund * rate / 100 / 12) : 0;
+        const monthlyPrincipal = term ? r2(fund / term) : 0;
+        return {
+          funderId: f.id, funderName: f.name, fund, startDate: f.contractStartDate || null, endDate: f.contractEndDate || null,
+          termMonths: term || null, annualRate: f.annualRate ?? null, monthlyInterest, monthlyPrincipal,
+          totalMonthly: r2(monthlyInterest + monthlyPrincipal), contractStatus: c.status
+        };
+      });
+      const sum = (k, list = rows) => r2(list.reduce((s, r) => s + (Number(r[k]) || 0), 0));
+      // Only funders with an Active contract are paid every month (expired / not started are left out)
+      const active = rows.filter(r => r.contractStatus === "Active" && r.termMonths);
+      return {
+        rows,
+        totals: { fund: sum("fund"), monthlyInterest: sum("monthlyInterest"), monthlyPrincipal: sum("monthlyPrincipal"), totalMonthly: sum("totalMonthly") },
+        activeTotals: { count: active.length, fund: sum("fund", active), monthlyInterest: sum("monthlyInterest", active), monthlyPrincipal: sum("monthlyPrincipal", active), totalMonthly: sum("totalMonthly", active) }
+      };
+    }
+
+    // CUSTOMERS PAYMENT SCHEDULE — financed (installment) customers and the funder portfolio they belong to.
+    // Amount = financed amount, Start / End = first / last installment due date, Term = number of installments,
+    // IR = the customer's plan rate (or the funder's contract rate), Monthly Fixed = the scheduled monthly payment.
+    getCustomerPaymentSchedule(asOf) {
+      const financed = ["Approved", "Ready for Installation", "Installation", "In Progress", "Completed", "Installation Completed"];
+      const apps = (this.getApplications ? this.getApplications() : this.data.applications)
+        .filter(a => !this.isFullPaymentApp(a) && financed.includes(a.stage) && a.financer && !["Pending", "Unassigned", "Not Required"].includes(a.financer));
+      const rows = apps.map(app => {
+        const sched = this.getPaymentSchedule(app.id);
+        const inst = (sched && sched.installments) || [];
+        const funder = (this.data.financers || []).find(f => f.id === app.financerId || f.name === app.financer) || null;
+        // When a funder's contract has ended, its customers' loans are owned by Hello Solar (same rule as Payments)
+        const contract = funder ? this.getFinancerContract(funder, asOf) : null;
+        const ownedByHelloSolar = !!(contract && ["Expired", "Terminated"].includes(contract.status));
+        return {
+          appId: app.id, client: app.customer, amount: Number(app.amount) || 0,
+          startDate: inst.length ? inst[0].dueDate : null, endDate: inst.length ? inst[inst.length - 1].dueDate : null,
+          termMonths: inst.length || Number(app.termMonths) || null, annualRate: this.appAnnualRate(app),
+          ownedByHelloSolar, contractStatus: contract ? contract.status : null,
+          funderId: this.isHelloSolarFunded(app) ? HelloSolarStore.HELLO_SOLAR_FUNDING.id : (funder ? funder.id : app.financerId || null),
+          funderName: this.isHelloSolarFunded(app) ? HelloSolarStore.HELLO_SOLAR_FUNDING.name : (funder ? funder.name : app.financer),
+          monthlyFixed: Number((inst[0] && inst[0].amount) || app.monthly) || 0
+        };
+      });
+      const funders = [];
+      rows.forEach(r => {
+        let f = funders.find(x => x.name === r.funderName);
+        if (!f) { f = { id: r.funderId, name: r.funderName, clients: 0, totalMonthly: 0, totalAmount: 0 }; funders.push(f); }
+        f.clients++;
+        f.totalMonthly = Math.round((f.totalMonthly + r.monthlyFixed) * 100) / 100;
+        f.totalAmount += r.amount;
+      });
+      funders.sort((a, b) => a.name.localeCompare(b.name));
+      return { rows, funders, totalMonthly: Math.round(rows.reduce((s, r) => s + r.monthlyFixed, 0) * 100) / 100 };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // MONEY IN / MONEY OUT (Accounting, per month)
+    // Money In  = verified customer payments + loans received from funders
+    // Money Out = monthly payments made to funders (marked paid) + refunds + Hello Solar installation costs
+    // ─────────────────────────────────────────────────────────────────────────
+    static monthOf(value) {
+      const s = String(value || "");
+      return /^\d{4}-\d{2}/.test(s) ? s.slice(0, 7) : "";
+    }
+
+    // Loans Hello Solar received from funders (the fund, received on the contract start date)
+    getFunderLoansReceived(asOf) {
+      const today = HelloSolarStore.todayISO(asOf);
+      return this.getFunderSchedule(asOf).rows
+        .filter(r => r.fund > 0 && r.startDate)
+        .map(r => ({ funderId: r.funderId, funderName: r.funderName, amount: r.fund, date: r.startDate, received: r.startDate <= today, contractStatus: r.contractStatus }))
+        .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    }
+
+    // Monthly payments Hello Solar already made to funders
+    getFunderPayments() {
+      if (!Array.isArray(this.data.funderPayments)) this.data.funderPayments = [];
+      return this.data.funderPayments;
+    }
+
+    // Funders Hello Solar pays in a month (Active contract that month) and whether that month is paid
+    getFunderPaymentsDue(month) {
+      const m = HelloSolarStore.monthOf(month) || HelloSolarStore.todayISO().slice(0, 7);
+      const paid = this.getFunderPayments().filter(p => p.month === m);
+      const rows = this.getFunderSchedule(`${m}-15`).rows.map(r => {
+        const payment = paid.find(p => p.funderId === r.funderId) || null;
+        return { ...r, month: m, due: r.contractStatus === "Active" && !!r.termMonths, payment };
+      });
+      const r2 = n => Math.round(n * 100) / 100;
+      const due = rows.filter(r => r.due);
+      return {
+        month: m, rows,
+        totalDue: r2(due.reduce((s, r) => s + r.totalMonthly, 0)),
+        paidTotal: r2(paid.reduce((s, p) => s + p.amount, 0)),
+        unpaidTotal: r2(due.filter(r => !r.payment).reduce((s, r) => s + r.totalMonthly, 0)),
+        unpaidCount: due.filter(r => !r.payment).length
+      };
+    }
+
+    markFunderPaid(funderId, month, options = {}) {
+      const m = HelloSolarStore.monthOf(month);
+      if (!m) return { success: false, error: "Pick a month." };
+      const row = this.getFunderPaymentsDue(m).rows.find(r => r.funderId === funderId);
+      if (!row) return { success: false, error: "Funder not found." };
+      if (!row.due) return { success: false, error: `${row.funderName} has no payment due for this month (${row.contractStatus}).` };
+      if (row.payment) return { success: false, error: `${row.funderName} is already paid for this month.` };
+      const adminUser = options.adminUser || "ADMIN (Limuel)";
+      const payment = {
+        id: `FP-${funderId}-${m}`, funderId, funderName: row.funderName, month: m,
+        amount: row.totalMonthly, interest: row.monthlyInterest, principal: row.monthlyPrincipal,
+        reference: String(options.reference || "").trim(), paidAt: new Date().toISOString(), paidBy: adminUser
+      };
+      this.getFunderPayments().push(payment);
+      this.logActivity("Admin", adminUser, `ACCOUNTING marked ${row.funderName} as paid for ${m} (₱${payment.amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })})`, funderId, {
+        actorId: "ADMIN-01", recordType: "Accounting", deferSave: true, details: payment
+      });
+      this.save();
+      return { success: true, payment };
+    }
+
+    undoFunderPaid(funderId, month, options = {}) {
+      const m = HelloSolarStore.monthOf(month);
+      const list = this.getFunderPayments();
+      const i = list.findIndex(p => p.funderId === funderId && p.month === m);
+      if (i < 0) return { success: false, error: "This payment is not marked as paid." };
+      const [removed] = list.splice(i, 1);
+      this.logActivity("Admin", options.adminUser || "ADMIN (Limuel)", `ACCOUNTING undid the ${m} payment to ${removed.funderName}`, funderId, {
+        actorId: "ADMIN-01", recordType: "Accounting", deferSave: true, details: { funderId, month: m }
+      });
+      this.save();
+      return { success: true };
+    }
+
+    // Refunds paid out (refunded down payments / site visit fees + approved reimbursements not tied to one)
+    getRefundsPaid() {
+      const rows = [];
+      const linked = new Set();
+      this.getClientPayments().filter(r => r.refund && r.refund.status === "Refunded").forEach(r => {
+        if (r.refund.reimbursementId) linked.add(r.refund.reimbursementId);
+        rows.push({ ref: r.ref, client: r.client, type: r.type, amount: Number(r.refund.amount) || r.amount, date: r.refund.refundedAt, reference: r.refund.reference || "" });
+      });
+      this.getReimbursements().filter(x => x.status === "Approved" && !linked.has(x.id)).forEach(x => {
+        rows.push({ ref: x.appId || x.id, client: x.customer, type: x.type || "Reimbursement", amount: Number(x.amount) || 0, date: x.resolvedAt, reference: x.reference || "" });
+      });
+      return rows.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    }
+
+    // Overview numbers for one month ("YYYY-MM", default this month)
+    getMoneySummary(month) {
+      const m = HelloSolarStore.monthOf(month) || HelloSolarStore.todayISO().slice(0, 7);
+      const r2 = n => Math.round(n * 100) / 100;
+      const inMonth = d => HelloSolarStore.monthOf(d) === m;
+      const payments = this.getAllPayments();
+      const customers = payments.filter(r => r.status === "Verified" && inMonth(r.date));
+      const loans = this.getFunderLoansReceived().filter(l => l.received && inMonth(l.date));
+      const due = this.getFunderPaymentsDue(m);
+      const refunds = this.getRefundsPaid().filter(r => inMonth(r.date));
+      const costs = (this.getDirectInstallationCosts ? this.getDirectInstallationCosts() : []).filter(c => c.isSet && inMonth(c.updatedAt));
+      const sum = list => r2(list.reduce((s, x) => s + (Number(x.amount ?? x.total) || 0), 0));
+      const toCheck = payments.filter(r => r.status === "Pending Verification");
+      const moneyIn = { customers: sum(customers), customerCount: customers.length, funders: sum(loans), funderCount: loans.length };
+      moneyIn.total = r2(moneyIn.customers + moneyIn.funders);
+      const moneyOut = { funders: due.paidTotal, funderCount: this.getFunderPayments().filter(p => p.month === m).length, refunds: sum(refunds), refundCount: refunds.length, costs: sum(costs), costCount: costs.length };
+      moneyOut.total = r2(moneyOut.funders + moneyOut.refunds + moneyOut.costs);
+      return {
+        month: m, moneyIn, moneyOut,
+        stillToPay: { amount: due.unpaidTotal, count: due.unpaidCount },
+        toCheck: { count: toCheck.length, amount: sum(toCheck), rows: toCheck }
+      };
+    }
+
     // --- IMMEDIATE SYSTEM DISCONNECT (backend-ready; NO hardware action happens in the frontend) ---
     // Flow: Super Admin request → systemConnectionStatus "Disconnect Requested" + queued in data.disconnectRequests
     // (outbox for the backend / inverter API) → backend calls confirmSystemDisconnect() → "Disconnected".
@@ -3714,7 +4469,7 @@
       if (options.actorRole && options.actorRole !== "super-admin") return { success: false, error: "Only Super Admin can update installation cost." };
       const app = (this.data.applications || []).find(a => a.id === appId);
       if (!app) return { success: false, error: "Application not found." };
-      if (!this.isDirectInstallApplication(app)) return { success: false, error: `${appId} is not a Hello Solar Direct project.` };
+      if (!this.isDirectInstallApplication(app)) return { success: false, error: `${appId} is not a Hello Solar Installation project.` };
       const fields = { materials: "Materials", labor: "Labor", transportMisc: "Transport / Misc" };
       const clean = {};
       for (const [key, label] of Object.entries(fields)) {
@@ -3811,7 +4566,11 @@
       return this.getFinancerContract(view, day + "T12:00:00");
     }
 
-    // Down payment (₱10,000, both plans). Applications created before this field existed count as verified.
+    // Down payment (₱10,000 Installment, ₱500 Full Payment). Applications created before this field existed count as verified.
+    downPaymentAmount(app) {
+      return downPaymentAmountFor(app);
+    }
+
     downPaymentState(app) {
       return (app && app.downPaymentStatus) || "Verified";
     }
@@ -3830,10 +4589,10 @@
       if (inq && inq.paymentProof) inq.paymentProof.status = "Verified";
       app.updated = "Just now";
       this.logActivity("Admin", adminUser,
-        `ADMIN verified the ₱${Number(app.downPaymentAmount || INSTALLMENT_DOWN_PAYMENT).toLocaleString("en-PH")} down payment for ${appId} (${app.customer})`,
+        `ADMIN verified the ₱${downPaymentAmountFor(app).toLocaleString("en-PH")} down payment for ${appId} (${app.customer})`,
         appId, {
           actorId: "ADMIN-01", recordType: "Application", deferSave: true,
-          details: { appId, downPaymentAmount: app.downPaymentAmount || INSTALLMENT_DOWN_PAYMENT, receipt: app.downPaymentProof ? app.downPaymentProof.fileName : null, referenceNo: app.downPaymentProof ? app.downPaymentProof.referenceNo || null : null, status: "Verified" }
+          details: { appId, downPaymentAmount: downPaymentAmountFor(app), receipt: app.downPaymentProof ? app.downPaymentProof.fileName : null, referenceNo: app.downPaymentProof ? app.downPaymentProof.referenceNo || null : null, status: "Verified" }
         });
       this.save();
       return { success: true, app };
@@ -3950,7 +4709,13 @@
       if (status === "Completed" && !v.assignee) return { success: false, error: "Assign someone before completing the visit." };
       v.status = status;
       v.updatedAt = new Date().toISOString();
-      if (status === "Completed") v.completedAt = v.updatedAt;
+      if (status === "Completed") {
+        v.completedAt = v.updatedAt;
+        // Visit Confirmed → the client receives the "continue with your installation?" link
+        v.continueLink = this._continueLinkFor(v);
+        v.continueLinkSentAt = v.updatedAt;
+        if (!v.continueResponse) v.continueResponse = "Awaiting Response";
+      }
       if (options.notes) v.notes = options.notes;
       this.logActivity(options.role || "Admin", options.user || "ADMIN (Limuel)", `${options.user || "ADMIN"} marked site visit ${v.id} (${v.customer}) as ${status}`, v.id, {
         actorId: options.actorId || "ADMIN-01", recordType: "Site Visit", deferSave: true, details: { visitId: v.id, status, notes: options.notes || "" }
@@ -3960,8 +4725,10 @@
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // CLIENT PAYMENTS (Accounting): ₱10,000 down payments and ₱1,000 site visit fees
-    // Policy: refundable when the client proceeds with installation; non-refundable when they do not.
+    // CLIENT PAYMENTS (Accounting): ₱500 / ₱10,000 reservation deposits and ₱1,000 site visit fees
+    // Policy (landing page Terms): the deposit is refundable when the client does NOT proceed and is deducted
+    // from the system price when they proceed. The site visit fee is deducted when they proceed and is
+    // non-refundable when they do not.
     // ─────────────────────────────────────────────────────────────────────────
     _clientRecord(kind, id) {
       if (kind === "dp") return (this.data.applications || []).find(a => a.id === id) || null;
@@ -3975,7 +4742,7 @@
       if (kind === "dp") {
         if (["Declined", "Cancelled"].includes(rec.stage)) return "Not Proceeding";
         const job = (this.data.installations || []).some(j => j.appId === rec.id && j.status !== "Cancelled");
-        if (job || ["Ready for Installation", "Installation", "In Progress", "Completed"].includes(rec.stage)) return "Proceeding";
+        if (job || ["Approved", "Ready for Installation", "Installation", "In Progress", "Completed", "Installation Completed"].includes(rec.stage)) return "Proceeding";
         return "Awaiting";
       }
       // Site visit: the client proceeded once they have an application
@@ -3989,12 +4756,9 @@
     getClientPayments() {
       const rows = [];
       (this.data.applications || []).forEach(app => {
-        const hasField = app.downPaymentStatus !== undefined;
-        const legacyDp = !hasField && !this.isFullPaymentApp(app) && Number(app.downPayment) > 0;
-        if (!hasField && !legacyDp) return;
         rows.push(this._clientPaymentRow("dp", app, {
           ref: app.id, client: app.customer, customerId: app.customerId, type: "Down Payment",
-          amount: Number(app.downPaymentAmount || app.downPayment || 10000),
+          amount: downPaymentAmountFor(app),
           paymentStatus: this.downPaymentState(app), proof: app.downPaymentProof || null
         }));
       });
@@ -4012,8 +4776,8 @@
       let refundStatus;
       if (rec.refund && rec.refund.status === "Refunded") refundStatus = "Refunded";
       else if (base.paymentStatus !== "Verified") refundStatus = "Awaiting Verification";
-      else if (decision === "Proceeding") refundStatus = "Eligible for Refund";
-      else if (decision === "Not Proceeding") refundStatus = "Non-refundable";
+      else if (decision === "Proceeding") refundStatus = "Deducted from Price";
+      else if (decision === "Not Proceeding") refundStatus = kind === "dp" ? "Eligible for Refund" : "Non-refundable";
       else refundStatus = "Pending Decision";
       return { kind, id: rec.id, ...base, hasReceipt: !!(base.proof && base.proof.dataUrl), decision, refundStatus, refund: rec.refund || null };
     }
@@ -4025,7 +4789,8 @@
       if (rec.refund && rec.refund.status === "Refunded") return { success: false, error: "This payment was already refunded." };
       rec.clientDecision = decision;
       const label = kind === "dp" ? "down payment" : "site visit fee";
-      this.logActivity("Admin", options.adminUser || "ADMIN (Limuel)", `ACCOUNTING marked ${id} as ${decision} with installation (${label} ${decision === "Proceeding" ? "refundable" : "non-refundable"})`, id, {
+      const effect = decision === "Proceeding" ? "deducted from the system price" : (kind === "dp" ? "refundable" : "non-refundable");
+      this.logActivity("Admin", options.adminUser || "ADMIN (Limuel)", `ACCOUNTING marked ${id} as ${decision} with installation (${label} ${effect})`, id, {
         actorId: "ADMIN-01", recordType: "Accounting", deferSave: true, details: { kind, id, decision }
       });
       this.save();
@@ -4036,12 +4801,13 @@
       const rec = this._clientRecord(kind, id);
       if (!rec) return { success: false, error: "Record not found." };
       const row = kind === "dp"
-        ? this._clientPaymentRow("dp", rec, { paymentStatus: this.downPaymentState(rec), amount: Number(rec.downPaymentAmount || rec.downPayment || 10000) })
+        ? this._clientPaymentRow("dp", rec, { paymentStatus: this.downPaymentState(rec), amount: downPaymentAmountFor(rec) })
         : this._clientPaymentRow("sv", rec, { paymentStatus: rec.feePaymentStatus, amount: Number(rec.fee || 1000) });
       if (row.refundStatus === "Refunded") return { success: false, error: "This payment was already refunded." };
       if (row.refundStatus === "Awaiting Verification") return { success: false, error: "Verify the payment before refunding it." };
-      if (row.refundStatus === "Non-refundable") return { success: false, error: "Non-refundable: the client did not proceed with the installation." };
-      if (row.refundStatus !== "Eligible for Refund") return { success: false, error: "Refunds apply only once the client proceeds with the installation." };
+      if (row.refundStatus === "Non-refundable") return { success: false, error: "The site visit fee is non-refundable when the client does not proceed." };
+      if (row.refundStatus === "Deducted from Price") return { success: false, error: "The client proceeded, so this payment is deducted from the system price." };
+      if (row.refundStatus !== "Eligible for Refund") return { success: false, error: "A deposit is refunded only when the client does not proceed with the purchase." };
       const amount = Number(payload.amount) > 0 ? Number(payload.amount) : row.amount;
       rec.refund = {
         status: "Refunded", amount, method: payload.method || "Bank Transfer", reference: String(payload.reference || "").trim(),
@@ -4834,8 +5600,8 @@
           stage, installer, installerType: 'Partner Installer',
           financer, financerId: null,
           ...pricing,
-          // ₱10,000 down payment (both plans). Landing page "Buy Now" receipts arrive Pending Verification.
-          downPaymentAmount: INSTALLMENT_DOWN_PAYMENT,
+          // Down payment: ₱10,000 Installment / ₱500 Full Payment. Landing page "Buy Now" receipts arrive Pending Verification.
+          downPaymentAmount: downPaymentAmountFor(paymentType),
           downPaymentStatus: inquiry && inquiry.paymentProof && inquiry.paymentProof.purpose === 'Down Payment' ? 'Pending Verification' : 'Not Submitted',
           downPaymentProof: inquiry && inquiry.paymentProof && inquiry.paymentProof.purpose === 'Down Payment' ? { ...inquiry.paymentProof } : null,
           docs: isFullPayment ? '1/1' : '0/5',
@@ -5073,8 +5839,53 @@
             app.paymentStatus = "Verification Required";
           }
         }
+        // A declined application is not billed: no overdue / due soon status
+        if (app.stage === "Declined" && ["Overdue", "Due Soon", "On Time"].includes(app.paymentStatus)) {
+          app.paymentStatus = "Cancelled";
+          app.nextDue = "—";
+        }
       });
+      this._syncStagesWithInstallations();
+      this._syncFinancerLoanCounts();
       return this.data.applications;
+    }
+
+    // The application stage follows its installation job (maintenance jobs are not installations):
+    // a started job → "Installation", a completed job → "Completed".
+    _syncStagesWithInstallations() {
+      const before = ["Approved", "Ready for Installation", "Installation", "In Progress"];
+      (this.data.installations || []).forEach(job => {
+        if (!job || job.installerType === "Maintenance" || job.status === "Cancelled") return;
+        const app = (this.data.applications || []).find(a => a.id === job.appId);
+        if (!app || !before.includes(app.stage)) return;
+        if (job.status === "Completed") {
+          app.stage = "Completed";
+          app.installationStatus = "COMPLETED";
+        } else if (["In Progress", "Testing", "Delayed"].includes(job.status) && app.stage !== "Installation" && app.stage !== "In Progress") {
+          app.stage = "Installation";
+          if (!app.installationStatus || app.installationStatus === "AWAITING_INSTALLATION") app.installationStatus = "INSTALLATION_IN_PROGRESS";
+        }
+      });
+    }
+
+    // Each funder's number of active loans, counted from the applications it funds
+    _syncFinancerLoanCounts() {
+      const apps = this.data.applications || [];
+      (this.data.financers || []).forEach(f => {
+        f.activeLoans = apps.filter(a => (a.financerId === f.id || a.financer === f.name) && !this.isHelloSolarFunded(a) &&
+          a.stage !== "Declined" && a.paymentStatus !== "Completed").length;
+      });
+    }
+
+    // Date of the first activity logged for a record (used when an older record has no date of its own)
+    _firstActivityDate(recordId) {
+      let first = "";
+      (this.data.activity || []).forEach(e => {
+        if (!e || (e.record !== recordId && e.recordId !== recordId) || !e.timestamp) return;
+        const iso = String(e.timestamp).slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(iso) && (!first || iso < first)) first = iso;
+      });
+      return first;
     }
 
     // --- CONTACT INQUIRIES WORKFLOWS ---
@@ -5547,7 +6358,10 @@
     // applications. Outside the active window (pending start, expired, terminated, none), ownership is Hello Solar.
     static get HELLO_SOLAR_OWNER() { return { name: "Hello Solar", id: "HELLO-SOLAR" }; }
 
+    // Today's date (YYYY-MM-DD). window.HS_TODAY can pin "today" for automated tests.
     static todayISO(asOf) {
+      const pinned = !asOf && typeof window !== "undefined" && window.HS_TODAY;
+      if (pinned) return String(pinned).slice(0, 10);
       const d = asOf ? new Date(asOf) : new Date();
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     }
@@ -5721,6 +6535,48 @@
         }
       });
 
+      // 1b. Uploaded documents still waiting for review after docReviewEscalationHours
+      this.data.applications.forEach(a => {
+        if (["Declined", "Missing Documents"].includes(a.stage)) return;
+        let docs = [];
+        try { docs = this.getAppDocuments(a.id) || []; } catch (err) { docs = []; }
+        const waiting = docs.filter(d => d.status === "Submitted" && d.date && (Date.now() - Date.parse(d.date)) / 36e5 >= docReviewLimit);
+        if (!waiting.length) return;
+        items.push({
+          id: a.id,
+          type: "Application",
+          issue: "Documents waiting for review",
+          title: `Documents waiting for review for ${a.id}`,
+          context: `${a.customer} · ${waiting.length} document${waiting.length === 1 ? "" : "s"} waiting more than ${docReviewLimit}h`,
+          kind: "warn",
+          actionLabel: "Review Documents",
+          actionType: "view_app",
+          payload: a.id
+        });
+      });
+
+      // 1c. Approved / installed systems whose customer has not uploaded the signed agreement yet (one grouped item)
+      const S = typeof window !== "undefined" ? window.HSShared : null;
+      if (S && typeof S.agreementFor === "function") {
+        const past = ["Approved", "Ready for Installation", "Installation", "In Progress", "Completed", "Installation Completed"];
+        const noAgreement = this.data.applications.filter(a => a.customerId && past.includes(a.stage) &&
+          ["NOT_SUBMITTED", "REUPLOAD_REQUIRED"].includes((S.agreementFor(a) || {}).status));
+        if (noAgreement.length) {
+          const ids = noAgreement.map(a => a.id);
+          items.push({
+            id: `${ids.length} APP${ids.length === 1 ? "" : "s"}`,
+            type: "Application",
+            issue: `Signed agreement not uploaded yet (${ids.slice(0, 3).join(", ")}${ids.length > 3 ? ", …" : ""})`,
+            title: "Signed agreements missing",
+            context: ids.join(", "),
+            kind: "warn",
+            actionLabel: "Review Application",
+            actionType: "view_app",
+            payload: ids[0]
+          });
+        }
+      }
+
       // 2. Delayed installations (driven by installationDelayThresholdDays)
       this.data.installations.forEach(j => {
         if (j.status === "Delayed") {
@@ -5740,7 +6596,7 @@
 
       // 3. Overdue payments (driven by overdueThresholdDays)
       this.data.applications.forEach(a => {
-        if (a.paymentStatus === "Overdue") {
+        if (a.paymentStatus === "Overdue" && a.stage !== "Declined") {
           items.push({
             id: a.id,
             type: "Payment",
@@ -5851,7 +6707,7 @@
   HelloSolarStore.ADMIN_COMMANDS = ADMIN_COMMANDS;
 
   window.HelloSolarStore = HelloSolarStore;
-  window.HELLO_SOLAR_PACKAGES = { catalog: PACKAGE_CATALOG, findPackage, termMonths: INSTALLMENT_TERM_MONTHS, downPayment: INSTALLMENT_DOWN_PAYMENT };
+  window.HELLO_SOLAR_PACKAGES = { catalog: PACKAGE_CATALOG, findPackage, termMonths: INSTALLMENT_TERM_MONTHS, termOptions: INSTALLMENT_TERM_OPTIONS, termLabel, monthlyForTerm, downPayment: INSTALLMENT_DOWN_PAYMENT, fullPaymentDownPayment: FULL_PAYMENT_DOWN_PAYMENT, downPaymentAmountFor };
   window.HELLO_SOLAR_DB = new HelloSolarStore();
   // Maintain backward compatibility for any script accessing window.HELLO_SOLAR_DATA
   window.HELLO_SOLAR_DATA = window.HELLO_SOLAR_DB.data;

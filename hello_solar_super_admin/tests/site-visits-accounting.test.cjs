@@ -9,7 +9,8 @@ const CUSTOMER_KEY = 'HELLO_SOLAR_CUSTOMER_INQUIRIES';
 
 function environment(queue = []) {
   const local = new Map([[CUSTOMER_KEY, JSON.stringify(queue)]]);
-  const context = { console, crypto: require('node:crypto').webcrypto, localStorage: { getItem: k => (local.has(k) ? local.get(k) : null), setItem: (k, v) => local.set(k, String(v)), removeItem: k => local.delete(k) } };
+  const context = {
+    HS_TODAY: '2026-09-25', /* tests run on the sample data date */ console, crypto: require('node:crypto').webcrypto, localStorage: { getItem: k => (local.has(k) ? local.get(k) : null), setItem: (k, v) => local.set(k, String(v)), removeItem: k => local.delete(k) } };
   context.window = context;
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(root, '../shared/hello-solar-store.js'), 'utf8'), context);
@@ -59,18 +60,31 @@ test('assign to installer, engineer or another person (with uploaded document)',
   assert.equal(other.success, false, 'completed visits cannot be reassigned');
 });
 
-test('refund only when the client proceeds; non-refundable when not', () => {
+test('terms: site visit fee is deducted when the client proceeds and non-refundable when not', () => {
   const { db } = environment([siteAssessment(), siteAssessment({ email: 'b@x.test', phone: '09990000000' })]);
   const [v1, v2] = db.getSiteVisits();
   assert.match(db.refundClientPayment('sv', v1.id).error, /Verify/);
   db.verifySiteVisitFee(v1.id); db.verifySiteVisitFee(v2.id);
   db.setClientDecision('sv', v1.id, 'Not Proceeding');
-  assert.match(db.refundClientPayment('sv', v1.id).error, /Non-refundable/);
+  assert.equal(db.getClientPayments().find(r => r.id === v1.id).refundStatus, 'Non-refundable');
+  assert.match(db.refundClientPayment('sv', v1.id).error, /non-refundable/);
   db.setClientDecision('sv', v2.id, 'Proceeding');
-  const ok = db.refundClientPayment('sv', v2.id, { reference: 'BDO-123' });
-  assert.equal(ok.success, true);
-  assert.equal(db.getClientPayments().find(r => r.id === v2.id).refundStatus, 'Refunded');
-  assert.equal(db.refundClientPayment('sv', v2.id).success, false, 'no double refund');
+  assert.equal(db.getClientPayments().find(r => r.id === v2.id).refundStatus, 'Deducted from Price');
+  assert.equal(db.refundClientPayment('sv', v2.id).success, false);
+});
+
+test('terms: the deposit is refunded when the client does not proceed and deducted when they do', () => {
+  const { db } = environment();
+  const declined = db.data.applications.find(a => a.stage === 'Declined');
+  const row = db.getClientPayments().find(r => r.kind === 'dp' && r.id === declined.id);
+  assert.equal(row.refundStatus, 'Eligible for Refund');
+  const ok = db.refundClientPayment('dp', declined.id, { reference: 'BDO-123' });
+  assert.equal(ok.success, true, ok.error);
+  assert.equal(db.getClientPayments().find(r => r.kind === 'dp' && r.id === declined.id).refundStatus, 'Refunded');
+  assert.equal(db.refundClientPayment('dp', declined.id).success, false, 'no double refund');
+  const going = db.data.applications.find(a => a.stage === 'Approved' && !db.isFullPaymentApp(a));
+  assert.equal(db.getClientPayments().find(r => r.kind === 'dp' && r.id === going.id).refundStatus, 'Deducted from Price');
+  assert.match(db.refundClientPayment('dp', going.id).error, /deducted/);
 });
 
 test('customer reimbursement request is handled by accounting', () => {

@@ -9,13 +9,13 @@
     <link rel="icon" type="image/png" href="assets/images/logofortab.png" />
     <link rel="apple-touch-icon" href="assets/images/logofortab.png" />
     <script src="../shared/hello-solar-config.js"></script>
-    <script src="../shared/hello-solar-store.js?v=20261014c"></script>
+    <script src="../shared/hello-solar-store.js?v=20261028d"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap"
         rel="stylesheet">
 
-    <link rel="stylesheet" href="css/index.css?v=20261014" />
+    <link rel="stylesheet" href="css/index.css?v=20261028e" />
     <link rel="stylesheet" href="css/utilities.css" />
 </head>
 
@@ -229,7 +229,7 @@
                     <div class="flex flex-col items-center justify-center text-center select-none">
                         <span id="badgeBillsVal"
                             class="hero-stat-value inline-block font-black bg-gradient-to-r from-amber-500 via-amber-400 to-orange-500 bg-clip-text text-transparent tracking-tight text-xl sm:text-2xl md:text-3xl 2xl:text-4xl leading-none transition-all duration-150">
-                            5 Years
+                            6 Years
                         </span>
                         <p class="hero-stat-label text-xs sm:text-sm 2xl:text-base font-bold text-stone-700 mt-2">
                             Monthly Bills
@@ -420,6 +420,15 @@
                 </h2>
                 <p class="text-xs sm:text-sm 2xl:text-base font-bold text-stone-600">Find the best fit for your home.
                 </p>
+                <!-- Installment term switch: changes the monthly price on every card (Full Payment stays the same) -->
+                <div class="term-switch-wrap">
+                    <div class="term-switch" id="termSwitch" role="radiogroup" aria-label="Installment term">
+                        <span class="term-switch-label">Installment term</span>
+                        <button type="button" role="radio" aria-checked="false" data-term="6">6 months</button>
+                        <button type="button" role="radio" aria-checked="false" data-term="36">3 years</button>
+                        <button type="button" role="radio" aria-checked="true" data-term="72" class="is-active">6 years</button>
+                    </div>
+                </div>
             </div>
 
             <div class="relative w-full">
@@ -458,10 +467,10 @@
                                 <div class="text-center pt-1 sm:pt-2">
                                     <div
                                         class="text-2xl sm:text-3xl 2xl:text-4xl font-black text-amber-600 tracking-tight whitespace-nowrap">
-                                        ₱7,284 <span
+                                        <span data-card-monthly="hs6-lite">₱7,284</span> <span
                                             class="text-xs sm:text-sm 2xl:text-base font-bold text-stone-600">/month</span>
                                     </div>
-                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1">6 years, 10k DP
+                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1" data-card-term>6 years, 10k DP
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
@@ -501,10 +510,10 @@
                                 <div class="text-center pt-1 sm:pt-2">
                                     <div
                                         class="text-2xl sm:text-3xl 2xl:text-4xl font-black text-amber-600 tracking-tight whitespace-nowrap">
-                                        ₱8,689 <span
+                                        <span data-card-monthly="hs6-pro">₱8,689</span> <span
                                             class="text-xs sm:text-sm 2xl:text-base font-bold text-stone-600">/month</span>
                                     </div>
-                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1">6 years, 10k DP
+                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1" data-card-term>6 years, 10k DP
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
@@ -540,10 +549,10 @@
                                 <div class="text-center pt-1 sm:pt-2">
                                     <div
                                         class="text-2xl sm:text-3xl 2xl:text-4xl font-black text-amber-600 tracking-tight whitespace-nowrap">
-                                        ₱9,967 <span
+                                        <span data-card-monthly="hs6-max">₱9,967</span> <span
                                             class="text-xs sm:text-sm 2xl:text-base font-bold text-stone-600">/month</span>
                                     </div>
-                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1">6 years, 10k DP
+                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1" data-card-term>6 years, 10k DP
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
@@ -579,10 +588,10 @@
                                 <div class="text-center pt-1 sm:pt-2">
                                     <div
                                         class="text-2xl sm:text-3xl 2xl:text-4xl font-black text-amber-600 tracking-tight whitespace-nowrap">
-                                        ₱13,187 <span
+                                        <span data-card-monthly="hs8-pro">₱13,187</span> <span
                                             class="text-xs sm:text-sm 2xl:text-base font-bold text-stone-600">/month</span>
                                     </div>
-                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1">6 years, 10k DP
+                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1" data-card-term>6 years, 10k DP
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
@@ -617,10 +626,10 @@
                                 <div class="text-center pt-1 sm:pt-2">
                                     <div
                                         class="text-2xl sm:text-3xl 2xl:text-4xl font-black text-amber-600 tracking-tight whitespace-nowrap">
-                                        ₱15,692 <span
+                                        <span data-card-monthly="hs8-max">₱15,692</span> <span
                                             class="text-xs sm:text-sm 2xl:text-base font-bold text-stone-600">/month</span>
                                     </div>
-                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1">6 years, 10k DP
+                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1" data-card-term>6 years, 10k DP
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
@@ -655,10 +664,10 @@
                                 <div class="text-center pt-1 sm:pt-2">
                                     <div
                                         class="text-2xl sm:text-3xl 2xl:text-4xl font-black text-amber-600 tracking-tight whitespace-nowrap">
-                                        ₱15,572 <span
+                                        <span data-card-monthly="hs12-pro">₱15,572</span> <span
                                             class="text-xs sm:text-sm 2xl:text-base font-bold text-stone-600">/month</span>
                                     </div>
-                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1">6 years, 10k DP
+                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1" data-card-term>6 years, 10k DP
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
@@ -693,10 +702,10 @@
                                 <div class="text-center pt-1 sm:pt-2">
                                     <div
                                         class="text-2xl sm:text-3xl 2xl:text-4xl font-black text-amber-600 tracking-tight whitespace-nowrap">
-                                        ₱19,600 <span
+                                        <span data-card-monthly="hs12-max">₱19,600</span> <span
                                             class="text-xs sm:text-sm 2xl:text-base font-bold text-stone-600">/month</span>
                                     </div>
-                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1">6 years, 10k DP
+                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1" data-card-term>6 years, 10k DP
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
@@ -731,10 +740,10 @@
                                 <div class="text-center pt-1 sm:pt-2">
                                     <div
                                         class="text-2xl sm:text-3xl 2xl:text-4xl font-black text-amber-600 tracking-tight whitespace-nowrap">
-                                        ₱21,234 <span
+                                        <span data-card-monthly="hs16-pro">₱21,234</span> <span
                                             class="text-xs sm:text-sm 2xl:text-base font-bold text-stone-600">/month</span>
                                     </div>
-                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1">6 years, 10k DP
+                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1" data-card-term>6 years, 10k DP
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
@@ -769,10 +778,10 @@
                                 <div class="text-center pt-1 sm:pt-2">
                                     <div
                                         class="text-2xl sm:text-3xl 2xl:text-4xl font-black text-amber-600 tracking-tight whitespace-nowrap">
-                                        ₱26,542 <span
+                                        <span data-card-monthly="hs16-pro-max">₱26,542</span> <span
                                             class="text-xs sm:text-sm 2xl:text-base font-bold text-stone-600">/month</span>
                                     </div>
-                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1">6 years, 10k DP
+                                    <div class="text-xs sm:text-sm text-stone-600 font-bold mt-1" data-card-term>6 years, 10k DP
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
@@ -1060,8 +1069,8 @@
                     </span>
                     <h3 id="inquiryTitle" class="text-2xl 2xl:text-3xl font-black text-[#1C1917] tracking-tight">Reserve
                         Your System</h3>
-                    <p class="text-xs 2xl:text-sm text-stone-500 font-semibold">Reserve your system with a ₱10,000 down
-                        payment.</p>
+                    <p class="text-xs 2xl:text-sm text-stone-500 font-semibold" id="inquiryDpNote">Reserve your system with a
+                        <strong class="text-[#1C1917]">₱500</strong> down payment (Full Payment) or <strong class="text-[#1C1917]">₱10,000</strong> (Installment).</p>
                 </div>
 
                 <form id="leadForm" onsubmit="handleLeadSubmit(event)" class="space-y-4" novalidate>
@@ -1071,7 +1080,7 @@
                         <div class="hs-dropdown" data-dropdown="leadPackage">
                             <button type="button" class="hs-dropdown-trigger" aria-haspopup="listbox"
                                 aria-expanded="false">
-                                <span class="hs-dd-label">HS 6 LITE — 5kW | 6kW | 5kWh</span>
+                                <span class="hs-dd-label">HS 6 LITE</span>
                                 <svg class="hs-dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M6 9l6 6 6-6" />
@@ -1198,7 +1207,7 @@
                                     <span class="pay-option-dot" aria-hidden="true"></span>
                                 </span>
                                 <span class="pay-option-price" data-pay-price="full">₱285,000</span>
-                                <span class="pay-option-sub">One-time payment</span>
+                                <span class="pay-option-sub">One-time · <strong>₱500 down payment</strong></span>
                             </button>
                             <button type="button" role="radio" aria-checked="false" data-payment="Installment"
                                 class="pay-option">
@@ -1208,8 +1217,38 @@
                                 </span>
                                 <span class="pay-option-price"
                                     data-pay-price="installment">₱7,284<small>/mo</small></span>
-                                <span class="pay-option-sub">6 yrs · ₱10k down payment</span>
+                                <span class="pay-option-sub"><span data-pay-term>6 yrs</span> · <strong>₱10k down payment</strong></span>
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- Installment term (Installment only; hidden for Full Payment). Value in months: 6, 36 or 72 -->
+                    <div id="leadTermWrap" hidden>
+                        <span class="lead-label">Installment Term <span class="text-amber-600">*</span></span>
+                        <input type="hidden" id="leadTerm" name="leadTerm" value="72" />
+                        <div class="hs-dropdown" data-dropdown="leadTerm">
+                            <button type="button" class="hs-dropdown-trigger" aria-haspopup="listbox"
+                                aria-expanded="false">
+                                <span class="hs-dd-label">6 years</span>
+                                <svg class="hs-dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M6 9l6 6 6-6" />
+                                </svg>
+                            </button>
+                            <div class="hs-dropdown-overlay"></div>
+                            <div class="hs-dropdown-panel" role="listbox">
+                                <div class="hs-dd-sheet-header">
+                                    <span style="font-size:13px;font-weight:800;color:#1C1917;">Select Installment Term</span>
+                                    <button type="button" class="hs-dd-sheet-close"
+                                        style="width:32px;height:32px;border-radius:10px;background:#f5f0e8;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#78716c"
+                                            stroke-width="2.5" stroke-linecap="round">
+                                            <path d="M18 6L6 18M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div data-term-options></div>
+                            </div>
                         </div>
                     </div>
 
@@ -1568,11 +1607,11 @@
                     <path d="m6 6 12 12" />
                 </svg>
             </button>
-            <div class="space-y-1.5 mb-4 pr-12">
+            <div class="space-y-2 mb-5 pr-12">
                 <span id="termsBadge"
                     class="inline-block bg-amber-500/10 text-amber-700 text-[10px] 2xl:text-xs font-black px-3 py-0.5 rounded-full uppercase tracking-wider">Site
                     Assessment</span>
-                <h3 id="termsTitle" class="text-2xl 2xl:text-3xl font-black text-[#1C1917] tracking-tight">Terms
+                <h3 id="termsTitle" class="text-lg 2xl:text-xl font-black text-[#1C1917] tracking-tight leading-snug">Terms
                     &amp; Conditions</h3>
             </div>
             <ol id="termsList" class="hs-terms-list"></ol>
@@ -1582,7 +1621,7 @@
 
     <!-- JAVASCRIPT LOGIC ENGINE -->
     <script src="js/icons.js"></script>
-    <script src="js/index.js?v=20261014b"></script>
+    <script src="js/index.js?v=20261028e"></script>
 </body>
 
 </html>

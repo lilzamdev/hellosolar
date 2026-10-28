@@ -23,7 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (fin === "DOCUMENTS_REQUIRED" || loan === "docs_required") badge = ["badge-docs-required", "Documents Required"];
             else if (fin === "UNDER_REVIEW" || loan === "review") badge = ["badge-review", "Pending Finance"];
             const docs = typeof window.getApplicationDocuments === "function" ? window.getApplicationDocuments(app) : [];
-            const docText = `${docs.filter(d => d.submitted).length}/${docs.length}`;
+            const docText = typeof window.documentCountText === "function" ? window.documentCountText(docs) : `${docs.filter(d => d.submitted).length}/${docs.length}`;
             return `
                 <tr data-appid="${id}" data-borrower="${borrower}">
                     <td data-label="Applicant ID">
@@ -286,6 +286,26 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    // Portfolio Analytics: live numbers from this financer's approved loans (shared records)
+    (function renderPortfolio() {
+        const store = window.HelloSolarStore;
+        if (!store || typeof store.getPortfolioStats !== "function") return;
+        const s = store.getPortfolioStats();
+        const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+        set("pfTotal", `${store.pesoShort(s.total)} Total`);
+        set("pfSubtitle", `Asset allocation across ${s.count} approved loan${s.count === 1 ? "" : "s"}`);
+        set("pfPerforming", s.count ? `${s.onTimePct}% Performing` : "No loans yet");
+        [["residential", "Residential"], ["commercial", "Commercial"], ["battery", "Battery"]].forEach(([key, cap]) => {
+            const c = s.categories[key];
+            const share = s.total ? Math.round(c.amount / s.total * 100) : 0;
+            set(`pfCount${cap}`, `${c.count} loan${c.count === 1 ? "" : "s"}`);
+            set(`pfAmount${cap}`, store.pesoShort(c.amount));
+            set(`pfShare${cap}`, `${share}%`);
+            const bar = document.getElementById(`pfBar${cap}`);
+            if (bar) { bar.style.width = `${share}%`; bar.title = `${cap}: ${share}% (${store.pesoShort(c.amount)})`; }
+        });
+    })();
 
     // Compact Supporting Information Tabs (Portfolio Breakdown / Recent Activity)
     const supportingTabBtns = document.querySelectorAll(".supporting-tab-btn");
