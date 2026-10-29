@@ -31,6 +31,7 @@
     <link rel="stylesheet" href="css/payments-page-2.css">
     <link rel="stylesheet" href="css/customer-polish.css?v=20261028f">
     <link rel="stylesheet" href="css/down-payment.css">
+    <link rel="stylesheet" href="css/payment-proof-modal.css?v=20261029b">
 </head>
 
 <body>
@@ -494,89 +495,97 @@
         </section>
     </dialog>
 
-    <!-- SUBMIT PAYMENT PROOF MODAL -->
+    <!-- SUBMIT PAYMENT MODAL: one card on every device (phone = bottom sheet, larger = centered) -->
     <dialog id="submitPaymentProofModal" aria-labelledby="proofModalTitle">
-        <section class="panel" id="submitProofModalSection">
-            <div class="panel-header">
-                <button type="button" id="closeProofModalBtn" aria-label="Close submit payment proof" autofocus>✕</button>
-                <div>
-                    <h2 class="panel-title" id="proofModalTitle">Submit Proof of Payment</h2>
-                    <p class="panel-subtitle" id="proofModalSubtitle">Submit payment receipt for Super Admin verification</p>
-                </div>
-            </div>
-
-            <form id="paymentProofModalForm" class="panel-body">
-                <div class="verification-notice-box">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                        style="color: var(--solar-orange); flex-shrink: 0; margin-top: 1px;">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="12" y1="8" x2="12" y2="12"></line>
-                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                    </svg>
-                    <p style="margin: 0; font-size: 12.5px; color: #475569; line-height: 1.45;">
-                        <strong>Super Admin verification required.</strong> Your submission status will be set to <strong>Payment Under Review</strong> only. Your account is marked Paid once verified by Super Admin.
-                    </p>
-                </div>
-
-                <div class="proof-field-group">
-                    <label class="proof-field-label" for="proofChannelInput">Bank / Payment Channel <span class="required-star">*</span></label>
-                    <select id="proofChannelInput" class="proof-field-select" required>
-                        <option value="GCash">GCash (+63 917 000 1111 - Hello Solar Official)</option>
-                        <option value="Maya">Maya (+63 917 000 1111 - Hello Solar Official)</option>
-                        <option value="BDO Bank Transfer">BDO Bank Transfer (0082-1234-5678 - Hello Solar Inc.)</option>
-                        <option value="BPI Bank Transfer">BPI Bank Transfer</option>
-                        <option value="UnionBank">UnionBank</option>
-                        <option value="Over-the-Counter / Other">Over-the-Counter / Other</option>
-                    </select>
-                </div>
-
-                <div class="proof-field-row">
-                    <div class="proof-field-group">
-                        <label class="proof-field-label" for="proofAmountInput">Amount Deposited <span class="required-star">*</span></label>
-                        <input type="text" id="proofAmountInput" class="proof-field-input" placeholder="₱9,066.67" required>
+        <section id="submitProofModalSection">
+            <form id="paymentProofModalForm" novalidate>
+                <header class="pp-head">
+                    <div class="pp-head-text">
+                        <p class="pp-eyebrow" id="proofModalSubtitle">Monthly bill</p>
+                        <h2 class="pp-amount" id="proofModalTitle">₱0</h2>
+                        <p class="pp-due" id="proofModalDue"></p>
                     </div>
-                    <div class="proof-field-group">
-                        <label class="proof-field-label" for="proofDateInput">Payment / Deposit Date <span class="required-star">*</span></label>
-                        <input type="date" id="proofDateInput" class="proof-field-input" required>
-                    </div>
-                </div>
+                    <button type="button" class="pp-close" id="closeProofModalBtn" aria-label="Close">✕</button>
+                </header>
 
-                <div class="proof-field-group">
-                    <label class="proof-field-label" for="proofRefInput">Reference Number <span class="required-star">*</span></label>
-                    <input type="text" id="proofRefInput" class="proof-field-input" placeholder="e.g. HS-12345 or Transaction Ref #" required>
-                </div>
-
-                <div class="proof-field-group">
-                    <label class="proof-field-label" id="modalFileLabel">Receipt Upload <span class="required-star">*</span></label>
-                    <input type="file" id="modalProofFileInput" class="upload-file-input" accept="image/png,image/jpeg,application/pdf">
-                    <div class="upload-dropzone" id="modalProofDropzone" role="button" tabindex="0"
-                        aria-label="Click or drag file to upload payment proof receipt">
-                        <div class="upload-icon-circle">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                <polyline points="17 8 12 3 7 8" />
-                                <line x1="12" y1="3" x2="12" y2="15" />
-                            </svg>
+                <div class="pp-body">
+                    <div class="pp-how">
+                        <p class="pp-how-title">Not paid yet? Send it here</p>
+                        <div class="pp-chips" role="radiogroup" aria-label="Payment channel">
+                            <button type="button" class="pp-chip is-on" role="radio" aria-checked="true" data-channel="GCash" data-name="GCash · Hello Solar Official" data-number="0917 000 1111">GCash</button>
+                            <button type="button" class="pp-chip" role="radio" aria-checked="false" data-channel="Maya" data-name="Maya · Hello Solar Official" data-number="0917 000 1111">Maya</button>
+                            <button type="button" class="pp-chip" role="radio" aria-checked="false" data-channel="BDO Bank Transfer" data-name="BDO · Hello Solar Inc." data-number="0082-1234-5678">Bank</button>
                         </div>
-                        <div>
-                            <strong style="font-size: 13.5px; color: var(--navy);" id="modalDropzonePrompt">Click or drag receipt file here</strong>
-                            <p style="font-size: 11.5px; color: var(--gray-400); margin-top: 2px;">PNG, JPG, or PDF up to 10MB</p>
+                        <div class="pp-acct">
+                            <div class="pp-acct-text">
+                                <span id="ppAcctName">GCash · Hello Solar Official</span>
+                                <strong id="ppAcctNumber">0917 000 1111</strong>
+                            </div>
+                            <button type="button" class="pp-copy" id="ppCopyBtn">Copy</button>
+                        </div>
+                        <p class="pp-tip">Put <strong id="ppRefTip">your HS ID</strong> in the message so we find your payment fast.</p>
+                    </div>
+                    <input type="hidden" id="proofChannelInput" value="GCash">
+
+                    <div class="pp-field">
+                        <span class="pp-label" id="modalFileLabel">Receipt <span class="pp-req">*</span></span>
+                        <input type="file" id="modalProofFileInput" class="upload-file-input" accept="image/png,image/jpeg,application/pdf">
+                        <div class="pp-drop" id="modalProofDropzone" role="button" tabindex="0" aria-labelledby="modalFileLabel modalDropzonePrompt">
+                            <span class="pp-drop-ic" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                            </span>
+                            <span class="pp-drop-text">
+                                <strong id="modalDropzonePrompt">Add your receipt</strong>
+                                <small>Screenshot or photo · JPG, PNG or PDF · up to 10 MB</small>
+                            </span>
+                        </div>
+                        <div class="pp-file" id="modalSelectedFileBadge">
+                            <span class="pp-file-ic" aria-hidden="true">✓</span>
+                            <span class="pp-file-text">
+                                <strong id="modalSelectedFileName"></strong>
+                                <small>Ready to send</small>
+                            </span>
+                            <button type="button" class="pp-link" id="ppChangeFileBtn">Change</button>
                         </div>
                     </div>
 
-                    <div class="selected-file-badge" id="modalSelectedFileBadge">
-                        <span>📄</span>
-                        <span id="modalSelectedFileName">receipt.png</span>
+                    <div class="pp-field">
+                        <label class="pp-label" for="proofRefInput">Reference no. <span class="pp-req">*</span></label>
+                        <input type="text" id="proofRefInput" class="pp-input" placeholder="From your GCash / bank receipt" autocomplete="off" required>
                     </div>
+
+                    <div class="pp-months" id="ppMonthsRow">
+                        <div class="pp-months-text">
+                            <strong id="ppMonthsTitle">Paying for</strong>
+                            <span id="ppMonthsPeriods"></span>
+                        </div>
+                        <div class="pp-step" role="group" aria-label="Number of months to pay">
+                            <button type="button" class="pp-step-btn" id="ppMonthsMinus" aria-label="One month less">−</button>
+                            <span class="pp-step-val" id="ppMonthsValue" aria-live="polite">1 month</span>
+                            <button type="button" class="pp-step-btn" id="ppMonthsPlus" aria-label="One month more">+</button>
+                        </div>
+                    </div>
+                    <input type="hidden" id="proofAmountInput">
+                    <input type="hidden" id="proofDateInput">
                 </div>
 
-                <div class="proof-modal-actions">
-                    <button type="button" class="btn btn-outline" id="modalCancelProofBtn">Cancel</button>
-                    <button type="submit" class="btn btn-primary" id="modalSubmitProofBtn">Submit Payment Proof</button>
-                </div>
+                <footer class="pp-foot">
+                    <button type="submit" class="btn btn-primary pp-submit" id="modalSubmitProofBtn" disabled>Submit Payment</button>
+                    <p class="pp-foot-note">We'll confirm within 1–2 business days.</p>
+                </footer>
             </form>
+
+            <div class="pp-done" id="proofSuccessView" hidden>
+                <div class="pp-done-ic" aria-hidden="true">✓</div>
+                <h2 class="pp-done-title">Receipt sent!</h2>
+                <p class="pp-done-text">We'll confirm your payment within 1–2 business days. You'll get a notification.</p>
+                <dl class="pp-done-list">
+                    <div><dt>Bill</dt><dd id="ppDoneBill"></dd></div>
+                    <div><dt>Paid via</dt><dd id="ppDoneVia"></dd></div>
+                    <div><dt>Status</dt><dd><span class="pp-pill">Under review</span></dd></div>
+                </dl>
+                <button type="button" class="btn btn-primary pp-submit" id="ppDoneBtn">Done</button>
+            </div>
         </section>
     </dialog>
 
@@ -612,7 +621,7 @@
     <!-- Core Portal JavaScript -->
     <script src="js/portal.js"></script>
 
-    <script src="js/payments.js"></script>
+    <script src="js/payments.js?v=20261029b"></script>
     <script src="js/notifications.js"></script>
 
     <script src="js/payment-dialogs.js"></script>

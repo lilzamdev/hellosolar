@@ -1,0 +1,351 @@
+/* Submit Payment modal — one card on every device.
+   Phone (≤600px): bottom sheet. Tablet / laptop / desktop: centered, 460px wide.
+   Only the middle part scrolls if the screen is very short; Submit stays visible. */
+
+dialog#submitPaymentProofModal {
+    width: min(460px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+    max-height: calc(100dvh - 32px);
+    height: fit-content;
+    margin: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 22px;
+    background: var(--surface);
+    color: var(--ink);
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgb(28 25 23 / 30%);
+}
+dialog#submitPaymentProofModal::backdrop {
+    background: rgb(28 25 23 / 55%);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+}
+dialog#submitPaymentProofModal[open] { display: flex; flex-direction: column; }
+
+#submitPaymentProofModal #submitProofModalSection {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: inherit;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+    overflow: hidden;
+}
+#submitPaymentProofModal #paymentProofModalForm {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+}
+#submitPaymentProofModal #paymentProofModalForm[hidden],
+#submitPaymentProofModal .pp-done[hidden] { display: none; }
+
+/* Header: the bill */
+#submitPaymentProofModal .pp-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 18px 20px 12px;
+    flex: 0 0 auto;
+}
+#submitPaymentProofModal .pp-eyebrow {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--focus);
+}
+#submitPaymentProofModal .pp-amount {
+    margin: 2px 0 0;
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -.02em;
+    color: var(--ink);
+}
+#submitPaymentProofModal .pp-due { margin: 3px 0 0; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+#submitPaymentProofModal .pp-due.is-late { color: #B91C1C; }
+#submitPaymentProofModal .pp-close {
+    position: static;
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--gray-100);
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    transform: none;
+}
+#submitPaymentProofModal .pp-close:hover { background: var(--selected); color: var(--ink); transform: none; }
+
+/* Body */
+#submitPaymentProofModal .pp-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 2px 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* "Not paid yet?" box */
+#submitPaymentProofModal .pp-how { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+#submitPaymentProofModal .pp-how-title {
+    margin: 0;
+    padding: 9px 12px;
+    background: var(--page-bg);
+    font-size: 12.5px;
+    font-weight: 800;
+    color: var(--gray-700);
+}
+#submitPaymentProofModal .pp-chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 10px 12px 0; }
+#submitPaymentProofModal .pp-chip {
+    min-height: 36px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--muted);
+    cursor: pointer;
+}
+#submitPaymentProofModal .pp-chip.is-on { border-color: var(--icon); background: var(--selected); color: var(--ink); }
+#submitPaymentProofModal .pp-acct { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px 4px; }
+#submitPaymentProofModal .pp-acct-text { min-width: 0; display: flex; flex-direction: column; }
+#submitPaymentProofModal .pp-acct-text span { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+#submitPaymentProofModal .pp-acct-text strong { font-size: 17px; font-weight: 800; letter-spacing: .01em; color: var(--ink); }
+#submitPaymentProofModal .pp-copy {
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 0 14px;
+    border: 1px solid #F7D9A8;
+    border-radius: 999px;
+    background: var(--surface);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--focus);
+    cursor: pointer;
+}
+#submitPaymentProofModal .pp-tip { margin: 0; padding: 4px 12px 11px; font-size: 12px; font-weight: 600; color: var(--muted); }
+#submitPaymentProofModal .pp-tip strong { color: var(--ink); }
+
+/* Fields */
+#submitPaymentProofModal .pp-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+#submitPaymentProofModal .pp-label { font-size: 12.5px; font-weight: 800; color: var(--gray-700); }
+#submitPaymentProofModal .pp-req { color: #E07A0C; }
+#submitPaymentProofModal .pp-input {
+    width: 100%;
+    height: 46px;
+    padding: 0 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 11px;
+    background: var(--surface);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+    box-sizing: border-box;
+}
+#submitPaymentProofModal .pp-input::placeholder { color: #A8A29E; font-weight: 500; }
+#submitPaymentProofModal .pp-input:focus,
+#submitPaymentProofModal .pp-input:focus-visible { outline: none !important; border-color: var(--icon); box-shadow: 0 0 0 3px var(--selected); }
+
+/* Receipt */
+#submitPaymentProofModal .upload-file-input { display: none; }
+#submitPaymentProofModal .pp-drop {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    border: 2px dashed #E5C98F;
+    border-radius: 14px;
+    background: #FFFDF7;
+    cursor: pointer;
+    text-align: left;
+}
+#submitPaymentProofModal .pp-drop:hover,
+#submitPaymentProofModal .pp-drop.dragover { border-color: var(--icon); background: var(--selected); }
+#submitPaymentProofModal .pp-drop:focus-visible { outline: 3px solid var(--selected); outline-offset: 2px; }
+#submitPaymentProofModal .pp-drop-ic {
+    flex: 0 0 auto;
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 11px;
+    background: #FEF3C7;
+    color: var(--focus);
+}
+#submitPaymentProofModal .pp-drop-ic svg { width: 20px; height: 20px; }
+#submitPaymentProofModal .pp-drop-text,
+#submitPaymentProofModal .pp-file-text { display: flex; flex-direction: column; min-width: 0; }
+#submitPaymentProofModal .pp-drop-text strong { font-size: 14.5px; color: var(--ink); }
+#submitPaymentProofModal .pp-drop-text small { font-size: 12px; font-weight: 600; color: var(--muted); }
+#submitPaymentProofModal .pp-file {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1.5px solid #BBF7D0;
+    border-radius: 14px;
+    background: #F0FDF4;
+}
+#submitPaymentProofModal .pp-file.visible { display: flex; }
+#submitPaymentProofModal .pp-file.visible ~ .pp-drop,
+#submitPaymentProofModal .pp-field.has-file .pp-drop { display: none; }
+#submitPaymentProofModal .pp-file-ic {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: #DCFCE7;
+    color: #15803D;
+    font-weight: 900;
+}
+#submitPaymentProofModal .pp-file-text strong { font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#submitPaymentProofModal .pp-file-text small { font-size: 12px; font-weight: 700; color: #15803D; }
+#submitPaymentProofModal .pp-link {
+    margin-left: auto;
+    padding: 4px 2px;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 800;
+    color: var(--focus);
+    cursor: pointer;
+}
+
+/* Paying for — whole months (advance payment) */
+#submitPaymentProofModal .pp-months {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 8px 8px 12px;
+    border-radius: 12px;
+    background: var(--page-bg);
+}
+#submitPaymentProofModal .pp-months[hidden] { display: none; }
+#submitPaymentProofModal .pp-months-text { display: flex; flex-direction: column; min-width: 0; }
+#submitPaymentProofModal .pp-months-text strong { font-size: 13px; font-weight: 800; color: var(--ink); }
+#submitPaymentProofModal .pp-months-text span { font-size: 12px; font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#submitPaymentProofModal .pp-step {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    height: 38px;
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+}
+#submitPaymentProofModal .pp-step-btn {
+    width: 38px;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--focus);
+    cursor: pointer;
+}
+#submitPaymentProofModal .pp-step-btn:disabled { color: #D6D3D1; cursor: not-allowed; }
+#submitPaymentProofModal .pp-step-btn:focus { outline: none; }
+#submitPaymentProofModal .pp-step-btn:focus-visible { box-shadow: inset 0 0 0 3px var(--selected); border-radius: 999px; }
+#submitPaymentProofModal .pp-step-val { min-width: 72px; text-align: center; font-size: 13px; font-weight: 800; color: var(--ink); }
+
+/* Footer — always visible */
+#submitPaymentProofModal .pp-foot { flex: 0 0 auto; padding: 12px 20px 16px; border-top: 1px solid var(--border); background: var(--surface); }
+#submitPaymentProofModal .pp-submit {
+    width: 100%;
+    min-height: 50px;
+    border-radius: 13px;
+    font-size: 15.5px;
+    font-weight: 800;
+    justify-content: center;
+}
+#submitPaymentProofModal .pp-submit:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+#submitPaymentProofModal .pp-foot-note { margin: 8px 0 0; text-align: center; font-size: 12px; font-weight: 600; color: var(--muted); }
+
+/* Done */
+#submitPaymentProofModal .pp-done { padding: 30px 22px 22px; text-align: center; overflow-y: auto; }
+#submitPaymentProofModal .pp-done-ic {
+    width: 66px;
+    height: 66px;
+    margin: 0 auto 12px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #DCFCE7;
+    color: #15803D;
+    font-size: 32px;
+    font-weight: 900;
+}
+#submitPaymentProofModal .pp-done-title { margin: 0; font-size: 22px; font-weight: 800; color: var(--ink); }
+#submitPaymentProofModal .pp-done-text { margin: 8px 0 16px; font-size: 14px; font-weight: 600; line-height: 1.5; color: var(--muted); }
+#submitPaymentProofModal .pp-done-list { margin: 0 0 18px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 13px; text-align: left; }
+#submitPaymentProofModal .pp-done-list div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 13px; }
+#submitPaymentProofModal .pp-done-list dt { color: var(--muted); font-weight: 600; }
+#submitPaymentProofModal .pp-done-list dd { margin: 0; font-weight: 800; color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+#submitPaymentProofModal .pp-pill { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #FEF3C7; color: #92400E; font-size: 12px; }
+
+/* Phone: bottom sheet */
+@media (max-width: 600px) {
+    dialog#submitPaymentProofModal {
+        width: 100%;
+        max-width: 100%;
+        max-height: calc(100dvh - 24px);
+        margin: auto 0 0;
+        border-radius: 22px 22px 0 0;
+    }
+    dialog#submitPaymentProofModal::before {
+        content: "";
+        display: block;
+        flex: 0 0 auto;
+        width: 40px;
+        height: 5px;
+        margin: 9px auto 0;
+        border-radius: 9px;
+        background: #E2DCD2;
+    }
+    #submitPaymentProofModal .pp-foot { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+    #submitPaymentProofModal .pp-done { padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* Focus: soft ring, no dark outlines */
+#submitPaymentProofModal .pp-close:focus,
+#submitPaymentProofModal .pp-chip:focus,
+#submitPaymentProofModal .pp-copy:focus,
+#submitPaymentProofModal .pp-link:focus,
+#submitPaymentProofModal .pp-link:focus-visible { outline: none; }
+#submitPaymentProofModal .pp-close:focus-visible,
+#submitPaymentProofModal .pp-chip:focus-visible,
+#submitPaymentProofModal .pp-copy:focus-visible { box-shadow: 0 0 0 3px var(--selected); }
+#submitPaymentProofModal .pp-link:focus-visible { text-decoration: underline; }

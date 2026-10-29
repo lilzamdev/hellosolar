@@ -54,6 +54,28 @@
             const modalSelectedFileBadge = document.getElementById("modalSelectedFileBadge");
             const modalSelectedFileName = document.getElementById("modalSelectedFileName");
             const modalSubmitProofBtn = document.getElementById("modalSubmitProofBtn");
+            const proofModalDue = document.getElementById("proofModalDue");
+            const ppChips = Array.from(document.querySelectorAll("#submitPaymentProofModal .pp-chip"));
+            const ppAcctName = document.getElementById("ppAcctName");
+            const ppAcctNumber = document.getElementById("ppAcctNumber");
+            const ppCopyBtn = document.getElementById("ppCopyBtn");
+            const ppRefTip = document.getElementById("ppRefTip");
+            const ppChangeFileBtn = document.getElementById("ppChangeFileBtn");
+            const ppMonthsRow = document.getElementById("ppMonthsRow");
+            const ppMonthsTitle = document.getElementById("ppMonthsTitle");
+            const ppMonthsPeriods = document.getElementById("ppMonthsPeriods");
+            const ppMonthsValue = document.getElementById("ppMonthsValue");
+            const ppMonthsMinus = document.getElementById("ppMonthsMinus");
+            const ppMonthsPlus = document.getElementById("ppMonthsPlus");
+            const MAX_ADVANCE_MONTHS = 12;
+            // Bills the customer can pay in this receipt, in order; the first `minMonths` (overdue) are required
+            let billPlan = [];
+            let minMonths = 1;
+            let monthsCount = 1;
+            const proofSuccessView = document.getElementById("proofSuccessView");
+            const ppDoneBill = document.getElementById("ppDoneBill");
+            const ppDoneVia = document.getElementById("ppDoneVia");
+            const ppDoneBtn = document.getElementById("ppDoneBtn");
 
             // Mobile expandable action panels
             const howToPayToggleBtn = document.getElementById("howToPayToggleBtn");
@@ -115,6 +137,7 @@
                 if (modalSelectedFileName) modalSelectedFileName.textContent = "";
                 if (selectedFileBadge) selectedFileBadge.classList.remove("visible");
                 if (modalSelectedFileBadge) modalSelectedFileBadge.classList.remove("visible");
+                updateProofFormState();
             }
 
             function restoreSelectedFile(file) {
@@ -125,6 +148,168 @@
                 if (modalSelectedFileName) modalSelectedFileName.textContent = fileText;
                 if (selectedFileBadge) selectedFileBadge.classList.add("visible");
                 if (modalSelectedFileBadge) modalSelectedFileBadge.classList.add("visible");
+                updateProofFormState();
+            }
+
+            // ---- Submit Payment modal helpers (one card on every device) ----
+            function localISODate(d = new Date()) {
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            }
+            function pesoNumber(v) {
+                return Number(String(v == null ? "" : v).replace(/[^0-9.]/g, "")) || 0;
+            }
+            function pesoText(n) {
+                return "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
+            }
+            function rowISO(row) {
+                const raw = String(row.dueDate || row.due || "");
+                if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+                const d = new Date(raw);
+                return isNaN(d) ? "" : localISODate(d);
+            }
+            // Bills this receipt pays: the past-due bills, otherwise the next unpaid bill (same rule as before)
+            function coveredBillRows(pkg) {
+                if (!pkg || pkg.paymentType === "full_payment") return [];
+                const reminder = window.HelloSolar && window.HelloSolar.getDelayedPaymentReminder
+                    ? window.HelloSolar.getDelayedPaymentReminder(pkg)
+                    : null;
+                if (reminder && reminder.bills && reminder.bills.length) return reminder.bills;
+                const schedule = (pkg.payments && Array.isArray(pkg.payments.schedule)) ? pkg.payments.schedule : [];
+                return schedule.filter(row => !/^(paid|pending verification)/i.test(String(row.status || ""))).slice(0, 1);
+            }
+            function monthYear(iso) {
+                const d = new Date(String(iso).slice(0, 10) + "T00:00:00");
+                return isNaN(d) ? "" : d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+            }
+            function longDate(iso) {
+                const d = new Date(String(iso).slice(0, 10) + "T00:00:00");
+                return isNaN(d) ? "" : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+            }
+            // "Nov 2026", "Nov + Dec 2026", "Dec 2026 + Jan 2027", "Nov 2026 – Feb 2027"
+            function periodsText(rows) {
+                const names = rows.map(r => r.period || monthYear(r.dueDate)).filter(Boolean);
+                if (!names.length) return "";
+                if (names.length === 1) return names[0];
+                const first = names[0], last = names[names.length - 1];
+                if (names.length === 2) {
+                    const [m1, y1] = first.split(" "), [m2, y2] = last.split(" ");
+                    return y1 && y1 === y2 ? `${m1} + ${m2} ${y2}` : `${first} + ${last}`;
+                }
+                return `${first} – ${last}`;
+            }
+            // Required bills (overdue) first, then the next unpaid bills from the full plan for paying ahead
+            function buildBillPlan(pkg) {
+                billPlan = [];
+                minMonths = 1;
+                if (!pkg || pkg.paymentType === "full_payment") return;
+                const fallbackAmount = pesoNumber(pkg.formattedMonthlyPayment || (pkg.payments && pkg.payments.formattedMonthlyPayment));
+                const toBill = row => ({
+                    id: row.id || row.billId || "",
+                    period: row.period || monthYear(rowISO(row)),
+                    dueDate: rowISO(row),
+                    amount: pesoNumber(row.formattedAmount || row.amount) || fallbackAmount,
+                    late: /overdue|unpaid/i.test(String(row.status || "")) || !!(window.HelloSolar && window.HelloSolar.isBillPastDue && window.HelloSolar.isBillPastDue(row))
+                });
+                const required = coveredBillRows(pkg).map(toBill);
+                const pendingIds = new Set();
+                (pkg.receiptSubmissions || []).filter(s => s.status === "Pending Verification")
+                    .forEach(s => (s.bills || []).forEach(b => b.billId && pendingIds.add(b.billId)));
+                const full = window.HSShared && pkg.appId ? window.HSShared.paymentScheduleFor(pkg.appId) : null;
+                const upcoming = ((full && full.installments) || [])
+                    .filter(i => i.status !== "Paid")
+                    .sort((x, y) => String(x.dueDate).localeCompare(String(y.dueDate)))
+                    .map(i => ({ id: `${pkg.appId}-I${i.no}`, period: monthYear(i.dueDate), dueDate: String(i.dueDate).slice(0, 10), amount: Number(i.amount) || fallbackAmount, late: false }))
+                    .filter(b => !pendingIds.has(b.id) && !required.some(r => r.id === b.id || (r.dueDate && r.dueDate.slice(0, 7) === b.dueDate.slice(0, 7))));
+                const lastRequired = required.length ? required[required.length - 1].dueDate : "";
+                const ahead = upcoming.filter(b => !lastRequired || b.dueDate > lastRequired);
+                billPlan = required.length ? required.concat(ahead) : ahead;
+                if (!billPlan.length) billPlan = required;
+                billPlan = billPlan.slice(0, Math.max(required.length, 0) + MAX_ADVANCE_MONTHS);
+                const overdue = required.filter(b => b.late).length;
+                minMonths = Math.max(1, overdue);
+            }
+            function selectedBills() {
+                return billPlan.slice(0, monthsCount);
+            }
+            // What the modal header shows: label, amount, due line
+            function proofBillFor(pkg) {
+                if (!pkg) return { label: "Payment", short: "Payment", amount: "", due: "", late: false };
+                const hsId = pkg.accountNo || "";
+                const tail = hsId ? " · " + hsId : "";
+                if (pkg.paymentType === "full_payment") {
+                    return {
+                        label: `Full payment${tail}`,
+                        short: "Full payment",
+                        amount: pkg.formattedAmountDue || pkg.formattedTotalAmount || pkg.totalAmountFormatted || "",
+                        due: "One-time payment for your system",
+                        late: false
+                    };
+                }
+                const rows = selectedBills();
+                if (!rows.length) {
+                    const fallback = pkg.formattedMonthlyPayment || (pkg.payments && pkg.payments.formattedMonthlyPayment) || "";
+                    return { label: `Monthly payment${tail}`, short: "Monthly payment", amount: fallback, due: "", late: false };
+                }
+                const total = rows.reduce((sum, r) => sum + r.amount, 0);
+                const lateCount = rows.filter(r => r.late).length;
+                const first = rows[0];
+                let label;
+                if (rows.length === 1) label = `${first.period} bill`;
+                else if (lateCount === rows.length) label = `${rows.length} overdue bills`;
+                else label = `Paying ${rows.length} months`;
+                let due;
+                if (rows.length === 1) due = first.late ? `Past due since ${longDate(first.dueDate)}` : `Due ${longDate(first.dueDate)}`;
+                else due = `${periodsText(rows)} · ${lateCount ? "includes past due" : "first due " + longDate(first.dueDate).replace(/, \d{4}$/, "")}`;
+                return { label: label + tail, short: periodsText(rows), amount: pesoText(total), due, late: lateCount > 0 };
+            }
+            function renderProofBill() {
+                const bill = proofBillFor(currentPackage);
+                if (proofModalSubtitle) proofModalSubtitle.textContent = bill.label;
+                if (proofModalTitle) proofModalTitle.textContent = bill.amount || "—";
+                if (proofModalDue) {
+                    proofModalDue.textContent = bill.due;
+                    proofModalDue.hidden = !bill.due;
+                    proofModalDue.classList.toggle("is-late", !!bill.late);
+                }
+                if (proofAmountInput) proofAmountInput.value = bill.amount ? String(bill.amount).replace(/[₱,\s]/g, "") : "";
+                const showMonths = !!(currentPackage && currentPackage.paymentType !== "full_payment" && billPlan.length);
+                if (ppMonthsRow) ppMonthsRow.hidden = !showMonths;
+                if (showMonths) {
+                    const rows = selectedBills();
+                    if (ppMonthsTitle) ppMonthsTitle.textContent = monthsCount > minMonths ? "Paying ahead" : "Paying for";
+                    if (ppMonthsPeriods) ppMonthsPeriods.textContent = minMonths > 1 && monthsCount === minMonths ? `${periodsText(rows)} · overdue bills included` : periodsText(rows);
+                    if (ppMonthsValue) ppMonthsValue.textContent = `${monthsCount} month${monthsCount === 1 ? "" : "s"}`;
+                    if (ppMonthsMinus) ppMonthsMinus.disabled = monthsCount <= minMonths;
+                    if (ppMonthsPlus) ppMonthsPlus.disabled = monthsCount >= billPlan.length;
+                }
+                return bill;
+            }
+            function selectedChannelChip() {
+                return ppChips.find(c => c.classList.contains("is-on")) || ppChips[0] || null;
+            }
+            function selectChannel(chip) {
+                if (!chip) return;
+                ppChips.forEach(c => {
+                    const on = c === chip;
+                    c.classList.toggle("is-on", on);
+                    c.setAttribute("aria-checked", on ? "true" : "false");
+                });
+                if (ppAcctName) ppAcctName.textContent = chip.dataset.name || "";
+                if (ppAcctNumber) ppAcctNumber.textContent = chip.dataset.number || "";
+                if (proofChannelInput) proofChannelInput.value = chip.dataset.channel || chip.textContent.trim();
+                if (ppCopyBtn) ppCopyBtn.textContent = "Copy";
+                updateProofFormState();
+            }
+            function updateProofFormState() {
+                const field = modalProofDropzone ? modalProofDropzone.closest(".pp-field") : null;
+                if (field) field.classList.toggle("has-file", !!selectedFile);
+                if (modalSubmitProofBtn && !modalSubmitProofBtn.dataset.busy) {
+                    modalSubmitProofBtn.disabled = !(selectedFile && proofRefInput && proofRefInput.value.trim());
+                }
+            }
+            function showProofForm() {
+                if (paymentProofModalForm) paymentProofModalForm.hidden = false;
+                if (proofSuccessView) proofSuccessView.hidden = true;
             }
 
             function handleFileSelected(file) {
@@ -140,34 +325,24 @@
                 if (!submitPaymentProofModal) return;
                 if (submitPaymentProofModal.open) return;
 
+                showProofForm();
                 if (currentPackage) {
-                    if (proofModalSubtitle) {
-                        proofModalSubtitle.textContent = `Submit payment receipt for ${currentPackage.name} (#${currentPackage.accountNo})`;
-                    }
-                    if (proofAmountInput) {
-                        const isFullPay = currentPackage.paymentType === "full_payment";
-                        const amt = isFullPay
-                            ? (currentPackage.formattedAmountDue || currentPackage.totalAmountFormatted || "")
-                            : (currentPackage.formattedMonthlyPayment || "");
-                        proofAmountInput.value = amt;
-                    }
-                    if (proofDateInput) {
-                        proofDateInput.value = new Date().toISOString().split("T")[0];
-                    }
-                    if (proofRefInput) {
-                        const isFullPay = currentPackage.paymentType === "full_payment";
-                        const ref = isFullPay
-                            ? `${currentPackage.accountNo}-FP`
-                            : (currentPackage.currentBillRef || (currentPackage.payments && currentPackage.payments.currentBillRef) || currentPackage.accountNo || "");
-                        proofRefInput.value = ref;
-                    }
+                    buildBillPlan(currentPackage);
+                    monthsCount = Math.min(Math.max(minMonths, 1), Math.max(billPlan.length, 1));
+                    renderProofBill();
+                    if (ppRefTip) ppRefTip.textContent = currentPackage.accountNo || "your HS ID";
+                    if (proofDateInput) proofDateInput.value = localISODate();
+                    // The customer types the number from their own GCash / bank receipt
+                    if (proofRefInput) proofRefInput.value = "";
                 }
+                selectChannel(selectedChannelChip());
 
                 if (selectedFile) {
                     restoreSelectedFile(selectedFile);
                 } else if (modalSelectedFileBadge) {
                     modalSelectedFileBadge.classList.remove("visible");
                 }
+                updateProofFormState();
 
                 const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
                 if (scrollbarWidth > 0) {
@@ -192,6 +367,51 @@
             }
             if (modalCancelProofBtn) {
                 modalCancelProofBtn.addEventListener("click", () => closePaymentProofModal());
+            }
+            if (submitPaymentProofModal) {
+                // Esc / backdrop close: unlock the page and start fresh next time
+                submitPaymentProofModal.addEventListener("close", () => {
+                    document.body.style.overflow = "";
+                    document.body.style.paddingRight = "";
+                    showProofForm();
+                });
+            }
+            ppChips.forEach(chip => chip.addEventListener("click", () => selectChannel(chip)));
+            if (ppCopyBtn) {
+                ppCopyBtn.addEventListener("click", () => {
+                    const number = ppAcctNumber ? ppAcctNumber.textContent.trim() : "";
+                    const done = () => {
+                        ppCopyBtn.textContent = "Copied ✓";
+                        setTimeout(() => { ppCopyBtn.textContent = "Copy"; }, 1600);
+                    };
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(number).then(done).catch(done);
+                    } else {
+                        done();
+                    }
+                });
+            }
+            if (ppMonthsMinus) {
+                ppMonthsMinus.addEventListener("click", () => {
+                    if (monthsCount > minMonths) { monthsCount--; renderProofBill(); }
+                });
+            }
+            if (ppMonthsPlus) {
+                ppMonthsPlus.addEventListener("click", () => {
+                    if (monthsCount < billPlan.length) { monthsCount++; renderProofBill(); }
+                });
+            }
+            [proofRefInput].forEach(el => {
+                if (el) {
+                    el.addEventListener("input", updateProofFormState);
+                    el.addEventListener("change", updateProofFormState);
+                }
+            });
+            if (ppChangeFileBtn && modalProofFileInput) {
+                ppChangeFileBtn.addEventListener("click", () => modalProofFileInput.click());
+            }
+            if (ppDoneBtn) {
+                ppDoneBtn.addEventListener("click", () => closePaymentProofModal());
             }
 
             // Dropzone & file input events on main page
@@ -270,47 +490,33 @@
                 paymentProofModalForm.addEventListener("submit", (e) => {
                     e.preventDefault();
                     if (!currentPackage) return;
-                    if (!selectedFile) {
+                    if (!selectedFile || !(proofRefInput && proofRefInput.value.trim())) {
+                        updateProofFormState();
                         if (window.HelloSolar && window.HelloSolar.toast) {
-                            window.HelloSolar.toast("Receipt Required", "Please attach a deposit slip or payment confirmation before submitting.");
-                        } else {
-                            alert("Please attach a receipt file.");
+                            window.HelloSolar.toast("Almost there", "Add your receipt and the reference no. from it.");
                         }
                         return;
                     }
 
                     if (modalSubmitProofBtn) {
+                        modalSubmitProofBtn.dataset.busy = "1";
                         modalSubmitProofBtn.disabled = true;
-                        modalSubmitProofBtn.textContent = "Processing submission...";
+                        modalSubmitProofBtn.textContent = "Sending…";
                     }
 
                     const channelVal = proofChannelInput ? proofChannelInput.value : "GCash";
                     const amountVal = proofAmountInput ? proofAmountInput.value : (currentPackage.formattedMonthlyPayment || "");
-                    const dateVal = proofDateInput ? proofDateInput.value : new Date().toISOString().split("T")[0];
-                    const refVal = proofRefInput ? proofRefInput.value : (currentPackage.accountNo || "");
+                    const dateVal = (proofDateInput && proofDateInput.value) || localISODate();
+                    const refVal = proofRefInput ? proofRefInput.value.trim() : "";
+                    const billInfo = proofBillFor(currentPackage);
                     const fileName = selectedFile.name;
-                    const pkgName = currentPackage.name;
-                    const pkgAcc = currentPackage.accountNo;
 
                     setTimeout(() => {
                         // Receipt goes to the shared application record for Super Admin verification
                         // (Payment Under Review only — never marked Paid from the customer side).
-                        const reminder = currentPackage.paymentType !== "full_payment" && window.HelloSolar && window.HelloSolar.getDelayedPaymentReminder
-                            ? window.HelloSolar.getDelayedPaymentReminder(currentPackage)
-                            : null;
                         // Billing periods this receipt pays: the past-due bills, otherwise the next unpaid bill
-                        const isoOf = row => {
-                            const raw = String(row.dueDate || row.due || "");
-                            if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
-                            const d = new Date(raw);
-                            return isNaN(d) ? "" : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-                        };
-                        const schedule = (currentPackage.payments && Array.isArray(currentPackage.payments.schedule)) ? currentPackage.payments.schedule : [];
-                        const coveredRows = currentPackage.paymentType === "full_payment" ? []
-                            : ((reminder && reminder.bills && reminder.bills.length)
-                                ? reminder.bills
-                                : schedule.filter(row => !/^(paid|pending verification)/i.test(String(row.status || ""))).slice(0, 1));
-                        const bills = coveredRows.map(row => ({ billId: row.id, period: row.period, dueDate: isoOf(row), amount: row.formattedAmount || row.amount }));
+                        const bills = currentPackage.paymentType === "full_payment" ? []
+                            : selectedBills().map(row => ({ billId: row.id, period: row.period, dueDate: row.dueDate, amount: row.amount }));
                         const customer = window.HelloSolar && window.HelloSolar.getCustomer ? window.HelloSolar.getCustomer() : {};
                         const result = window.HSShared
                             ? window.HSShared.submitReceipt(customer.accountId, currentPackage.appId, {
@@ -324,8 +530,9 @@
                             : { ok: false, error: "Receipt submission is unavailable right now." };
 
                         if (modalSubmitProofBtn) {
-                            modalSubmitProofBtn.disabled = false;
-                            modalSubmitProofBtn.textContent = "Submit Payment Proof";
+                            delete modalSubmitProofBtn.dataset.busy;
+                            modalSubmitProofBtn.textContent = "Submit Payment";
+                            updateProofFormState();
                         }
                         if (!result.ok) {
                             if (window.HelloSolar && window.HelloSolar.toast) {
@@ -336,7 +543,14 @@
 
                         delete packageFileDrafts[currentPackage.id];
                         clearSelectedFile(false);
-                        closePaymentProofModal();
+
+                        // Show "Receipt sent!" in the same card
+                        const chip = selectedChannelChip();
+                        if (ppDoneBill) ppDoneBill.textContent = [billInfo.short, billInfo.amount].filter(Boolean).join(" · ");
+                        if (ppDoneVia) ppDoneVia.textContent = [chip ? chip.textContent.trim() : channelVal, refVal].filter(Boolean).join(" · ");
+                        if (paymentProofModalForm) paymentProofModalForm.hidden = true;
+                        if (proofSuccessView) proofSuccessView.hidden = false;
+                        if (ppDoneBtn) ppDoneBtn.focus();
 
                         if (window.HelloSolar && window.HelloSolar.refreshSharedPackages) {
                             window.HelloSolar.refreshSharedPackages();
@@ -346,12 +560,6 @@
                             uploadProofBtn.textContent = "Proof Submitted (Pending Review) ✓";
                         }
 
-                        if (window.HelloSolar && window.HelloSolar.toast) {
-                            window.HelloSolar.toast(
-                                "Payment Proof Submitted",
-                                `Receipt (${fileName}) for ${pkgName} (#${pkgAcc}) submitted via ${channelVal}. Status set to Payment Under Review pending Super Admin verification.`
-                            );
-                        }
 
                         const refreshed = (window.HelloSolar && window.HelloSolar.getActivePackage)
                             ? window.HelloSolar.getActivePackage()
