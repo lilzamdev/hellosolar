@@ -5,15 +5,9 @@ lucide.createIcons();
 const PRODUCTS = {
     'hs6-lite': {
         id: 'hs6-lite',
-        name: 'HS 6 LITE',
         tag: 'OUR RECOMMENDATION',
         tagline: 'Smart. Reliable. Built for Everyday Savings.',
-        panels: '5kW',
-        inverter: '6kW',
-        battery: '5kWh',
         idealBills: '₱5,000–₱8,000',
-        monthly: '₱7,284',
-        cashPrice: '₱285,000',
         estSavings: '₱4,200 – ₱6,800',
         features: [
             'Lower your electric bill every month',
@@ -24,16 +18,10 @@ const PRODUCTS = {
     },
     'hs6-pro': {
         id: 'hs6-pro',
-        name: 'HS 6 PRO',
         tag: 'MOST POPULAR',
         tagline: 'More power, more backup for seamless family living.',
         badge: 'Most Popular',
-        panels: '6kW',
-        inverter: '6kW',
-        battery: '10kWh',
         idealBills: '₱5,000–₱8,000',
-        monthly: '₱8,689',
-        cashPrice: '₱340,000',
         estSavings: '₱5,500 – ₱8,400',
         features: [
             'Bigger savings every month',
@@ -45,15 +33,9 @@ const PRODUCTS = {
     },
     'hs6-max': {
         id: 'hs6-max',
-        name: 'HS 6 MAX',
         tagline: 'Maximum solar yield and multi-aircon whole home power.',
         badge: 'For bigger homes',
-        panels: '6kW',
-        inverter: '6kW',
-        battery: '16kWh',
         idealBills: '₱8,000–₱13,000',
-        monthly: '₱9,967',
-        cashPrice: '₱390,000',
         estSavings: '₱7,800 – ₱12,500',
         features: [
             'Ultimate system for long brownouts',
@@ -65,15 +47,9 @@ const PRODUCTS = {
     },
     'hs8-pro': {
         id: 'hs8-pro',
-        name: 'HS 8 PRO',
         tag: 'EXPANDED RESIDENTIAL / ESTATE',
         tagline: 'High-yield whole-day solar with expanded battery storage.',
-        panels: '9kW',
-        inverter: '8kW',
-        battery: '16kWh',
         idealBills: '₱11,000–₱15,000',
-        monthly: '₱13,187',
-        cashPrice: '₱516,000',
         estSavings: '₱10,500 – ₱16,000',
         features: [
             'Bigger savings every month',
@@ -85,15 +61,9 @@ const PRODUCTS = {
     },
     'hs8-max': {
         id: 'hs8-max',
-        name: 'HS 8 MAX',
         tag: 'COMMERCIAL & VILLA',
         tagline: 'Built for multi-story villas, resorts, and commercial hubs.',
-        panels: '9kW',
-        inverter: '8kW',
-        battery: '32kWh',
         idealBills: '₱13,000–₱18,000',
-        monthly: '₱15,692',
-        cashPrice: '₱614,000',
         estSavings: '₱11,500 – ₱16,000',
         features: [
             '9kw Panels, 8kw Inverter, 32kwh Battery Maximum Backup Power',
@@ -106,15 +76,9 @@ const PRODUCTS = {
     },
     'hs12-pro': {
         id: 'hs12-pro',
-        name: 'HS 12 PRO',
         tag: 'ENTERPRISE / BUSINESS',
 
-        panels: '12kW',
-        inverter: '12kW',
-        battery: '16kWh',
         idealBills: '₱15,000–₱19,000',
-        monthly: '₱15,572',
-        cashPrice: '₱572,000',
         estSavings: '₱21,000 – ₱30,000+',
         features: [
             'Bigger savings every month',
@@ -126,15 +90,9 @@ const PRODUCTS = {
     },
     'hs12-max': {
         id: 'hs12-max',
-        name: 'HS 12 MAX',
         tag: 'COMMERCIAL & INDUSTRIAL / ESTATE',
 
-        panels: '12kW',
-        inverter: '12kW',
-        battery: '32kWh',
         idealBills: '₱18,000–₱25,000',
-        monthly: '₱19,600',
-        cashPrice: '₱720,000',
         estSavings: '₱24,000 – ₱40,000+',
         features: [
             'Ultimate system for long brownouts',
@@ -146,15 +104,9 @@ const PRODUCTS = {
     },
     'hs16-pro': {
         id: 'hs16-pro',
-        name: 'HS 16 PRO',
         tag: 'COMMERCIAL & INDUSTRIAL / ESTATE',
 
-        panels: '15kW',
-        inverter: '16kW',
-        battery: '16kWh',
         idealBills: '₱22,000–₱28,000',
-        monthly: '₱21,234',
-        cashPrice: '₱780,000',
         estSavings: '₱24,000 – ₱40,000+',
         features: [
             'Bigger savings every month',
@@ -166,15 +118,9 @@ const PRODUCTS = {
     },
     'hs16-pro-max': {
         id: 'hs16-pro-max',
-        name: 'HS 16 PRO MAX',
         tag: 'COMMERCIAL & INDUSTRIAL / ESTATE',
 
-        panels: '19kW',
-        inverter: '24kW',
-        battery: '32kWh',
         idealBills: '₱27,000–₱35,000',
-        monthly: '₱26,542',
-        cashPrice: '₱975,000',
         estSavings: '₱24,000 – ₱40,000+',
         features: [
             'Ultimate system for long brownouts',
@@ -185,6 +131,19 @@ const PRODUCTS = {
         ]
     }
 };
+
+// Names, prices and specs come from shared/hello-solar-business.js (the one place to change them)
+const HSB = window.HSBusiness;
+const DP_INSTALLMENT = HSB.data.downPayment.installment;
+const DP_FULL = HSB.data.downPayment.fullPayment;
+const FEE_SITE_VISIT = HSB.data.siteVisitFee;
+HSB.data.packages.forEach(p => {
+    if (!PRODUCTS[p.id]) return;
+    Object.assign(PRODUCTS[p.id], {
+        name: p.name, panels: p.panels, inverter: p.inverter, battery: p.battery,
+        cashPrice: HSB.peso(p.price), monthly: HSB.peso(p.terms[HSB.data.defaultTerm])
+    });
+});
 
 // PRICING / OPTION SELECTION & CIRCULAR CAROUSEL ENGINE
 let selectedOption = 'hs6-pro';
@@ -514,17 +473,34 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// Back button (top left): previous question; on the first question it closes the wizard
+function wizardBack() {
+    if (wizardState.step <= 1) {
+        closeModal('recommendationModal');
+        return;
+    }
+    wizardState.step = wizardState.step >= 4 ? 3 : wizardState.step - 1;
+    renderWizard();
+}
+
 // RENDER RECOMMENDATION WIZARD
 function renderWizard() {
     const container = document.getElementById('wizardContainer');
     if (!container) return;
+    const backBtn = document.getElementById('wizardBackBtn');
+    if (backBtn) {
+        const backLabel = wizardState.step <= 1 ? 'Back to the page'
+            : wizardState.step >= 4 ? 'Back to the last question' : 'Back to the previous question';
+        backBtn.setAttribute('aria-label', backLabel);
+        backBtn.title = backLabel;
+    }
 
     if (wizardState.step === 1) {
         container.innerHTML = `
             <div class="space-y-6">
                 <!-- Progress Header -->
                 <div class="space-y-3">
-                    <div class="flex items-center gap-2.5 pr-14 flex-wrap">
+                    <div class="flex items-center gap-2.5 wiz-head pr-14 flex-wrap">
                         <span class="text-[11px] font-black text-amber-700 uppercase tracking-wider">Step 1 of 3 &bull; Electric Bill</span>
                         <span class="text-[11px] font-semibold text-stone-600 bg-stone-100 px-2.5 py-0.5 rounded-full border border-stone-200">~30 sec match</span>
                     </div>
@@ -603,10 +579,7 @@ function renderWizard() {
             <div class="space-y-6">
                 <!-- Progress Header -->
                 <div class="space-y-3">
-                    <div class="flex items-center gap-2.5 pr-14">
-                        <button onclick="wizardState.step = 1; renderWizard();" class="text-xs font-bold text-stone-600 hover:text-[#1C1917] flex items-center gap-1 transition bg-stone-100 hover:bg-amber-100/60 px-2.5 py-1 rounded-lg cursor-pointer">
-                            &larr; Back
-                        </button>
+                    <div class="flex items-center gap-2.5 wiz-head pr-14">
                         <span class="text-[11px] font-black text-amber-700 uppercase tracking-wider">Step 2 of 3 &bull; Power Habits</span>
                     </div>
                     <!-- Progress Track -->
@@ -665,10 +638,7 @@ function renderWizard() {
             <div class="space-y-6">
                 <!-- Progress Header -->
                 <div class="space-y-3">
-                    <div class="flex items-center gap-2.5 pr-14">
-                        <button onclick="wizardState.step = 2; renderWizard();" class="text-xs font-bold text-stone-600 hover:text-[#1C1917] flex items-center gap-1 transition bg-stone-100 hover:bg-amber-100/60 px-2.5 py-1 rounded-lg cursor-pointer">
-                            &larr; Back
-                        </button>
+                    <div class="flex items-center gap-2.5 wiz-head pr-14">
                         <span class="text-[11px] font-black text-amber-700 uppercase tracking-wider">Step 3 of 3 &bull; Primary Goal</span>
                     </div>
                     <!-- Progress Track -->
@@ -773,7 +743,7 @@ function renderWizard() {
                         <div class="text-right">
                             <div class="text-[10px] font-black uppercase tracking-wider text-stone-500">Installment</div>
                             <div class="text-base sm:text-lg font-black text-amber-700">${termMonthlyText(recommendedId, selectedTerm)} <span class="text-xs font-bold text-stone-500">/mo</span></div>
-                            <div class="text-[10px] font-bold text-stone-500">${termShort(selectedTerm)} · ₱10k DP</div>
+                            <div class="text-[10px] font-bold text-stone-500">${termShort(selectedTerm)} · ${HSB.pesoShort(DP_INSTALLMENT)} DP</div>
                         </div>
                     </div>
                     <div class="text-xs font-bold text-emerald-700">Est. bill savings: ${rec.estSavings}/mo</div>
@@ -892,7 +862,7 @@ function viewProductDetails(productId) {
                 <div class="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-200/70 rounded-xl sm:rounded-2xl p-3 sm:p-4">
                     <div class="text-[10px] sm:text-[11px] font-black text-stone-500 uppercase tracking-wider">Installment</div>
                     <div class="text-lg sm:text-xl font-black text-amber-600 mt-0.5">${termMonthlyText(product.id, selectedTerm)}<span class="text-xs font-bold text-stone-500">/mo</span></div>
-                    <div class="text-[10px] sm:text-[11px] font-bold text-stone-500">${termShort(selectedTerm)} · ₱10k down payment</div>
+                    <div class="text-[10px] sm:text-[11px] font-bold text-stone-500">${termShort(selectedTerm)} · ${HSB.pesoShort(DP_INSTALLMENT)} down payment</div>
                 </div>
             </div>
             <div class="text-[11px] sm:text-xs font-bold text-emerald-700 -mt-1">Est. bill savings: ${product.estSavings}/mo</div>
@@ -986,7 +956,7 @@ function renderTermPrices() {
         el.textContent = termMonthlyText(el.getAttribute('data-card-monthly'), selectedTerm);
     });
     document.querySelectorAll('[data-card-term]').forEach(el => {
-        el.textContent = `${termName(selectedTerm)}, 10k DP`;
+        el.textContent = `${termName(selectedTerm)}, ${HSB.pesoShort(DP_INSTALLMENT).replace('₱', '')} DP`;
     });
     document.querySelectorAll('#termSwitch [data-term]').forEach(btn => {
         const active = Number(btn.getAttribute('data-term')) === selectedTerm;
@@ -1022,17 +992,7 @@ function initTermSwitch() {
 
 // CUSTOM DROPDOWN ENGINE
 // Maps trigger label text for package options
-const PKG_LABELS = {
-    'hs6-lite': 'HS 6 LITE \u2014 5kW | 6kW | 5kWh',
-    'hs6-pro': 'HS 6 PRO \u2014 6kW | 6kW | 10kWh',
-    'hs6-max': 'HS 6 MAX \u2014 6kW | 6kW | 16kWh',
-    'hs8-pro': 'HS 8 PRO \u2014 9kW | 8kW | 16kWh',
-    'hs8-max': 'HS 8 MAX \u2014 9kW | 8kW | 32kWh',
-    'hs12-pro': 'HS 12 PRO \u2014 12kW | 12kW | 16kWh',
-    'hs12-max': 'HS 12 MAX \u2014 12kW | 12kW | 32kWh',
-    'hs16-pro': 'HS 16 PRO \u2014 15kW | 16kW | 16kWh',
-    'hs16-pro-max': 'HS 16 PRO MAX \u2014 19kW | 24kW | 32kWh'
-};
+const PKG_LABELS = Object.fromEntries(HSB.data.packages.map(p => [p.id, `${p.name} \u2014 ${HSB.specs(p)}`]));
 
 function setCustomDropdownValue(inputId, value) {
     const hiddenInput = document.getElementById(inputId);
@@ -1425,9 +1385,9 @@ function initLeadValidation() {
 // Backend-ready: POST the same record to an API later.
 const CUSTOMER_INQUIRY_KEY = 'HELLO_SOLAR_CUSTOMER_INQUIRIES';
 // Installment terms advertised on every package: 6 years, ₱10,000 down payment. Full Payment: ₱500 down payment.
-const INSTALLMENT_TERM_MONTHS = 72;
-const INSTALLMENT_DOWN_PAYMENT = 10000;
-const FULL_PAYMENT_DOWN_PAYMENT = 500;
+const INSTALLMENT_TERM_MONTHS = HSB.data.defaultTerm;
+const INSTALLMENT_DOWN_PAYMENT = DP_INSTALLMENT;
+const FULL_PAYMENT_DOWN_PAYMENT = DP_FULL;
 const downPaymentFor = payment => (payment === 'Installment' ? INSTALLMENT_DOWN_PAYMENT : FULL_PAYMENT_DOWN_PAYMENT);
 function parsePeso(text) {
     const n = parseFloat(String(text || '').replace(/[^0-9.]/g, ''));
@@ -1571,7 +1531,7 @@ const HS_BANK_DETAILS = {
     accountName: 'Hello Solar',
     accountNumber: '0000 0000 0000'
 };
-const SITE_VISIT_FEE = 1000;
+const SITE_VISIT_FEE = FEE_SITE_VISIT;
 const DOWN_PAYMENT_AMOUNT = INSTALLMENT_DOWN_PAYMENT; // Installment; Full Payment uses FULL_PAYMENT_DOWN_PAYMENT
 // Short policy line shown in the Payment modal (matches the Terms & Conditions below)
 const PAYMENT_POLICY = {
@@ -1584,22 +1544,22 @@ const PAYMENT_POLICY = {
 const TERMS = {
     assessment: {
         badge: 'Site Visit',
-        title: '₱1,000 Site Visit Fee — Terms & Conditions',
+        title: '{AMOUNT} Site Visit Fee — Terms & Conditions',
         items: [
-            '<strong>Site Visit Fee.</strong> A ₱1,000 payment is required to confirm and schedule a site visit for your solar installation.',
+            '<strong>Site Visit Fee.</strong> A {AMOUNT} payment is required to confirm and schedule a site visit for your solar installation.',
             '<strong>Scheduling.</strong> Your site visit will be scheduled upon confirmation and verification of payment. Your preferred schedule is subject to availability. Hello Solar will coordinate to confirm.',
-            '<strong>If You Purchase a Solar System.</strong> If you proceed with purchasing a solar system from Hello Solar, the ₱1,000 site visit fee will be deducted from the total system price.',
-            '<strong>If You Do Not Proceed.</strong> If you decide not to purchase a solar system after the site visit, the ₱1,000 fee is non-refundable and will cover the site visit and assessment.',
+            '<strong>If You Purchase a Solar System.</strong> If you proceed with purchasing a solar system from Hello Solar, the {AMOUNT} site visit fee will be deducted from the total system price.',
+            '<strong>If You Do Not Proceed.</strong> If you decide not to purchase a solar system after the site visit, the {AMOUNT} fee is non-refundable and will cover the site visit and assessment.',
             '<strong>Personal Information.</strong> Used only to process your request, in line with the Data Privacy Act of 2012.'
         ]
     },
     full: {
         badge: 'Full Payment',
-        title: '₱500 System Reservation Deposit — Terms & Conditions',
+        title: '{AMOUNT} System Reservation Deposit — Terms & Conditions',
         items: [
-            '<strong>Reservation Deposit.</strong> A ₱500 deposit is required to reserve your selected solar system.',
-            '<strong>Refundable Deposit.</strong> The ₱500 reservation deposit is refundable if you decide not to proceed with the purchase.',
-            '<strong>Deduction from System Price.</strong> If you proceed with the purchase, the ₱500 deposit will be deducted from the total system price.',
+            '<strong>Reservation Deposit.</strong> A {AMOUNT} deposit is required to reserve your selected solar system.',
+            '<strong>Refundable Deposit.</strong> The {AMOUNT} reservation deposit is refundable if you decide not to proceed with the purchase.',
+            '<strong>Deduction from System Price.</strong> If you proceed with the purchase, the {AMOUNT} deposit will be deducted from the total system price.',
             '<strong>Remaining Balance.</strong> Must be paid in full before installation.',
             '<strong>Final Pricing and Approval.</strong> Your final system price, payment schedule, and applicable terms will be confirmed in your sales agreement before the transaction is finalized.',
             '<strong>Site Assessment.</strong> Conducted before installation to confirm the final system design.',
@@ -1608,11 +1568,11 @@ const TERMS = {
     },
     installment: {
         badge: 'Installment',
-        title: '₱10,000 System Reservation Deposit — Terms & Conditions',
+        title: '{AMOUNT} System Reservation Deposit — Terms & Conditions',
         items: [
-            '<strong>Reservation Deposit.</strong> A ₱10,000 deposit is required to reserve your selected solar system for installment.',
-            '<strong>Refundable Deposit.</strong> The ₱10,000 deposit is fully refundable if you decide not to proceed with the purchase.',
-            '<strong>Installment Payment.</strong> If you proceed with installment payments, the ₱10,000 deposit will serve as your down payment and will be deducted from the total system price.',
+            '<strong>Reservation Deposit.</strong> A {AMOUNT} deposit is required to reserve your selected solar system for installment.',
+            '<strong>Refundable Deposit.</strong> The {AMOUNT} deposit is fully refundable if you decide not to proceed with the purchase.',
+            '<strong>Installment Payment.</strong> If you proceed with installment payments, the {AMOUNT} deposit will serve as your down payment and will be deducted from the total system price.',
             '<strong>Remaining Balance.</strong> Payable in {TERM}.',
             '<strong>Final Pricing and Approval.</strong> Your final system price, payment schedule, and applicable terms will be confirmed in your sales agreement before the transaction is finalized. Supporting documents will be requested.',
             '<strong>Site Assessment.</strong> Conducted before installation to confirm the final system design.',
@@ -1630,9 +1590,10 @@ function openTerms(kind) {
     const t = TERMS[kind] || TERMS.assessment;
     termsTarget = kind === 'assessment' ? 'assess' : 'lead';
     document.getElementById('termsBadge').textContent = t.badge;
-    document.getElementById('termsTitle').textContent = t.title || 'Terms & Conditions';
+    const amountText = HSB.peso(kind === 'installment' ? DP_INSTALLMENT : kind === 'full' ? DP_FULL : FEE_SITE_VISIT);
+    document.getElementById('termsTitle').textContent = (t.title || 'Terms & Conditions').split('{AMOUNT}').join(amountText);
     const termText = kind === 'installment' ? `${getLeadTerm()} monthly installments (${termName(getLeadTerm())})` : '';
-    document.getElementById('termsList').innerHTML = t.items.map(i => `<li>${i.replace('{TERM}', termText)}</li>`).join('');
+    document.getElementById('termsList').innerHTML = t.items.map(i => `<li>${i.replace('{TERM}', termText).split('{AMOUNT}').join(amountText)}</li>`).join('');
     openModal('termsModal');
 }
 
@@ -2004,7 +1965,7 @@ function handleAssessmentSubmit(e) {
             termMonths: INSTALLMENT_TERM_MONTHS,
             downPayment: INSTALLMENT_DOWN_PAYMENT,
             subject: `${pkg.name || 'Solar'} Site Assessment Request`,
-            message: `Requested a site assessment (site visit) for ${pkg.name || packageId} on ${formatVisitDate(visitDate)} at ${location}. ₱1,000 site visit fee proof submitted for verification.`,
+            message: `Requested a site assessment (site visit) for ${pkg.name || packageId} on ${formatVisitDate(visitDate)} at ${location}. ${HSB.peso(SITE_VISIT_FEE)} site visit fee proof submitted for verification.`,
             termsAcceptedAt: ts.toISOString(),
             status: 'Unread',
             inquiryStatus: 'Not Sent',
@@ -2525,7 +2486,7 @@ function initPageInteractions() {
 
         // Set final static values (for reduced motion or completion)
         const setFinalValues = () => {
-            if (dpEl) dpEl.textContent = '₱10,000';
+            if (dpEl) dpEl.textContent = HSB.peso(DP_INSTALLMENT);
             if (billsEl) {
                 billsEl.textContent = '6 Years';
                 billsEl.style.opacity = '1';
@@ -2557,7 +2518,7 @@ function initPageInteractions() {
 
             // Down Payment: ₱50,000 -> ₱10,000
             const startDp = 50000;
-            const endDp = 10000;
+            const endDp = DP_INSTALLMENT;
 
             // Monthly Bills sequence: 6 Months -> 1 Year -> 2 Years -> 3 Years -> 4 Years -> 5 Years -> 6 Years
             const billStages = ['6 Months', '1 Year', '2 Years', '3 Years', '4 Years', '5 Years', '6 Years'];
@@ -2653,10 +2614,19 @@ function openContinueFromSiteVisit() {
     const visitId = params.get('visit');
     const token = params.get('t');
     const db = window.HELLO_SOLAR_DB;
-    if (!visitId || !token || !db || typeof db.getSiteVisits !== 'function') return;
+    const isApi = !!(window.HS_CONFIG && window.HS_CONFIG.isApi && window.HSApi);
+    if (!visitId || !token) return;
+    if (!isApi && (!db || typeof db.getSiteVisits !== 'function')) return;
     try {
-        db.data = db.load();
-        const v = (db.getSiteVisits() || []).find(x => x.id === visitId && x.continueToken === token);
+        let v = null;
+        if (isApi) {
+            // api mode: GET /public/site-visits/:visitId?token=… → { visit }
+            const res = window.HSApi.requestSync('GET', `/public/site-visits/${encodeURIComponent(visitId)}?token=${encodeURIComponent(token)}`, null, { auth: false });
+            v = res.ok && res.data ? (res.data.visit || res.data) : null;
+        } else {
+            db.data = db.load();
+            v = (db.getSiteVisits() || []).find(x => x.id === visitId && x.continueToken === token);
+        }
         if (!v) return;
         window.__hsContinueVisit = v;
         startInquiry(v.packageId || undefined);

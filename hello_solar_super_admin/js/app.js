@@ -3963,8 +3963,8 @@
     renderSystemConnectionTable();
   }
 
-  // ---- Accounting tabs: Overview · Money In · Money Out · System Control ----
-  // Each Money In / Money Out sub-tab shows one existing panel (data-acc-panel)
+  // ---- Accounting tabs: Overview · Receivables · Payables · System Control ----
+  // Each Receivables / Payables sub-tab shows one existing panel (data-acc-panel)
   const ACC_SUBS = {
     in: [["received", "Payments Received", "payments"], ["monthly", "Monthly Payments", "customers"], ["loans", "From Funders", "loans"]],
     out: [["funders", "Funders", "funders"], ["refunds", "Refunds", "refunds"], ["costs", "Installation Costs", "operations"]]
@@ -4002,7 +4002,7 @@
     $$("#page-accounting .acc-panel").forEach(p => p.classList.toggle("active", p.dataset.accPanel === panel));
   }
 
-  // ---- Month picker (Overview + Money Out › Funders) ----
+  // ---- Month picker (Overview + Payables › Funders) ----
   function accThisMonth() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -4030,7 +4030,7 @@
     $$("#page-accounting .acc-month-slot").forEach(el => { el.innerHTML = html; });
   }
 
-  // ---- Overview: Money In, Money Out and To Check for the picked month ----
+  // ---- Overview: Receivables, Payables and To Check for the picked month ----
   function renderMoneyOverview() {
     renderAccMonthNav();
     if (!db.getMoneySummary || !$("#accInTotal")) return;
@@ -4073,7 +4073,7 @@
       ? `<button type="button" class="link-btn acc-check-more" data-acc-go="in:received:check">See all ${s.toCheck.rows.length} payments to check →</button>` : "");
   }
 
-  // ---- Money In › From Funders ----
+  // ---- Receivables › From Funders ----
   function renderFunderLoans() {
     const body = $("#accLoansBody");
     if (!body || !db.getFunderLoansReceived) return;

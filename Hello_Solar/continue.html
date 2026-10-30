@@ -6,8 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Continue with Hello Solar</title>
     <link rel="icon" type="image/png" href="assets/images/logofortab.png">
+    <script src="../shared/hello-solar-business.js?v=20261030a"></script>
     <script src="../shared/hello-solar-config.js"></script>
-    <script src="../shared/hello-solar-store.js?v=20261028d"></script>
+    <script src="../shared/hello-solar-store.js?v=20261030a"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -89,11 +90,31 @@
                 $("cAsk").hidden = true;
             }
 
-            if (!db || !db.getSiteVisits) return fail("We could not load your request. Please contact Hello Solar.");
-            db.data = db.load();
-            const visit = (db.getSiteVisits() || []).find(v => v.id === visitId);
-            if (!visit || !visit.continueToken || visit.continueToken !== token) {
-                return fail("This link is not valid anymore. Please contact Hello Solar.");
+            // api mode (shared/hello-solar-config.js): the backend checks the token and returns only this visit
+            const IS_API = !!(window.HS_CONFIG && window.HS_CONFIG.isApi && window.HSApi);
+            const enc = encodeURIComponent;
+            let visit = null;
+            if (IS_API) {
+                // GET /public/site-visits/:visitId?token=… → { visit } (403 when the token is invalid or expired)
+                const res = window.HSApi.requestSync("GET", `/public/site-visits/${enc(visitId)}?token=${enc(token)}`, null, { auth: false });
+                visit = res.ok && res.data ? (res.data.visit || res.data) : null;
+                if (!visit) return fail("This link is not valid anymore. Please contact Hello Solar.");
+            } else {
+                if (!db || !db.getSiteVisits) return fail("We could not load your request. Please contact Hello Solar.");
+                db.data = db.load();
+                visit = (db.getSiteVisits() || []).find(v => v.id === visitId);
+                if (!visit || !visit.continueToken || visit.continueToken !== token) {
+                    return fail("This link is not valid anymore. Please contact Hello Solar.");
+                }
+            }
+
+            // Saves the customer's answer. api mode: POST /public/site-visits/:visitId/response { token, decision }
+            function respond(decision) {
+                if (IS_API) {
+                    return window.HSApi.request("POST", `/public/site-visits/${enc(visit.id)}/response`, { token, decision }, { auth: false })
+                        .then(res => (res.ok ? { success: true } : { success: false, error: res.error || "We could not save your answer. Please try again." }));
+                }
+                return Promise.resolve(db.respondSiteVisitContinue(visit.id, token, decision));
             }
 
             function showDone(proceed) {
@@ -119,15 +140,17 @@
             $("cAsk").hidden = false;
 
             $("cYes").addEventListener("click", () => {
-                const res = db.respondSiteVisitContinue(visit.id, token, "Yes");
-                if (!res.success) return fail(res.error);
-                showDone(true);
-                setTimeout(goToCheckout, 900);
+                respond("Yes").then(res => {
+                    if (!res.success) return fail(res.error);
+                    showDone(true);
+                    setTimeout(goToCheckout, 900);
+                });
             });
             $("cNo").addEventListener("click", () => {
-                const res = db.respondSiteVisitContinue(visit.id, token, "No");
-                if (!res.success) return fail(res.error);
-                showDone(false);
+                respond("No").then(res => {
+                    if (!res.success) return fail(res.error);
+                    showDone(false);
+                });
             });
         })();
     </script>

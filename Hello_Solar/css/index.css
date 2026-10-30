@@ -1277,3 +1277,6 @@ div:has(> .lead-error) {
     font-weight: 600;
     color: #78716c;
 }
+
+/* Recommendation wizard: room for the round Back button (top left, same size as the close button) */
+#recommendationModal .wiz-head { padding-left: 52px; min-height: 44px; }

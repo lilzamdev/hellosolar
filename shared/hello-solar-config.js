@@ -2,7 +2,7 @@
  * Hello Solar — runtime configuration, API client and shared-record cache.
  *
  * Load this file FIRST on every page (before shared/hello-solar-store.js, shared/hello-solar-shared.js,
- * Super Admin auth.js and the landing-page scripts). See BACKEND_INTEGRATION.md.
+ * Super Admin auth.js and the landing-page scripts). See API_CONTRACT.md.
  *
  * Modes
  *   local  (default) — today's prototype: every shared record lives in this browser's localStorage and the
@@ -145,6 +145,13 @@
         // Documents
         "document.upload":             ["POST",  "/applications/:appId/documents/:docId"],   // multipart
         "document.review":             ["PATCH", "/applications/:appId/documents/:docId"],
+        "document.link":               ["PUT",   "/applications/:appId/documents/:docId/link"],
+        "document.request":            ["POST",  "/applications/:appId/documents"],
+        "document.waive":              ["PATCH", "/applications/:appId/documents/:docId/not-required"],
+        "agreement.upload":            ["POST",  "/applications/:appId/agreement"],             // multipart
+        "agreement.review":            ["PATCH", "/applications/:appId/agreement"],
+        // Maintenance (the person asked to handle a maintenance job accepts or declines)
+        "maintenance.respond":         ["POST",  "/maintenance/:jobId/response"],
         // Support
         "support.create":              ["POST",  "/support/tickets"],
         // Notifications
@@ -162,6 +169,7 @@
         // Landing page (public, no token)
         "inquiry.submit":              ["POST",  "/public/inquiries"],
         "inquiry.respond":             ["POST",  "/public/inquiries/:inquiryId/response"],
+        "siteVisit.respond":           ["POST",  "/public/site-visits/:visitId/response"],
         // Super Admin / Direct Engineer — one route per HelloSolarStore write method
         "admin.*":                     ["POST",  "/admin/commands/:method"]
     };

@@ -13,11 +13,18 @@
   // (Solar Recommendation / Request Solar Proposal form and Contact Us → Customer)
   const CUSTOMER_INQUIRY_KEY = "HELLO_SOLAR_CUSTOMER_INQUIRIES";
   const PARTNER_TYPES = ["Financer", "Installer", "Merchant"];
-  // Hello Solar packages (same prices as the landing page). Installment: 72 months, ₱10,000 down payment.
-  // Full Payment: ₱500 down payment.
-  const INSTALLMENT_TERM_MONTHS = 72;
-  const INSTALLMENT_DOWN_PAYMENT = 10000;
-  const FULL_PAYMENT_DOWN_PAYMENT = 500;
+  // Prices, packages, terms and down payments come from shared/hello-solar-business.js (the one place to change
+  // them). That file loads before this one on every page.
+  const BUSINESS = (typeof window !== "undefined" && window.HELLO_SOLAR_BUSINESS) ||
+    (typeof globalThis !== "undefined" && globalThis.HELLO_SOLAR_BUSINESS) || null;
+  if (!BUSINESS && typeof console !== "undefined") {
+    console.error("[Hello Solar] Load shared/hello-solar-business.js before shared/hello-solar-store.js.");
+  }
+  const BIZ = BUSINESS || { packages: [], downPayment: {}, installmentTerms: [], defaultTerm: 72 };
+  const INSTALLMENT_TERM_MONTHS = Number(BIZ.defaultTerm) || 72;
+  const INSTALLMENT_DOWN_PAYMENT = Number((BIZ.downPayment || {}).installment) || 0;
+  const FULL_PAYMENT_DOWN_PAYMENT = Number((BIZ.downPayment || {}).fullPayment) || 0;
+  const SITE_VISIT_FEE = Number(BIZ.siteVisitFee) || 0;
   const isFullPaymentType = ref => {
     if (ref && typeof ref === "object") return /full/i.test(String(ref.paymentType || ref.paymentPreference || "")) || ref.financer === "Not Required";
     return /full/i.test(String(ref || ""));
@@ -60,24 +67,15 @@
     for (let i = 1; i < months; i++) balance = balance * (1 + r) - monthly;
     return round2(Math.max(0, balance * (1 + r)));
   }
-  // Installment terms: 6 months, 3 years or 6 years (the customer picks one on Buy Now). Every term has the same
-  // ₱10,000 down payment. terms = monthly payment per term (months → ₱/month).
-  // Source: HS Pricing 2026 (6 mos / 3 yrs option). Same total as the price list (6 months = price × 1.20,
-  // 3 years = price × 1.42) with the ₱10,000 down payment; the rest is split into equal monthly payments,
-  // rounded up to the whole peso like the 6-year price. Update prices here only; every portal reads this list.
-  const INSTALLMENT_TERM_OPTIONS = [6, 36, 72];
-  const PACKAGE_CATALOG = [
-    { id: "hs6-lite", name: "HS 6 LITE", price: 285000, monthly: 7284, battery: "5kWh", terms: { 6: 55334, 36: 10964, 72: 7284 } },
-    { id: "hs6-pro", name: "HS 6 PRO", price: 340000, monthly: 8689, battery: "10kWh", terms: { 6: 66334, 36: 13134, 72: 8689 } },
-    { id: "hs6-max", name: "HS 6 MAX", price: 390000, monthly: 9967, battery: "16kWh", terms: { 6: 76334, 36: 15106, 72: 9967 } },
-    { id: "hs8-pro", name: "HS 8 PRO", price: 516000, monthly: 13187, battery: "16kWh", terms: { 6: 101534, 36: 20076, 72: 13187 } },
-    { id: "hs8-max", name: "HS 8 MAX", price: 614000, monthly: 15692, battery: "32kWh", terms: { 6: 121134, 36: 23942, 72: 15692 } },
-    { id: "hs12-pro", name: "HS 12 PRO", price: 572000, monthly: 15572, battery: "16kWh", terms: { 6: 112734, 36: 22285, 72: 15572 } },
-    { id: "hs12-max", name: "HS 12 MAX", price: 720000, monthly: 19600, battery: "32kWh", terms: { 6: 142334, 36: 28123, 72: 19600 } },
-    // HS 16 PRO MAX is listed before HS 16 PRO so findPackage() matches the longer name first
-    { id: "hs16-pro-max", name: "HS 16 PRO MAX", price: 975000, monthly: 26542, battery: "32kWh", terms: { 6: 193334, 36: 38181, 72: 26542 } },
-    { id: "hs16-pro", name: "HS 16 PRO", price: 780000, monthly: 21234, battery: "16kWh", terms: { 6: 154334, 36: 30489, 72: 21234 } }
-  ];
+  // Installment terms (6 months, 3 years, 6 years) and the package catalog, from hello-solar-business.js.
+  // monthly = the payment for the default term. Every portal reads this list.
+  const INSTALLMENT_TERM_OPTIONS = (BIZ.installmentTerms || []).map(Number).filter(n => n > 0);
+  const PACKAGE_CATALOG = (BIZ.packages || []).map(p => ({
+    id: p.id, name: p.name, price: Number(p.price) || 0,
+    monthly: Number((p.terms || {})[INSTALLMENT_TERM_MONTHS]) || 0,
+    panels: p.panels || "", inverter: p.inverter || "", battery: p.battery || "",
+    terms: Object.fromEntries(Object.entries(p.terms || {}).map(([k, v]) => [Number(k), Number(v)]))
+  }));
   // Plain-language term: 6 → "6 months", 36 → "3 years", 72 → "6 years", 82 → "82 months"
   function termLabel(months) {
     const m = Number(months);
@@ -4305,8 +4303,8 @@
 
     // ─────────────────────────────────────────────────────────────────────────
     // MONEY IN / MONEY OUT (Accounting, per month)
-    // Money In  = verified customer payments + loans received from funders
-    // Money Out = monthly payments made to funders (marked paid) + refunds + Hello Solar installation costs
+    // Receivables = verified customer payments + loans received from funders
+    // Payables    = monthly payments made to funders (marked paid) + refunds + Hello Solar installation costs
     // ─────────────────────────────────────────────────────────────────────────
     static monthOf(value) {
       const s = String(value || "");
@@ -4625,7 +4623,7 @@
           packageId: inq.packageId || null, package: inq.selectedSolarModel || inq.package || "",
           preferredDate: inq.preferredVisitDate || "", scheduledDate: inq.preferredVisitDate || "", scheduledTime: "",
           status: "Pending Assignment", assignee: null,
-          fee: Number(proof && proof.amount) || 1000,
+          fee: Number(proof && proof.amount) || SITE_VISIT_FEE,
           feePaymentStatus: proof ? "Pending Verification" : "Not Submitted",
           feeProof: proof ? { ...proof } : null,
           clientDecision: null, refund: null,
@@ -6654,7 +6652,14 @@
     "updateSupportTicket", "addTicketMessage", "resolveSupportTicket", "reopenSupportTicket",
     "approvePartnerInquiry", "updateInquiryStatus", "saveInquiryConfirmationMessage", "sendInquiryConfirmationEmail",
     "updateInquiryCustomerResponse", "overrideInquiryCustomerResponse",
-    "updateSettings"
+    "updateSettings",
+    // Funding, down payments, refunds and reimbursements
+    "acceptHelloSolarFunding", "verifyDownPayment", "refundClientPayment", "setClientDecision", "resolveReimbursement",
+    "markFunderPaid", "undoFunderPaid",
+    // Site visits
+    "assignSiteVisit", "verifySiteVisitFee", "updateSiteVisitStatus", "sendSiteVisitContinueLink",
+    // Maintenance
+    "saveMaintenance", "respondMaintenance"
   ];
   const commandSucceeded = res => res !== false && res !== null && res !== undefined &&
     !(res && typeof res === "object" && (res.success === false || res.ok === false));
@@ -6707,7 +6712,7 @@
   HelloSolarStore.ADMIN_COMMANDS = ADMIN_COMMANDS;
 
   window.HelloSolarStore = HelloSolarStore;
-  window.HELLO_SOLAR_PACKAGES = { catalog: PACKAGE_CATALOG, findPackage, termMonths: INSTALLMENT_TERM_MONTHS, termOptions: INSTALLMENT_TERM_OPTIONS, termLabel, monthlyForTerm, downPayment: INSTALLMENT_DOWN_PAYMENT, fullPaymentDownPayment: FULL_PAYMENT_DOWN_PAYMENT, downPaymentAmountFor };
+  window.HELLO_SOLAR_PACKAGES = { catalog: PACKAGE_CATALOG, findPackage, termMonths: INSTALLMENT_TERM_MONTHS, termOptions: INSTALLMENT_TERM_OPTIONS, termLabel, monthlyForTerm, downPayment: INSTALLMENT_DOWN_PAYMENT, fullPaymentDownPayment: FULL_PAYMENT_DOWN_PAYMENT, siteVisitFee: SITE_VISIT_FEE, downPaymentAmountFor };
   window.HELLO_SOLAR_DB = new HelloSolarStore();
   // Maintain backward compatibility for any script accessing window.HELLO_SOLAR_DATA
   window.HELLO_SOLAR_DATA = window.HELLO_SOLAR_DB.data;

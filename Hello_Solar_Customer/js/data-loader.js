@@ -293,8 +293,8 @@
                 hasSupport: true,
                 leadTechnician: assignedInstaller ? assignedInstaller.name : "Hello Solar Central Dispatch",
                 leadRole: assignedInstaller ? (assignedInstaller.role || "Certified Solar Master Installer") : "Hello Solar Support / Super Admin",
-                leadPhone: assignedInstaller ? assignedInstaller.phone : "+63 2 8888 0100",
-                leadContact: assignedInstaller ? `${assignedInstaller.phone} (${assignedInstaller.name})` : "+63 2 8888 0100 (Central Dispatch)",
+                leadPhone: assignedInstaller ? assignedInstaller.phone : window.HSBusiness.data.company.dispatchPhone,
+                leadContact: assignedInstaller ? `${assignedInstaller.phone} (${assignedInstaller.name})` : `${window.HSBusiness.data.company.dispatchPhone} (Central Dispatch)`,
                 tickets: []
             }
         };

@@ -56,6 +56,17 @@
             const modalSubmitProofBtn = document.getElementById("modalSubmitProofBtn");
             const proofModalDue = document.getElementById("proofModalDue");
             const ppChips = Array.from(document.querySelectorAll("#submitPaymentProofModal .pp-chip"));
+            // Payment channels (account name and number) come from shared/hello-solar-business.js
+            if (window.HSBusiness) {
+                ppChips.forEach(chip => {
+                    const c = window.HSBusiness.channel(chip.dataset.payId);
+                    if (!c) return;
+                    chip.dataset.channel = c.channel;
+                    chip.dataset.name = `${c.bank || c.label} · ${c.accountName}`;
+                    chip.dataset.number = c.number;
+                    chip.textContent = c.label;
+                });
+            }
             const ppAcctName = document.getElementById("ppAcctName");
             const ppAcctNumber = document.getElementById("ppAcctNumber");
             const ppCopyBtn = document.getElementById("ppCopyBtn");

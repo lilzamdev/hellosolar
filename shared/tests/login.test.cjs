@@ -24,7 +24,7 @@ function env() {
   };
   c.window = c;
   vm.createContext(c);
-  ['shared/hello-solar-store.js', 'shared/hello-solar-shared.js', 'hello_solar_super_admin/js/auth.js', 'shared/hello-solar-login.js']
+  ['shared/hello-solar-business.js', 'shared/hello-solar-store.js', 'shared/hello-solar-shared.js', 'hello_solar_super_admin/js/auth.js', 'shared/hello-solar-login.js']
     .forEach(f => vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), c));
   return c;
 }

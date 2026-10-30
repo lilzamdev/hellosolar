@@ -548,7 +548,7 @@ const InstallerData = (() => {
         if (cachedData) return cachedData;
 
         // api mode / demo data off: no sample profile, jobs or payouts — jobs come only from shared records and the
-        // profile from the signed-in INS-### account (payout history needs the payouts API, see BACKEND_INTEGRATION.md)
+        // profile from the signed-in INS-### account (payout history needs the payouts API, see API_CONTRACT.md §11)
         if (!DEMO_DATA) {
             const ctx = projectContext();
             const acc = ctx ? ctx.account : {};

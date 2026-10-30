@@ -125,7 +125,7 @@
                     name: "Hello Solar Super Admin",
                     initials: "HS",
                     role: "Central Customer Care & Engineering Support",
-                    phone: "+63 2 8888 0100",
+                    phone: window.HSBusiness.data.company.dispatchPhone,
                     note: "Installer assignment in progress. Your support and installation scheduling are routed directly to Hello Solar Super Admin."
                 };
 
@@ -144,7 +144,7 @@
                     if (contactLeadBtn) contactLeadBtn.href = `support.html?type=installation&package=${pkg.id}`;
 
                     if (dispatchPhoneLink) dispatchPhoneLink.href = `tel:+63288880100`;
-                    if (dispatchPhoneText) dispatchPhoneText.textContent = "Call Super Admin (+63 2 8888 0100)";
+                    if (dispatchPhoneText) dispatchPhoneText.textContent = `Call Super Admin (${window.HSBusiness.data.company.dispatchPhone})`;
                 } else {
                     const firstName = team.name.split(" ")[0];
                     if (messageTeamBtnText) messageTeamBtnText.textContent = `Send Message to ${firstName}`;

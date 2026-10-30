@@ -10,6 +10,7 @@
       visibility: hidden;
     }
   </style>
+  <script src="../shared/hello-solar-business.js?v=20261030a"></script>
   <script src="../shared/hello-solar-config.js"></script>
   <script src="js/auth.js?v=20261027b"></script>
   <link rel="icon" type="image/png" href="assets/images/logofortab.png" />
@@ -19,7 +20,7 @@
     rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css?v=20261016a" />
   <link rel="stylesheet" href="css/clean-fixes.css?v=20261016e" />
-  <link rel="stylesheet" href="css/portal-updates.css?v=20261028d" />
+  <link rel="stylesheet" href="css/portal-updates.css?v=20261030a" />
 </head>
 
 <body>
@@ -1197,27 +1198,27 @@
 
           <div class="acc-tabs" id="accTabs" role="tablist" aria-label="Accounting sections">
             <button class="acc-tab active" data-acc-tab="overview" role="tab">Overview</button>
-            <button class="acc-tab" data-acc-tab="in" role="tab">Money In <span class="count-pill" id="accPendingCount">0</span></button>
-            <button class="acc-tab" data-acc-tab="out" role="tab">Money Out</button>
+            <button class="acc-tab" data-acc-tab="in" role="tab">Receivables <span class="count-pill" id="accPendingCount">0</span></button>
+            <button class="acc-tab" data-acc-tab="out" role="tab">Payables</button>
             <button class="acc-tab" data-acc-tab="system" role="tab">System Control</button>
           </div>
-          <!-- Sub-tabs of Money In / Money Out (filled by renderAccountingTabs) -->
+          <!-- Sub-tabs of Receivables / Payables (filled by renderAccountingTabs) -->
           <div class="acc-seg" id="accSubTabs" role="tablist" aria-label="Section" hidden></div>
 
-          <!-- OVERVIEW: this month's money in, money out and payments to check -->
+          <!-- OVERVIEW: this month's receivables, payables and payments to check -->
           <div class="acc-panel active" data-acc-panel="overview">
             <div class="acc-month-row">
               <div class="acc-month-slot"></div>
-              <p class="acc-month-help">Money in and out for the month you pick.</p>
+              <p class="acc-month-help">Receivables and payables for the month you pick.</p>
             </div>
             <div class="acc-cards">
               <button type="button" class="acc-card is-in" data-acc-go="in:received">
-                <span class="acc-card-label">Money In</span>
+                <span class="acc-card-label">Receivables</span>
                 <strong class="acc-card-value" id="accInTotal">—</strong>
                 <span class="acc-card-hint" id="accInHint">—</span>
               </button>
               <button type="button" class="acc-card is-out" data-acc-go="out:funders">
-                <span class="acc-card-label">Money Out</span>
+                <span class="acc-card-label">Payables</span>
                 <strong class="acc-card-value" id="accOutTotal">—</strong>
                 <span class="acc-card-hint" id="accOutHint">—</span>
                 <span class="acc-card-note" id="accOutStill"></span>
@@ -1345,7 +1346,7 @@
             <div class="sa-section-head">
               <div>
                 <h3>From Funders</h3>
-                <p>Loans Hello Solar received from funders. We pay them back every month in Money Out › Funders.</p>
+                <p>Loans Hello Solar received from funders. We pay them back every month in Payables › Funders.</p>
               </div>
               <div class="sa-section-tools">
                 <div class="sa-stat"><span>Total Received</span><strong id="accLoansTotal">—</strong></div>
@@ -4387,7 +4388,7 @@
     </div>
   </div>
 
-  <script src="../shared/hello-solar-store.js?v=20261028d"></script>
+  <script src="../shared/hello-solar-store.js?v=20261030a"></script>
   <script src="../shared/hello-solar-shared.js?v=20261028d"></script>
   <script src="js/app.js?v=20261028d"></script>
 </body>

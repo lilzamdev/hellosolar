@@ -546,7 +546,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const modalSnapshotSystem = document.getElementById('modalSnapshotSystem');
             if (modalSnapshotSystem) modalSnapshotSystem.textContent = String(job.system || '').includes(String(job.capacityKwp || 5.0)) ? `${job.system} system` : `${job.system} (${job.capacityKwp || 5.0} kWp)`;
             const modalSnapshotCoord = document.getElementById('modalSnapshotCoord');
-            if (modalSnapshotCoord) modalSnapshotCoord.textContent = job.coordinator || 'Hello Solar Central Dispatch (+63 2 8888 0100)';
+            if (modalSnapshotCoord) modalSnapshotCoord.textContent = job.coordinator || `Hello Solar Central Dispatch (${window.HSBusiness.data.company.dispatchPhone})`;
             const modalSnapshotAccess = document.getElementById('modalSnapshotAccess');
             const specs = job.technicalSpecs || {};
             if (modalSnapshotAccess) {

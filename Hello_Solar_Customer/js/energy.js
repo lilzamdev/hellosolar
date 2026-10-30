@@ -115,7 +115,7 @@
                         || (pkg.install && pkg.install.assignedTeam && pkg.install.assignedTeam.name)
                         || "Hello Solar Support";
                     const phone = (pkg.assignedInstaller && pkg.assignedInstaller.phone)
-                        || "+63 2 8888 0100";
+                        || window.HSBusiness.data.company.dispatchPhone;
                     const termText = (pkg.warranties && pkg.warranties.workmanship && pkg.warranties.workmanship.termText)
                         || "5-Year Coverage";
 

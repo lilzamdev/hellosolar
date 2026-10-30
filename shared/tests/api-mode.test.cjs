@@ -45,6 +45,7 @@ function apiEnvironment(respond) {
   context.window = context;
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'shared/hello-solar-config.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'shared/hello-solar-business.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'shared/hello-solar-store.js'), 'utf8'), context);
   return { c: context, sent, events };
 }
@@ -85,4 +86,36 @@ test('a rejected save raises hs:api-error with the server message', async () => 
   assert.equal(ev.detail.command, 'admin.updateSettings');
   assert.equal(ev.detail.status, 422);
   assert.equal(ev.detail.error, 'Settings are locked.');
+});
+
+// Every write the pages make must reach the backend in api mode: each command name the code sends has a route,
+// and the Super Admin money / site visit / maintenance actions are admin commands with named params.
+test('every command the pages send has a backend route', () => {
+  const config = fs.readFileSync(path.join(ROOT, 'shared/hello-solar-config.js'), 'utf8');
+  const routes = new Set([...config.matchAll(/^\s+"([a-zA-Z.*]+)":\s+\["/gm)].map(m => m[1]));
+  const sent = new Set();
+  const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).forEach(e => {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) { if (!/^(\.git|node_modules|tests)$/.test(e.name)) walk(p); return; }
+    if (!e.name.endsWith('.js')) return;
+    const src = fs.readFileSync(p, 'utf8');
+    for (const m of src.matchAll(/(?:name: |API\.command\(|HSApi\.command\()"([a-z][a-zA-Z]*\.[a-zA-Z]+)"/g)) sent.add(m[1]);
+  });
+  walk(ROOT);
+  assert.ok(sent.size > 10, 'no commands found');
+  const missing = [...sent].filter(name => !routes.has(name));
+  assert.deepEqual(missing, [], `commands without a route: ${missing.join(', ')}`);
+});
+
+test('funding, refunds, site visits and maintenance are sent as admin commands', () => {
+  const { c } = apiEnvironment(() => ({ status: 200 }));
+  const params = c.HelloSolarStore.ADMIN_COMMAND_PARAMS;
+  ['acceptHelloSolarFunding', 'verifyDownPayment', 'refundClientPayment', 'setClientDecision', 'resolveReimbursement',
+    'markFunderPaid', 'undoFunderPaid', 'assignSiteVisit', 'verifySiteVisitFee', 'updateSiteVisitStatus',
+    'sendSiteVisitContinueLink', 'saveMaintenance', 'respondMaintenance'].forEach(name => {
+    assert.ok(c.HelloSolarStore.ADMIN_COMMANDS.includes(name), `${name} is not an admin command`);
+  });
+  assert.deepEqual([...params.markFunderPaid], ['funderId', 'month', 'options']);
+  assert.deepEqual([...params.refundClientPayment], ['kind', 'id', 'payload', 'options']);
+  assert.deepEqual([...params.assignSiteVisit], ['visitId', 'assignment', 'options']);
 });

@@ -16,6 +16,9 @@
     let packages = (window.HelloSolar && window.HelloSolar.getLinkedPackages)
         ? window.HelloSolar.getLinkedPackages()
         : [];
+    // The customer's systems finish loading a moment after the page opens; until then
+    // nothing is shown (no "Good day" + Link card flash before the Live Telemetry).
+    let packagesReady = packages.length > 0;
 
     // --------------------------------------------------------------------------
     // 2. USER-OWNED SYSTEMS (shared application records scoped to this customer by portal.js)
@@ -790,6 +793,9 @@
         const targetPkg = userPkgs.find(p => p.id === activePackageId) || userPkgs[0];
         if (targetPkg) {
             openSystemDetail(targetPkg);
+        } else if (systemsOverviewView && packagesReady) {
+            // No linked system yet: show the greeting + Link Existing System card
+            systemsOverviewView.style.display = "block";
         }
         if (urlParams.get("action") === "link" || window.location.hash === "#link") {
             setTimeout(() => {
@@ -1040,7 +1046,7 @@
             // Route to Hello Solar / Super Admin
             if (supportLeadAvatar) supportLeadAvatar.textContent = "HS";
             if (supportLeadName) supportLeadName.textContent = "Hello Solar Super Admin / Central Dispatch";
-            if (supportLeadRole) supportLeadRole.textContent = "Central Customer Care & Engineering Support (+63 2 8888 0100)";
+            if (supportLeadRole) supportLeadRole.textContent = `Central Customer Care & Engineering Support (${window.HSBusiness.data.company.dispatchPhone})`;
         }
 
         // 6. Required Documents (Installment only — hidden for Full Payment)
@@ -1565,6 +1571,7 @@
     window.addEventListener("helloSolarDataLoaded", (e) => {
         if (e.detail && Array.isArray(e.detail.packages)) {
             packages = e.detail.packages;
+            packagesReady = true;
             renderSystemsGrid();
         }
     });

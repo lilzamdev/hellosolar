@@ -545,7 +545,10 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 .package-selector-slot, .package-btn-content { min-width: 0; }
 .package-btn-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .package-dropdown-menu { min-width: min(300px, calc(100vw - 32px)); max-width: calc(100vw - 32px); box-shadow: var(--shadow-md); }
-.package-item.selected { background: var(--selected); border-color: var(--icon); }
+/* Selected system: orange background + orange name (no border, no check) */
+.package-item.selected, .package-item.selected:hover { background: #FFEDD5; border-color: transparent; }
+.package-item:focus, .package-item:focus-visible { outline: none !important; }
+.package-item:not(.selected):focus-visible { background: var(--gray-100); }
 .package-item-check { background: var(--primary); color: var(--ink); }
 .package-item-check svg { stroke-width: 2; }
 .channel-row:hover { background: var(--page-bg); border-color: var(--icon); }
@@ -710,7 +713,7 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 .package-items-list { gap: 4px; padding: 6px; }
 .package-item {
     display: grid;
-    grid-template-columns: 14px minmax(0, 1fr) auto 20px;
+    grid-template-columns: 14px minmax(0, 1fr) auto;
     align-items: center;
     gap: 10px;
     padding: 10px 12px;
@@ -729,8 +732,7 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 .package-item-state.is-active { background: #ECFDF5; color: #047857; border-color: #A7F3D0; }
 .package-item-state.is-inactive { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
 .package-item-state.is-required { background: #FFF7ED; color: #C2410C; border-color: #FED7AA; }
-.package-item-check { display: flex; visibility: hidden; }
-.package-item.selected .package-item-check { visibility: visible; }
+.package-item-check { display: none !important; }
 .package-status-legend {
     display: flex; gap: 14px; justify-content: center; padding: 8px 12px;
     border-top: 1px solid var(--gray-100); font-size: 11px; font-weight: 700; color: var(--muted);
@@ -775,4 +777,19 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 /* My System page: the System dropdown is replaced by the sidebar list on desktop (kept on mobile, where the sidebar is hidden) */
 @media (min-width: 769px) {
     .detail-summary-row #pagePackageSelector { display: none; }
+}
+
+/* Status dots keep blinking. The global rule at the top turns animations off,
+   so these opt back in: System / Payment Status pills, system dots, LIVE badge. */
+.summary-status-dot,
+.hs-status-dot,
+.telemetry-pulse-dot { animation: hsDotBlinkSlow 2.6s ease-in-out infinite !important; }
+.hs-status-dot::after { animation: hsDotPulse 2.6s ease-out infinite !important; }
+@keyframes hsDotBlinkSlow { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.package-status-legend .hs-status-dot,
+.package-status-legend .hs-status-dot::after,
+.telemetry-live-badge[data-state="offline"] .telemetry-pulse-dot,
+.telemetry-live-badge[data-state="unavailable"] .telemetry-pulse-dot { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+    .summary-status-dot, .hs-status-dot, .hs-status-dot::after, .telemetry-pulse-dot { animation: none !important; }
 }

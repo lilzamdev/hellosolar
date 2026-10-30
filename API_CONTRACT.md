@@ -1,9 +1,37 @@
-# Hello Solar — API Contract
+# Hello Solar — Backend Guide & API Contract
 
-What the frontend sends and expects back in **api mode**. Read this together with
-`BACKEND_INTEGRATION.md` (responsibilities and business rules).
+The one document for the backend developer: what the backend owns, every endpoint the frontend already calls, and the
+record shapes. Project overview and folder map: `README.md`.
 
 Every endpoint below is already called by the frontend. You only build the server side; the portal UI does not change.
+
+## 0. What the backend owns
+
+The frontend is complete. Connect it to a database, authentication, file storage, email and notifications — do not
+rewrite the portal UI. All portals reach data through one layer:
+
+| Layer | File | Role |
+|---|---|---|
+| HSApi | `shared/hello-solar-config.js` | Mode switch (`local` / `api`), HTTP client, command routes, page-load bootstrap |
+| HelloSolarStore | `shared/hello-solar-store.js` | Data model, demo seed, business rules, Super Admin / Direct Engineer commands (reference logic) |
+| HSShared | `shared/hello-solar-shared.js` | Sessions and portal commands (Customer, Financer, Installer, Merchant) |
+| HSLogin | `shared/hello-solar-login.js` | Shared login, forgot / set password |
+
+The backend must control (never trust the browser for these): password hashing, sessions/tokens, role permissions,
+ID generation, confirmation tokens, pricing, payment schedules, overdue status, installer visibility (§9), status
+changes, duplicate prevention, notifications, activity logs, email and file storage.
+
+Key business rules (the frontend follows the same rules in local mode):
+
+| Topic | Rule |
+|---|---|
+| Installment terms | 6, 36 or 72 months; ₱10,000 down payment for every term. Prices, terms, down payments and payment channels: `shared/hello-solar-business.js` |
+| Full Payment | One price, ₱500 reservation deposit |
+| Schedule | First bill one month after financing is approved; one bill per month |
+| Overdue | `settings.overdueThresholdDays` (5) days after the due date |
+| Receipts | Exact bill amounts. One receipt may pay several months ahead; overdue bills must be included |
+| Documents | Same list for Installment and Full Payment; financing and installation wait until every required document and the signed agreement are accepted |
+| Refunds | Reservation deposit: refunded if the customer does not proceed, deducted if they proceed. Site visit fee: deducted if they proceed, not refundable otherwise |
 
 - **Routes in code:** `shared/hello-solar-config.js` → `COMMAND_ROUTES`
 - **Super Admin command list in code:** `shared/hello-solar-store.js` → `ADMIN_COMMANDS`
@@ -48,7 +76,11 @@ In api mode, demo data is switched off everywhere and every record comes from th
 | POST | `/auth/password/set` | `{ token, password }` | `200`; invalid token → `400`/`410`; weak password → `422` |
 
 - On the shared login page, `role` is left out unless the user came from a specific portal (`customer`, `financer`, `installer`, `merchant`, `admin`). Without `role`, find the account by email, username or account ID across all account types.
-- The response's `account.role` decides which dashboard opens.
+- The response's `account.role` decides which dashboard opens: customer → `Hello_Solar_Customer/mysystem.html`,
+  financer → `Hello_Solar_Financer/dashboard.html`, installer → `Hello_Solar_Installer/myjob.html`,
+  merchant → `Hello_Solar_Merchant/dashboard.html`, super-admin / direct-engineer → `hello_solar_super_admin/index.html`.
+- Email links: new account `<site>/set-password.html?token=<token>&type=activate`, password reset
+  `<site>/set-password.html?token=<token>&type=reset`. After success the page opens `login.html?password=updated`.
 - Password rule (check again on the server): at least 8 characters, with at least one letter and one number.
 
 ## 4. Page load: `GET /bootstrap?role=<role>`
@@ -106,10 +138,16 @@ Each command body is `{ "command": "<name>", ...fields }`. Path values (`:appId`
 |---|---|---|---|
 | `profile.update` | PATCH `/me/profile` | All portals | `role`, `accountId`, `fields` `{ name, contact, phone, email, … }` |
 | `application.claim` | POST `/applications/claim` | Customer | `customerId`, `hsId`, `contact` (sent directly, waits for the answer) |
-| `receipt.submit` | POST `/applications/:appId/receipts` | Customer | `appId`, `customerId`, `submission` |
+| `receipt.submit` | POST `/applications/:appId/receipts` | Customer | `appId`, `customerId`, `submission` `{ fileName, channel, amount, date, reference, bills: [ { billId, period, dueDate, amount } ] }` |
 | `reimbursement.request` | POST `/applications/:appId/reimbursements` | Customer | `customerId`, `appId`, `request` `{ id, type, amount, … }` |
 | `document.upload` | POST `/applications/:appId/documents/:docId` | Customer | multipart: `file`, `appId`, `docId` |
-| `document.review` | PATCH `/applications/:appId/documents/:docId` | Financer | `appId`, `docId`, `status`, `note` |
+| `document.review` | PATCH `/applications/:appId/documents/:docId` | Financer, Super Admin | `appId`, `docId`, `status`, `note` |
+| `document.link` | PUT `/applications/:appId/documents/:docId/link` | Customer | `appId`, `docId`, `link` (Google Maps link of the site) |
+| `document.request` | POST `/applications/:appId/documents` | Super Admin | `appId`, `docId`, `name`, `note` (asks the customer for another document) |
+| `document.waive` | PATCH `/applications/:appId/documents/:docId/not-required` | Super Admin | `appId`, `docId`, `reason` (the customer sees the reason) |
+| `agreement.upload` | POST `/applications/:appId/agreement` | Customer | multipart: `file`, `appId` (the signed Installment / Full Payment Agreement) |
+| `agreement.review` | PATCH `/applications/:appId/agreement` | Super Admin | `appId`, `status` (`ACCEPTED` / `REUPLOAD_REQUIRED`), `note` |
+| `maintenance.respond` | POST `/maintenance/:jobId/response` | Installer | `jobId`, `decision` (`accept` / `decline`), `person` |
 | `support.create` | POST `/support/tickets` | Customer, Financer, Installer, Merchant | `ticket` (see Support ticket, §7) |
 | `notification.markRead` | POST `/notifications/read` | All portals | `{ ids: [...] }` or `{ all: true, role }` |
 | `financing.decision` | POST `/applications/:appId/financing-decision` | Financer | `appId`, `decision`, `stage`, `financingStatus`, `applicationStatus`, `financing` |
@@ -123,6 +161,12 @@ Each command body is `{ "command": "<name>", ...fields }`. Path values (`:appId`
 | `inquiry.submit` | POST `/public/inquiries` | Landing page (no token) | `inquiry` (customer or partner inquiry) |
 | (direct request) | GET `/public/inquiries/:inquiryId?token=…` | Confirmation page (no token) | Returns `{ inquiry }` for the confirmation link |
 | (direct request) | POST `/public/inquiries/:inquiryId/response` | Confirmation page (no token) | `token`, `decision` → `{ inquiry }` |
+| (direct request) | GET `/public/site-visits/:visitId?token=…` | Site visit "Continue?" page and Buy Now (no token) | Returns `{ visit }` (`id`, `customer`, `email`, `phone`, `package`, `packageId`, `location`, `address`, `continueResponse`); 403 when the token is invalid |
+| `siteVisit.respond` / (direct request) | POST `/public/site-visits/:visitId/response` | Site visit "Continue?" page (no token) | `token`, `decision` (`Yes` / `No`) |
+
+**Receipts:** `bills` lists every bill the receipt pays (one or more whole months; overdue bills always included);
+`amount` is their total. Reject a receipt when one of its bills already has a receipt waiting for verification.
+Verifying it marks each listed bill Paid.
 
 **Buy Now down payment:** when `inquiry.submit` carries `paymentProof.purpose = "Down Payment"` (landing page Buy Now), the backend creates the customer account and application right away (same rules as the `createAccount` command, linked to the inquiry; down payment `Pending Verification`) and emails the activation link to the customer. If the email already has an account, no account is created and the inquiry stays in Contact Inquiries for Super Admin.
 
@@ -145,7 +189,7 @@ Field names exactly as the frontend reads them. Examples come from the demo seed
 
 **Application** (`applications`), the main record that links every portal:
 `id` (APP-####), `hsId` (HS-#####), `customer`, `customerId`, `location`, `system`, `panels`, `inverter`,
-`stage`, `applicationStatus`, `paymentType` / `paymentPreference` (`Full Payment` / `Installment`), `paymentStatus`, `amount`, `monthly`, `nextDue`,
+`stage`, `applicationStatus`, `paymentType` / `paymentPreference` (`Full Payment` / `Installment`), `termMonths` (6 / 36 / 72), `paymentStatus`, `amount`, `monthly`, `nextDue`,
 `financer`, `financerId`, `fundingOwner`, `fundingOwnerId`, `financingStatus`, `financingDecision`,
 `installer`, `installerType` (`Partner Installer` / `Hello Solar Direct`), `assignedInstallerId`, `declinedInstallerIds`, `dispatchStatus`, `installationStatus`, `systemStatus`, `progress`,
 `uploadedReceipt`, `receiptUploadedAt`, `receiptBank`, `receiptReference`, `receiptAmount`, `receiptVerificationStatus`,
@@ -155,8 +199,8 @@ Stages: `Submitted` → `Payment Required` / `Financing Review` → `Missing Doc
 
 **Installation job** (`installations`): `id` (JOB-###), `appId`, `customer`, `location`, `system`, `installer`, `installerType`, `status`, `schedule`, `leadTech`, `notes`, `completedDate`, `delayReason`
 
-**Payment schedule** (`paymentSchedules`, keyed by APP ID): `{ appId, termMonths: 60, installments: [ { no, dueDate, amount, status, paidDate, paidAmount, reference, notes } ], history: [] }`.
-The backend owns schedules: 60 months, ₱10,000 down payment, due dates, overdue status. The browser never generates them in api mode.
+**Payment schedule** (`paymentSchedules`, keyed by APP ID): `{ appId, termMonths, installments: [ { no, dueDate, amount, status, paidDate, paidAmount, reference, notes } ], history: [] }`.
+The backend owns schedules: the application's term (6 / 36 / 72 months), ₱10,000 down payment, due dates, overdue status. The browser never generates them in api mode.
 
 **Support ticket** (`support`): `id` (SUP-###), `accountType`, `accountId`, `accountName`, `relatedId`, `hsId`, `topic`, `subject`, `concern`, `priority`, `status` (`Open` / `In Progress` / `Resolved`), `createdAt`, `assignedTo`, `notes`, `resolutionNote`, `resolvedBy`, `resolvedAt`, `messages[]`, `history[]`
 
@@ -167,8 +211,8 @@ The backend owns schedules: 60 months, ₱10,000 down payment, due dates, overdu
 **Settings** (`settings`): `companyName`, `timezone`, `currency`, `contactEmail`, `directInstallTeam`, `maxDirectProjects`, `directInstallConfirmation`, `overdueThresholdDays`, `installationDelayThresholdDays`, `docReviewEscalationHours`, `autoNotifyInstallers`
 
 **Documents** (`documents[APP ID].documents[]`): `{ id, name, optional, status, submitted, note, fileUrl }`
-- Document ids: `gov_id_front`, `gov_id_back` (optional), `proof_of_income`, `proof_of_billing`, `bank_statement`, `other_requested` (optional)
-- Statuses: `NOT_SUBMITTED`, `SUBMITTED`, `ACCEPTED`, `REUPLOAD_REQUIRED`
+- Document ids: `valid_id_1`, `valid_id_2`, `income_proof` (payslips or bank statement), `residence_proof`, `proof_of_billing`, `site_photos`, `site_map_link` (a link, not a file), `other_requested` (optional), plus the signed agreement
+- Statuses: `NOT_SUBMITTED`, `SUBMITTED`, `UNDER_REVIEW`, `ACCEPTED`, `REUPLOAD_REQUIRED`; Super Admin can also mark a document Not required (with a reason the customer sees)
 - Files go to object storage; return a secure `fileUrl`. Never base64.
 
 **Notification**: `{ id, sourceEventId, timestamp, readAt, recipientRole, recipientId, type, title, message, … }`. Always target `recipientRole` and `recipientId`, never broadcast private notifications.
@@ -201,6 +245,7 @@ Mirrors `isVisibleToInstaller()` in `shared/hello-solar-shared.js`. Enforce it o
 4. Otherwise the job is open to eligible installers once it is cleared for installation:
    - Full payment: paid / verified **and** stage is `Approved`, `Ready for Installation` or `Installation`
    - Installment: stage is `Approved`, `Ready for Installation` or `Installation`
+   - In both cases every required document and the signed agreement must be accepted
 
 ## 10. Super Admin & Direct Engineer commands
 
@@ -287,6 +332,34 @@ POST /admin/commands/<command>
 | `updateInquiryCustomerResponse` | Record the customer's response to an inquiry | `inquiryId`<br>`customerResponse`<br>`adminUser` (optional) |
 | `overrideInquiryCustomerResponse` | Admin override of the customer's inquiry response | `inquiryId`<br>`newStatus`<br>`reason` (optional)<br>`adminUser` (optional) |
 
+#### Funding, down payments, refunds & reimbursements
+
+| Command | What it does | `params` fields |
+|---|---|---|
+| `acceptHelloSolarFunding` | Hello Solar funds an installment itself (no financer); the first bill is due one month later | `appId`<br>`options` (optional) → `adminUser` |
+| `verifyDownPayment` | Verify the customer's down payment receipt (₱10,000 Installment / ₱500 Full Payment) | `appId`<br>`options` (optional) → `adminUser` |
+| `setClientDecision` | Record whether the client proceeds (decides if a deposit is refunded or deducted) | `kind` (`dp` = down payment / deposit, `sv` = site visit fee)<br>`id` (APP ID or site visit ID)<br>`decision` (`Proceeding` / `Not Proceeding`)<br>`options` (optional) → `adminUser` |
+| `refundClientPayment` | Refund a deposit (only when the client does not proceed) | `kind` (`dp` / `sv`)<br>`id`<br>`payload` → `amount`, `method`, `reference`, `notes`, `reimbursementId`<br>`options` (optional) → `adminUser` |
+| `resolveReimbursement` | Approve / decline a customer's refund request | `id`<br>`decision` (`Approved` / `Declined`)<br>`payload` → `method`, `reference`, `note` (reason required when declining)<br>`options` (optional) → `adminUser` |
+| `markFunderPaid` | Mark a funder's monthly payment as paid (Payables › Funders) | `funderId`<br>`month` (`YYYY-MM`)<br>`options` (optional) → `adminUser`, `reference` |
+| `undoFunderPaid` | Undo a funder payment marked by mistake | `funderId`<br>`month`<br>`options` (optional) → `adminUser` |
+
+#### Site visits
+
+| Command | What it does | `params` fields |
+|---|---|---|
+| `verifySiteVisitFee` | Verify the ₱1,000 site visit fee receipt | `visitId`<br>`options` (optional) → `adminUser`, `notes` |
+| `assignSiteVisit` | Assign who does the visit | `visitId`<br>`assignment` → `type` (`installer` / `engineer` / `other`), `refId`, or for `other`: `name`, `contact`, `phone`, `document` (ID / authorization file: `fileName`, `fileType`, `dataUrl` — move to file storage)<br>`options` (optional) → `adminUser` |
+| `updateSiteVisitStatus` | Move the visit along (Pending Visit → Visit Confirmed / Completed) | `visitId`<br>`status`<br>`options` (optional) → `notes`, `user`, `role` |
+| `sendSiteVisitContinueLink` | Email the client the "Continue?" link after the visit (backend creates the token and link) | `visitId`<br>`options` (optional) → `adminUser` |
+
+#### Maintenance
+
+| Command | What it does | `params` fields |
+|---|---|---|
+| `saveMaintenance` | Create / change a maintenance job: person, schedule, progress and notes. A new person must accept first | `jobId`<br>`input` → `personKey`, `date`, `time`, `status`, `notes`<br>`options` (optional) → `adminUser` |
+| `respondMaintenance` | Direct Engineer accepts / declines a maintenance request (installers use `maintenance.respond`, §6) | `jobId`<br>`decision`<br>`personName` |
+
 #### Settings
 
 | Command | What it does | `params` fields |
@@ -308,7 +381,23 @@ These features work in local mode, but they don't send anything to the backend y
 | Customer | Telemetry, savings, equipment, warranties | `Hello_Solar_Customer/data/*.json` (hidden in api mode); future `GET /systems/:hsId/telemetry`, `/savings`, `/equipment`, `/warranties` |
 | Landing page | "Leads" list | `Hello_Solar/js/index.js` (`hello_solar_leads`) |
 
-## 12. Known limitations
+## 12. Live telemetry (later, with the inverter integration)
+
+The Customer **My System › Live Telemetry** diagram needs, per system (`GET /systems/:hsId/telemetry`):
+
+| Field | Meaning |
+|---|---|
+| `solarKw` | Power from the panels (0 at night) |
+| `homeKw` | Power the home is using |
+| `batteryKw` | **+** charging, **−** discharging |
+| `batteryPercent` | Battery level |
+| `gridKw` | **+** exporting to the grid, **−** importing |
+| `lastUpdated` | When the inverter last reported (older than a few minutes = Offline) |
+
+Data path: inverter → Wi-Fi dongle / data logger → the inverter brand's cloud API → Hello Solar backend → portal.
+Savings, equipment and warranties: `GET /systems/:hsId/savings`, `/equipment`, `/warranties`.
+
+## 13. Known limitations
 
 - **Synchronous requests:** `/bootstrap`, `/auth/login`, `/auth/register` and `/applications/claim` use synchronous requests, so the page waits for them. Keep these endpoints fast. Moving to async is a later frontend change.
 - **Optimistic updates:** the frontend applies a change before the server answers. If you reject it, return an `error` message the user can understand; the page offers a Reload.

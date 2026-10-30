@@ -118,11 +118,11 @@
             // If no installer is assigned yet, route support to Hello Solar / Super Admin
             name = "Hello Solar Central Support";
             role = "Customer Care & Dispatch";
-            phone = "+63 2 8888 0100";
+            phone = window.HSBusiness.data.company.dispatchPhone;
             availability = "Open 24/7 · Tap Call now for immediate help.";
         }
 
-        const href = telephone(phone) || "mailto:support@hellosolarph.com";
+        const href = telephone(phone) || `mailto:${window.HSBusiness.data.company.supportEmail}`;
 
         setText("routingLeadName", name);
         setText("routingLeadRole", role);
@@ -138,7 +138,7 @@
             $("supportHotlineBtn").setAttribute("aria-label", telephone(phone) ? `Call ${name}` : "Email Hello Solar Support");
         }
         setText("routingLeadPhone", telephone(phone) ? "Call now" : "Email support");
-        setText("routingLeadNumber", phone || "support@hellosolarph.com");
+        setText("routingLeadNumber", phone || window.HSBusiness.data.company.supportEmail);
         setText("routingLeadAvatar", String(name).split(/[\s/]+/).filter(w => /^[A-Za-z]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join("") || "HS");
         setText("supportHotlineText", telephone(phone) ? `Call ${phone}` : "Email support");
 

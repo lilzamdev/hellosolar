@@ -1026,8 +1026,8 @@
             if (!pkg.support) pkg.support = {};
             pkg.support.leadTechnician = "Hello Solar Central Dispatch";
             pkg.support.leadRole = "Hello Solar Support / Super Admin";
-            pkg.support.leadPhone = "+63 2 8888 0100";
-            pkg.support.leadContact = "+63 2 8888 0100 (Central Dispatch)";
+            pkg.support.leadPhone = window.HSBusiness.data.company.dispatchPhone;
+            pkg.support.leadContact = `${window.HSBusiness.data.company.dispatchPhone} (Central Dispatch)`;
         }
 
         // 1. Dynamic payments calculations (for Installment)
@@ -1281,7 +1281,7 @@
             const company = isDirect ? "Hello Solar Installation" : ((partner && partner.name) || app.installer || "Partner Installer");
             const name = isDirect ? (app.assignedEngineer || lead || "Hello Solar Internal Team")
                 : (lead && !/team$/i.test(lead) ? lead : ((partner && partner.contact) || company));
-            const phone = (partner && partner.phone) || "+63 2 8888 0100";
+            const phone = (partner && partner.phone) || window.HSBusiness.data.company.dispatchPhone;
             const initials = name.replace(/^(Engr\.|Engr|Dr\.|Atty\.)\s+/i, "").split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "HS";
             pkg.assignedInstaller = {
                 name,

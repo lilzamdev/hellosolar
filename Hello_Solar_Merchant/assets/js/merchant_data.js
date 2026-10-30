@@ -317,7 +317,7 @@
     async function loadDataset() {
 
         // api mode / demo data off: no sample projects, payouts, crews or activity — the merchant profile comes from
-        // the signed-in MER-### account (merchant projects/payouts need their APIs, see BACKEND_INTEGRATION.md)
+        // the signed-in MER-### account (merchant projects/payouts need their APIs, see API_CONTRACT.md §11)
         if (window.HS_CONFIG && (window.HS_CONFIG.isApi || window.HS_CONFIG.demoData === false)) {
             cachedDataset = getBaselineDataset();
             ["companyName", "contactPerson", "email", "phone", "partnerTier", "commissionRate", "verificationStatus"]

@@ -8,14 +8,15 @@
     <!-- Brand Logo for Browser Tab -->
     <link rel="icon" type="image/png" href="assets/images/logofortab.png" />
     <link rel="apple-touch-icon" href="assets/images/logofortab.png" />
+    <script src="../shared/hello-solar-business.js?v=20261030a"></script>
     <script src="../shared/hello-solar-config.js"></script>
-    <script src="../shared/hello-solar-store.js?v=20261028d"></script>
+    <script src="../shared/hello-solar-store.js?v=20261030a"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap"
         rel="stylesheet">
 
-    <link rel="stylesheet" href="css/index.css?v=20261028e" />
+    <link rel="stylesheet" href="css/index.css?v=20261030a" />
     <link rel="stylesheet" href="css/utilities.css" />
 </head>
 
@@ -216,7 +217,7 @@
                     class="hero-stats grid grid-cols-3 gap-2 sm:gap-6 2xl:gap-8 pt-4 text-center max-w-[440px] sm:max-w-[480px] 2xl:max-w-[540px]">
                     <!-- Stat 1: Down Payment -->
                     <div class="flex flex-col items-center justify-center text-center select-none">
-                        <span id="badgeDpVal"
+                        <span id="badgeDpVal" data-biz="downPayment.installment|peso"
                             class="hero-stat-value inline-block font-black bg-gradient-to-r from-amber-500 via-amber-400 to-orange-500 bg-clip-text text-transparent tracking-tight text-xl sm:text-2xl md:text-3xl 2xl:text-4xl tabular-nums leading-none">
                             ₱10,000
                         </span>
@@ -358,11 +359,11 @@
                     class="lg:col-span-4 border-y lg:border-y-0 lg:border-x border-[#EFEBE4] py-6 lg:py-0 lg:px-10 2xl:px-14 space-y-3">
                     <div class="text-xs 2xl:text-sm font-bold text-stone-600">Pay as low as</div>
                     <div class="text-4xl sm:text-5xl 2xl:text-6xl font-black text-amber-600 tracking-tight">
-                        ₱7,284<span class="text-sm 2xl:text-lg font-bold text-stone-700">/month</span>
+                        <span data-biz-monthly="hs6-lite">₱7,284</span><span class="text-sm 2xl:text-lg font-bold text-stone-700">/month</span>
                     </div>
-                    <div class="text-xs 2xl:text-sm font-extrabold text-[#1C1917]">for 6 years, with 10k DP</div>
+                    <div class="text-xs 2xl:text-sm font-extrabold text-[#1C1917]">for 6 years, with <span data-biz="downPayment.installment|k">10k</span> DP</div>
                     <div class="text-xs 2xl:text-sm text-stone-600 font-semibold pt-1">Full payment: <span
-                            class="font-extrabold text-[#1C1917]">₱285,000</span></div>
+                            class="font-extrabold text-[#1C1917]" data-biz-price="hs6-lite">₱285,000</span></div>
                     <button data-product="hs6-lite" data-action="choose"
                         class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold py-3.5 2xl:py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition text-xs 2xl:text-sm mt-3 shadow-sm hover:shadow cursor-pointer">
                         Choose HS 6 Lite &rarr;
@@ -474,7 +475,7 @@
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
-                                        or <span class="font-extrabold text-[#1C1917]">₱285,000</span> full payment
+                                        or <span class="font-extrabold text-[#1C1917]" data-biz-price="hs6-lite">₱285,000</span> full payment
                                     </div>
                                 </div>
                             </div>
@@ -517,7 +518,7 @@
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
-                                        or <span class="font-extrabold text-[#1C1917]">₱340,000</span> full payment
+                                        or <span class="font-extrabold text-[#1C1917]" data-biz-price="hs6-pro">₱340,000</span> full payment
                                     </div>
                                 </div>
                             </div>
@@ -556,7 +557,7 @@
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
-                                        or <span class="font-extrabold text-[#1C1917]">₱390,000</span> full payment
+                                        or <span class="font-extrabold text-[#1C1917]" data-biz-price="hs6-max">₱390,000</span> full payment
                                     </div>
                                 </div>
                             </div>
@@ -595,7 +596,7 @@
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
-                                        or <span class="font-extrabold text-[#1C1917]">₱516,000</span> full payment
+                                        or <span class="font-extrabold text-[#1C1917]" data-biz-price="hs8-pro">₱516,000</span> full payment
                                     </div>
                                 </div>
                             </div>
@@ -633,7 +634,7 @@
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
-                                        or <span class="font-extrabold text-[#1C1917]">₱614,000</span> full payment
+                                        or <span class="font-extrabold text-[#1C1917]" data-biz-price="hs8-max">₱614,000</span> full payment
                                     </div>
                                 </div>
                             </div>
@@ -671,7 +672,7 @@
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
-                                        or <span class="font-extrabold text-[#1C1917]">₱572,000</span> full payment
+                                        or <span class="font-extrabold text-[#1C1917]" data-biz-price="hs12-pro">₱572,000</span> full payment
                                     </div>
                                 </div>
                             </div>
@@ -709,7 +710,7 @@
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
-                                        or <span class="font-extrabold text-[#1C1917]">₱720,000</span> full payment
+                                        or <span class="font-extrabold text-[#1C1917]" data-biz-price="hs12-max">₱720,000</span> full payment
                                     </div>
                                 </div>
                             </div>
@@ -747,7 +748,7 @@
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
-                                        or <span class="font-extrabold text-[#1C1917]">₱780,000</span> full payment
+                                        or <span class="font-extrabold text-[#1C1917]" data-biz-price="hs16-pro">₱780,000</span> full payment
                                     </div>
                                 </div>
                             </div>
@@ -785,7 +786,7 @@
                                     </div>
                                     <div
                                         class="text-[11px] sm:text-xs text-stone-500 font-semibold mt-2 pt-2 border-t border-stone-100">
-                                        or <span class="font-extrabold text-[#1C1917]">₱975,000</span> full payment
+                                        or <span class="font-extrabold text-[#1C1917]" data-biz-price="hs16-pro-max">₱975,000</span> full payment
                                     </div>
                                 </div>
                             </div>
@@ -1004,6 +1005,16 @@
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
         <div
             class="relative w-full max-w-xl bg-[#FCFAF8] rounded-[28px] 2xl:rounded-[36px] border border-[#E7E2D7] shadow-2xl p-4 sm:p-7 2xl:p-8 max-h-[92vh] overflow-y-auto no-scrollbar">
+            <!-- Back: previous question (on the first question it closes the wizard) -->
+            <button type="button" id="wizardBackBtn" onclick="wizardBack()" aria-label="Back to the page" title="Back"
+                class="absolute top-5 left-5 w-10 h-10 rounded-full bg-stone-100/90 hover:bg-amber-100 text-stone-700 flex items-center justify-center transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-amber-500/50 cursor-pointer z-10">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="w-5 h-5" aria-hidden="true">
+                    <path d="m12 19-7-7 7-7" />
+                    <path d="M19 12H5" />
+                </svg>
+            </button>
             <!-- Accessible Close Button -->
             <button onclick="closeModal('recommendationModal')" aria-label="Close recommendation wizard"
                 class="absolute top-5 right-5 w-10 h-10 rounded-full bg-stone-100/90 hover:bg-amber-100 text-stone-700 flex items-center justify-center transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-amber-500/50 cursor-pointer">
@@ -1070,7 +1081,7 @@
                     <h3 id="inquiryTitle" class="text-2xl 2xl:text-3xl font-black text-[#1C1917] tracking-tight">Reserve
                         Your System</h3>
                     <p class="text-xs 2xl:text-sm text-stone-500 font-semibold" id="inquiryDpNote">Reserve your system with a
-                        <strong class="text-[#1C1917]">₱500</strong> down payment (Full Payment) or <strong class="text-[#1C1917]">₱10,000</strong> (Installment).</p>
+                        <strong class="text-[#1C1917]" data-biz="downPayment.fullPayment|peso">₱500</strong> down payment (Full Payment) or <strong class="text-[#1C1917]" data-biz="downPayment.installment|peso">₱10,000</strong> (Installment).</p>
                 </div>
 
                 <form id="leadForm" onsubmit="handleLeadSubmit(event)" class="space-y-4" novalidate>
@@ -1102,7 +1113,7 @@
                                     data-value="hs6-lite">
                                     <div>
                                         <div class="hs-dd-opt-main">HS 6 LITE</div>
-                                        <div class="hs-dd-opt-sub">5kW | 6kW | 5kWh — ₱7,284/mo</div>
+                                        <div class="hs-dd-opt-sub"><span data-biz-specs="hs6-lite">5kW | 6kW | 5kWh</span> — <span data-biz-monthly="hs6-lite">₱7,284</span>/mo</div>
                                     </div>
                                     <span class="hs-dd-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                             stroke-linecap="round" stroke-linejoin="round">
@@ -1112,7 +1123,7 @@
                                 <button type="button" class="hs-dropdown-option" role="option" data-value="hs6-pro">
                                     <div>
                                         <div class="hs-dd-opt-main">HS 6 PRO</div>
-                                        <div class="hs-dd-opt-sub">6kW | 6kW | 10kWh — ₱8,689/mo</div>
+                                        <div class="hs-dd-opt-sub"><span data-biz-specs="hs6-pro">6kW | 6kW | 10kWh</span> — <span data-biz-monthly="hs6-pro">₱8,689</span>/mo</div>
                                     </div>
                                     <span class="hs-dd-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                             stroke-linecap="round" stroke-linejoin="round">
@@ -1122,7 +1133,7 @@
                                 <button type="button" class="hs-dropdown-option" role="option" data-value="hs6-max">
                                     <div>
                                         <div class="hs-dd-opt-main">HS 6 MAX</div>
-                                        <div class="hs-dd-opt-sub">6kW | 6kW | 16kWh — ₱9,967/mo</div>
+                                        <div class="hs-dd-opt-sub"><span data-biz-specs="hs6-max">6kW | 6kW | 16kWh</span> — <span data-biz-monthly="hs6-max">₱9,967</span>/mo</div>
                                     </div>
                                     <span class="hs-dd-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                             stroke-linecap="round" stroke-linejoin="round">
@@ -1132,7 +1143,7 @@
                                 <button type="button" class="hs-dropdown-option" role="option" data-value="hs8-pro">
                                     <div>
                                         <div class="hs-dd-opt-main">HS 8 PRO</div>
-                                        <div class="hs-dd-opt-sub">9kW | 8kW | 16kWh — ₱13,187/mo</div>
+                                        <div class="hs-dd-opt-sub"><span data-biz-specs="hs8-pro">9kW | 8kW | 16kWh</span> — <span data-biz-monthly="hs8-pro">₱13,187</span>/mo</div>
                                     </div>
                                     <span class="hs-dd-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                             stroke-linecap="round" stroke-linejoin="round">
@@ -1142,7 +1153,7 @@
                                 <button type="button" class="hs-dropdown-option" role="option" data-value="hs8-max">
                                     <div>
                                         <div class="hs-dd-opt-main">HS 8 MAX</div>
-                                        <div class="hs-dd-opt-sub">9kW | 8kW | 32kWh — ₱15,692/mo</div>
+                                        <div class="hs-dd-opt-sub"><span data-biz-specs="hs8-max">9kW | 8kW | 32kWh</span> — <span data-biz-monthly="hs8-max">₱15,692</span>/mo</div>
                                     </div>
                                     <span class="hs-dd-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                             stroke-linecap="round" stroke-linejoin="round">
@@ -1152,7 +1163,7 @@
                                 <button type="button" class="hs-dropdown-option" role="option" data-value="hs12-pro">
                                     <div>
                                         <div class="hs-dd-opt-main">HS 12 PRO</div>
-                                        <div class="hs-dd-opt-sub">12kW | 12kW | 16kWh — ₱15,572/mo</div>
+                                        <div class="hs-dd-opt-sub"><span data-biz-specs="hs12-pro">12kW | 12kW | 16kWh</span> — <span data-biz-monthly="hs12-pro">₱15,572</span>/mo</div>
                                     </div>
                                     <span class="hs-dd-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                             stroke-linecap="round" stroke-linejoin="round">
@@ -1162,7 +1173,7 @@
                                 <button type="button" class="hs-dropdown-option" role="option" data-value="hs12-max">
                                     <div>
                                         <div class="hs-dd-opt-main">HS 12 MAX</div>
-                                        <div class="hs-dd-opt-sub">12kW | 12kW | 32kWh — ₱19,600/mo</div>
+                                        <div class="hs-dd-opt-sub"><span data-biz-specs="hs12-max">12kW | 12kW | 32kWh</span> — <span data-biz-monthly="hs12-max">₱19,600</span>/mo</div>
                                     </div>
                                     <span class="hs-dd-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                             stroke-linecap="round" stroke-linejoin="round">
@@ -1172,7 +1183,7 @@
                                 <button type="button" class="hs-dropdown-option" role="option" data-value="hs16-pro">
                                     <div>
                                         <div class="hs-dd-opt-main">HS 16 PRO</div>
-                                        <div class="hs-dd-opt-sub">15kW | 16kW | 16kWh — ₱21,234/mo</div>
+                                        <div class="hs-dd-opt-sub"><span data-biz-specs="hs16-pro">15kW | 16kW | 16kWh</span> — <span data-biz-monthly="hs16-pro">₱21,234</span>/mo</div>
                                     </div>
                                     <span class="hs-dd-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                             stroke-linecap="round" stroke-linejoin="round">
@@ -1182,7 +1193,7 @@
                                 <button type="button" class="hs-dropdown-option" role="option" data-value="hs16-pro-max">
                                     <div>
                                         <div class="hs-dd-opt-main">HS 16 PRO MAX</div>
-                                        <div class="hs-dd-opt-sub">19kW | 24kW | 32kWh — ₱26,542/mo</div>
+                                        <div class="hs-dd-opt-sub"><span data-biz-specs="hs16-pro-max">19kW | 24kW | 32kWh</span> — <span data-biz-monthly="hs16-pro-max">₱26,542</span>/mo</div>
                                     </div>
                                     <span class="hs-dd-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                             stroke-linecap="round" stroke-linejoin="round">
@@ -1207,7 +1218,7 @@
                                     <span class="pay-option-dot" aria-hidden="true"></span>
                                 </span>
                                 <span class="pay-option-price" data-pay-price="full">₱285,000</span>
-                                <span class="pay-option-sub">One-time · <strong>₱500 down payment</strong></span>
+                                <span class="pay-option-sub">One-time · <strong><span data-biz="downPayment.fullPayment|peso">₱500</span> down payment</strong></span>
                             </button>
                             <button type="button" role="radio" aria-checked="false" data-payment="Installment"
                                 class="pay-option">
@@ -1217,7 +1228,7 @@
                                 </span>
                                 <span class="pay-option-price"
                                     data-pay-price="installment">₱7,284<small>/mo</small></span>
-                                <span class="pay-option-sub"><span data-pay-term>6 yrs</span> · <strong>₱10k down payment</strong></span>
+                                <span class="pay-option-sub"><span data-pay-term>6 yrs</span> · <strong><span data-biz="downPayment.installment|pesoShort">₱10k</span> down payment</strong></span>
                             </button>
                         </div>
                     </div>
@@ -1621,7 +1632,7 @@
 
     <!-- JAVASCRIPT LOGIC ENGINE -->
     <script src="js/icons.js"></script>
-    <script src="js/index.js?v=20261028e"></script>
+    <script src="js/index.js?v=20261030c"></script>
 </body>
 
 </html>

@@ -28,6 +28,21 @@ All data is saved in your browser, so each browser has its own copy. To start fr
 **Settings** → **Developer / Demo Tools** → **Reset Demo Data** (it clears everything saved in this browser and loads
 clean sample data). For a step-by-step demo, see `DEMO_GUIDE.md`.
 
+## Change prices, payment channels and contacts
+
+Hello Solar's packages, prices, down payments, payment channels and main contacts live in **one file**: `shared/hello-solar-business.js`.
+
+| What | Where in the file |
+|---|---|
+| Package names, Full Payment prices, specs (panels, inverter, battery) | `packages` |
+| Monthly payment per term (6 months, 3 years, 6 years) | `packages` → `terms` |
+| Down payments (₱10,000 Installment, ₱500 Full Payment) and the ₱1,000 site visit fee | `downPayment`, `siteVisitFee` |
+| GCash / Maya / bank account customers pay to | `paymentChannels` |
+| Website, support email, hotline, Central Dispatch number, office hours | `company` |
+
+Edit the value, save, refresh the page. The public website, every portal and the Terms & Conditions follow it.
+Amounts are plain numbers (`285000`, not `"₱285,000"`). Bills that already exist keep their amounts.
+
 ## Test logins
 
 These only work in demo mode (the default). The login page also shows a quick demo account for each portal.
@@ -46,7 +61,7 @@ These only work in demo mode (the default). The login page also shows a quick de
 
 1. The customer picks a package on the public website and clicks **Buy Now**. They choose **Installment** or **Full Payment**.
    Installment has three terms: **6 months, 3 years or 6 years** (6 years is the default). The monthly price of every
-   package and term is in one list, `PACKAGE_CATALOG` in `shared/hello-solar-store.js` (HS Pricing 2026).
+   package and term is in one list, `packages` in `shared/hello-solar-business.js` (HS Pricing 2026).
 2. They pay the down payment (**₱10,000 Installment, ₱500 Full Payment**) and upload a photo of the receipt. An email address is required.
 3. When the receipt is uploaded, their customer account is **created automatically** and an activation link is queued for their email.
 4. The customer opens the link, sets a password, and logs in to the Customer portal.
@@ -90,6 +105,10 @@ price when they proceed. The ₱1,000 site visit fee is deducted when they proce
 The first installment is due one month after the financing is approved. Sample accounts move with the calendar, so
 the demo always shows bills that are paid, due soon and overdue.
 
+**Paying a bill:** in My Payments, **Submit Payment** opens one card: the bill, where to send it (GCash, Maya or Bank),
+the receipt and the reference no. The amount is always the exact bill. **− 1 month +** pays months ahead in one receipt;
+overdue bills are always included. When Super Admin verifies the receipt, every bill it covers becomes Paid.
+
 Customers can also send an inquiry or request a proposal instead of buying right away. Super Admin then follows up
 and creates their account.
 
@@ -104,9 +123,9 @@ and creates their account.
   and shows the history. If the person is changed, the new person must accept or decline first.
 - **Payments**: Total Revenue, Financer Funded, Financing Revenue and Financer Revenue. Customers get payment reminders
   7 days before, 1 day before and on the due date.
-- **Accounting** (tabs): Overview (revenue channels: Solar Financing Review, Solar Kit Revenue, Solar Installation
-  Revenue), Payments Received (every payment, verify here), Funder Schedule, Customer Schedule (filter by funder, with the
-  total monthly fixed), Refunds & Reimbursements, Costs & Systems. The **Accounting** login only sees this page.
+- **Accounting** (tabs): **Overview** (Receivables, Payables and To Check for the month you pick), **Receivables**
+  (Payments Received — verify here, Monthly Payments, From Funders), **Payables** (Funders, Refunds, Installation Costs)
+  and **System Control**. The **Accounting** login only sees this page.
 - **Support**: clicking a related ID opens the record beside the ticket list. Leaving Support closes it.
 - The **Direct Engineer** login sees Applications, Site Visits, Installations and Maintenance.
 
@@ -121,9 +140,8 @@ and creates their account.
 
 Read these in order:
 
-1. `BACKEND_INTEGRATION.md`: what the backend must handle and the business rules
-2. `API_CONTRACT.md`: every endpoint, its fields and the record shapes
-3. `shared/`: the only frontend folder you need to read to connect the backend
+1. `API_CONTRACT.md`: what the backend owns, the business rules, every endpoint, its fields and the record shapes
+2. `shared/`: the only frontend folder you need to read to connect the backend
 
 The app has two modes, set in `shared/hello-solar-config.js`:
 
@@ -137,8 +155,8 @@ The app has two modes, set in `shared/hello-solar-config.js`:
 ```
 Hello Solar/
 ├── README.md                 ← this file
-├── BACKEND_INTEGRATION.md    ← backend guide
-├── API_CONTRACT.md           ← endpoints and data shapes
+├── DEMO_GUIDE.md             ← step-by-step demo
+├── API_CONTRACT.md           ← backend guide: rules, endpoints and data shapes
 ├── index.html                → opens the public website
 ├── login.html                one login page for every portal
 ├── forgot-password.html      ask for a password reset link
@@ -155,7 +173,7 @@ Hello Solar/
 Good to know:
 
 - Pages read and save data **only** through `shared/`.
-- Every portal page loads `shared/hello-solar-config.js`, then `hello-solar-store.js`, then `hello-solar-shared.js`, in that order.
+- Every portal page loads `shared/hello-solar-business.js`, then `hello-solar-config.js`, then `hello-solar-store.js`, then `hello-solar-shared.js`, in that order.
 - Very small `.html` files (under about 1 KB) only redirect to the new page, so old links still work.
 - `data/` folders hold demo data only. They are ignored in `api` mode.
 

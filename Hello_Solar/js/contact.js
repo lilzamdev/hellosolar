@@ -101,14 +101,16 @@ const INQUIRY_COPY = {
 };
 
 // Left-side contact cards follow the Inquiry Type (Customer / Partner)
+// Phone numbers, emails and hours come from shared/hello-solar-business.js
+const HS_COMPANY = window.HSBusiness.data.company;
 const CONTACT_DETAILS = {
     customer: {
         callLabel: 'Call Our Solar Specialists',
-        callValue: '(02) 8888-SOLAR / +63 917 123 4567',
-        callHref: 'tel:+63288887652',
-        callNote: 'Monday to Saturday: 8:00 AM – 6:00 PM',
+        callValue: HS_COMPANY.hotline,
+        callHref: window.HSBusiness.telHref(HS_COMPANY.hotlineTel),
+        callNote: HS_COMPANY.hotlineHours,
         emailLabel: 'Direct Email Inquiries',
-        emailValue: 'hello@hellosolar.ph',
+        emailValue: HS_COMPANY.inquiryEmail,
         emailNote: 'We respond to all requests within 24 business hours',
         areaLabel: 'Headquarters & Service Areas',
         areaValue: 'Metro Manila & Nationwide Philippines',
@@ -117,18 +119,18 @@ const CONTACT_DETAILS = {
     // Replace with the partnerships team's own number / email when available
     partner: {
         callLabel: 'Call Our Partnerships Team',
-        callValue: '(02) 8888-SOLAR / +63 917 123 4567',
-        callHref: 'tel:+63288887652',
-        callNote: 'Monday to Friday: 9:00 AM – 5:00 PM',
+        callValue: HS_COMPANY.hotline,
+        callHref: window.HSBusiness.telHref(HS_COMPANY.hotlineTel),
+        callNote: HS_COMPANY.partnerHours,
         emailLabel: 'Partnership Inquiries',
-        emailValue: 'partners@hellosolar.ph',
+        emailValue: HS_COMPANY.partnerEmail,
         emailNote: 'Proposals are reviewed within 2–3 business days',
         areaLabel: 'Partnership Programs',
         areaValue: 'Financers, Installers & Merchants',
         areaNote: 'Join our nationwide Hello Solar partner network'
     }
 };
-let renderedContactGroup = 'customer';
+let renderedContactGroup = '';
 
 function renderContactDetails(group) {
     if (group === renderedContactGroup) return;
@@ -817,22 +819,21 @@ function renderWizard() {
             </div>
         `;
     } else if (wizardState.step === 4) {
-        let pkgName = 'HS 6 PRO';
-        let pkgDesc = '6kW Solar | 6kW Inverter | 10kWh Storage';
-        let pkgMonthly = '₱8,689';
+        // Name, specs and monthly price from shared/hello-solar-business.js
+        let pkgId = 'hs6-pro';
         let pkgSavings = '₱5,500 – ₱8,400';
 
         if (wizardState.bill === '₱12,000+' || wizardState.bill === '₱8,000–₱12,000') {
-            pkgName = 'HS 8 PRO';
-            pkgDesc = '9kW Solar | 8kW Inverter | 16kWh Storage';
-            pkgMonthly = '₱13,187';
+            pkgId = 'hs8-pro';
             pkgSavings = '₱10,500 – ₱16,000';
         } else if (wizardState.bill === '₱3,000–₱5,000') {
-            pkgName = 'HS 6 LITE';
-            pkgDesc = '5kW Solar | 6kW Inverter | 5kWh Storage';
-            pkgMonthly = '₱7,284';
+            pkgId = 'hs6-lite';
             pkgSavings = '₱4,200 – ₱6,800';
         }
+        const recPkg = window.HSBusiness.pkg(pkgId);
+        const pkgName = recPkg.name;
+        const pkgDesc = `${recPkg.panels} Solar | ${recPkg.inverter} Inverter | ${recPkg.battery} Storage`;
+        const pkgMonthly = window.HSBusiness.peso(recPkg.terms[window.HSBusiness.data.defaultTerm]);
 
         container.innerHTML = `
             <div class="space-y-6 text-center">

@@ -9,8 +9,9 @@
     <title>Hello Solar — My Payments</title>
 
     <!-- Immediate Authentication Guard -->
+    <script src="../shared/hello-solar-business.js?v=20261030a"></script>
     <script src="../shared/hello-solar-config.js"></script>
-    <script src="../shared/hello-solar-store.js?v=20261028d"></script>
+    <script src="../shared/hello-solar-store.js?v=20261030a"></script>
     <script src="../shared/hello-solar-shared.js?v=20261028d"></script>
     <script src="js/page-guard.js"></script>
 
@@ -24,7 +25,7 @@
     <link rel="icon" type="image/png" href="assets/images/logofortab.png">
 
     <!-- Design System CSS -->
-    <link rel="stylesheet" href="css/dashboard-theme.css">
+    <link rel="stylesheet" href="css/dashboard-theme.css?v=20261030c">
 
     <link rel="stylesheet" href="css/payments-page.css">
 
@@ -314,16 +315,16 @@
                                     <div class="payment-method-box" id="channelGcashMaya">
                                         <div class="method-row-main">
                                             <span class="method-tag">GCash / Maya</span>
-                                            <span class="method-sub">Hello Solar Official</span>
+                                            <span class="method-sub" data-biz="paymentChannels.0.accountName">Hello Solar Official</span>
                                         </div>
-                                        <span class="method-detail">+63 917 000 1111</span>
+                                        <span class="method-detail" data-biz="paymentChannels.0.number">0917 000 1111</span>
                                     </div>
                                     <div class="payment-method-box" id="channelBdo">
                                         <div class="method-row-main">
-                                            <span class="method-tag">BDO Bank Transfer</span>
-                                            <span class="method-sub">Hello Solar Inc.</span>
+                                            <span class="method-tag" data-biz="paymentChannels.2.channel">BDO Bank Transfer</span>
+                                            <span class="method-sub" data-biz="paymentChannels.2.accountName">Hello Solar Inc.</span>
                                         </div>
-                                        <span class="method-detail">0082-1234-5678</span>
+                                        <span class="method-detail" data-biz="paymentChannels.2.number">0082-1234-5678</span>
                                     </div>
                                 </div>
 
@@ -366,8 +367,8 @@
 
             <!-- FOOTER -->
             <footer class="portal-footer">
-                <span>© 2026 Hello Solar Inc.</span>
-                <span>hellosolarph.com · support@hellosolarph.com</span>
+                <span>© 2026 <span data-biz="company.name">Hello Solar Inc.</span></span>
+                <span><span data-biz="company.website">hellosolarph.com</span> · <span data-biz="company.supportEmail">support@hellosolarph.com</span></span>
             </footer>
         </main>
     </div>
@@ -512,9 +513,9 @@
                     <div class="pp-how">
                         <p class="pp-how-title">Not paid yet? Send it here</p>
                         <div class="pp-chips" role="radiogroup" aria-label="Payment channel">
-                            <button type="button" class="pp-chip is-on" role="radio" aria-checked="true" data-channel="GCash" data-name="GCash · Hello Solar Official" data-number="0917 000 1111">GCash</button>
-                            <button type="button" class="pp-chip" role="radio" aria-checked="false" data-channel="Maya" data-name="Maya · Hello Solar Official" data-number="0917 000 1111">Maya</button>
-                            <button type="button" class="pp-chip" role="radio" aria-checked="false" data-channel="BDO Bank Transfer" data-name="BDO · Hello Solar Inc." data-number="0082-1234-5678">Bank</button>
+                            <button type="button" class="pp-chip is-on" role="radio" aria-checked="true" data-pay-id="gcash" data-channel="GCash" data-name="GCash · Hello Solar Official" data-number="0917 000 1111">GCash</button>
+                            <button type="button" class="pp-chip" role="radio" aria-checked="false" data-pay-id="maya" data-channel="Maya" data-name="Maya · Hello Solar Official" data-number="0917 000 1111">Maya</button>
+                            <button type="button" class="pp-chip" role="radio" aria-checked="false" data-pay-id="bank" data-channel="BDO Bank Transfer" data-name="BDO · Hello Solar Inc." data-number="0082-1234-5678">Bank</button>
                         </div>
                         <div class="pp-acct">
                             <div class="pp-acct-text">
@@ -616,12 +617,12 @@
     </nav>
 
     <!-- Shared Data Loader -->
-    <script src="js/data-loader.js"></script>
+    <script src="js/data-loader.js?v=20261030b"></script>
 
     <!-- Core Portal JavaScript -->
-    <script src="js/portal.js"></script>
+    <script src="js/portal.js?v=20261030b"></script>
 
-    <script src="js/payments.js?v=20261029b"></script>
+    <script src="js/payments.js?v=20261030a"></script>
     <script src="js/notifications.js"></script>
 
     <script src="js/payment-dialogs.js"></script>

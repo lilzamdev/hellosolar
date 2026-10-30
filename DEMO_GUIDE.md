@@ -37,7 +37,7 @@ payment. Every step below was run end to end on Oct 28, 2026 (desktop and phone)
 ### 2. Super Admin — check the down payment
 - **Applications** → the new application (Financing Review). **Details** shows the lifecycle, the term
   (*3 years · 36 payments*) and the monthly.
-- **Accounting → Money In** (or Payments to Check): verify the ₱10,000 down payment.
+- **Accounting → Receivables** (or Payments to Check): verify the ₱10,000 down payment.
 - Talking point: nothing moves forward until the documents are complete (Lifecycle step 3 shows "!").
 
 ### 3. Customer — activate and upload documents
@@ -69,10 +69,11 @@ payment. Every step below was run end to end on Oct 28, 2026 (desktop and phone)
 - **My Payments**: Payment Plan *3 Years*, *0 of 36*, first bill **one month after the approval**.
   The Down Payment card now says *Deducted from your system price* (no refund button).
 - **Install Status / Support** show the real installer (SolarTech Installer, Alex Rivera).
-- Upload a receipt for the first bill.
+- **Submit Payment**: pick GCash / Maya / Bank (Copy the number), add the receipt and the reference no.
+  Show **− 1 month +** to pay ahead (the amount updates), then **Receipt sent!** with status *Under review*.
 
 ### 9. Super Admin / Accounting — verify and report
-- Verify the receipt (Payments / Accounting). **Accounting → Overview / Money In** lists the down payment and the
+- Verify the receipt (Payments / Accounting). **Accounting → Overview / Receivables** lists the down payment and the
   first installment; Funder Schedule and Customer Schedule follow.
 - **Financer → Approved**: the loan shows *On Time*; the cards (total, monthly inflow, next billing, on-time %) are
   computed from the real loans.
@@ -95,6 +96,7 @@ payment. Every step below was run end to end on Oct 28, 2026 (desktop and phone)
 | Documents | Same list for Installment and Full Payment; financing and installation wait for complete documents |
 | Refunds | Deposit: refunded if not proceeding, deducted if proceeding. Site visit fee: deducted if proceeding, not refundable otherwise |
 | Overdue | 5 days after the due date (Settings) — same in every portal |
+| Paying bills | Exact bill amount; pay months ahead in one receipt; overdue bills are always included |
 
 ## What is still a prototype (needs the backend)
 

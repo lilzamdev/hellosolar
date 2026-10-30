@@ -15,7 +15,7 @@
  *             → hello_solar_super_admin/js/auth.js → shared/hello-solar-login.js
  *
  * api mode: POST /auth/login { identifier, password, role? } with no role (or the ?portal= hint) and the backend
- * answers with { token, account: { role, ... } }. See BACKEND_INTEGRATION.md §6.
+ * answers with { token, account: { role, ... } }. See API_CONTRACT.md §3.
  */
 (function (window) {
     "use strict";
@@ -174,7 +174,7 @@
 
     // ------------------------------------------------------------------
     // Passwords: forgot-password.html and set-password.html
-    // api mode (see BACKEND_INTEGRATION.md §6):
+    // api mode (see API_CONTRACT.md §3):
     //   POST /auth/password/forgot { identifier }            → 200 always (never reveals whether the account exists)
     //   GET  /auth/password/token?token=…                    → { purpose: "activate" | "reset", email }
     //   POST /auth/password/set    { token, password }       → 200 on success; 400/410 when the link is invalid/expired

@@ -255,4 +255,8 @@
   }
   .filter-tabs::-webkit-scrollbar { display: none; }
   .filter-tabs .chip-btn { flex: 0 0 auto; }
+  /* Accounting tabs stay on one line and scroll sideways */
+  .acc-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 0; }
+  .acc-tabs::-webkit-scrollbar { display: none; }
+  .acc-tab { flex: 0 0 auto; white-space: nowrap; padding: 10px 12px; }
 }

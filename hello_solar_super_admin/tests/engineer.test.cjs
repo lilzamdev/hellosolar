@@ -19,6 +19,7 @@ function environment() {
   };
   context.window = context;
   vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(root, '../shared/hello-solar-business.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, '../shared/hello-solar-store.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'js/auth.js'), 'utf8'), context);
   return context;
