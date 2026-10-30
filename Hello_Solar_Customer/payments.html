@@ -552,7 +552,7 @@
 
                     <div class="pp-field">
                         <label class="pp-label" for="proofRefInput">Reference no. <span class="pp-req">*</span></label>
-                        <input type="text" id="proofRefInput" class="pp-input" placeholder="From your GCash / bank receipt" autocomplete="off" required>
+                        <input type="text" id="proofRefInput" class="pp-input" placeholder="From your GCash / bank receipt" autocomplete="off" inputmode="numeric" pattern="[0-9 ]*" maxlength="30" required>
                     </div>
 
                     <div class="pp-months" id="ppMonthsRow">
@@ -622,7 +622,7 @@
     <!-- Core Portal JavaScript -->
     <script src="js/portal.js?v=20261030b"></script>
 
-    <script src="js/payments.js?v=20261030a"></script>
+    <script src="js/payments.js?v=20261030b"></script>
     <script src="js/notifications.js"></script>
 
     <script src="js/payment-dialogs.js"></script>

@@ -412,6 +412,13 @@
                     if (monthsCount < billPlan.length) { monthsCount++; renderProofBill(); }
                 });
             }
+            // Reference no.: numbers only (spaces allowed, as printed on GCash / bank receipts)
+            if (proofRefInput) {
+                proofRefInput.addEventListener("input", () => {
+                    const clean = proofRefInput.value.replace(/[^\d ]/g, "").replace(/ {2,}/g, " ").replace(/^ /, "");
+                    if (clean !== proofRefInput.value) proofRefInput.value = clean;
+                });
+            }
             [proofRefInput].forEach(el => {
                 if (el) {
                     el.addEventListener("input", updateProofFormState);
